@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 dpi_memory={git = "https://github.com/shady831213/dpi_memory"}
+bitfield="0.13.2"
