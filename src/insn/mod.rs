@@ -1,6 +1,4 @@
-extern crate bitfield;
-
-pub mod macors;
+pub mod macros;
 
 pub trait Format {
     fn ir(&self) -> u32 {

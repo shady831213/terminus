@@ -1,5 +1,5 @@
 [package]
-name = "terminus"
+name = "terminus-macros"
 version = "0.1.0"
 authors = ["shady831213 <shady831213@126.com>"]
 edition = "2018"
@@ -7,6 +7,4 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dpi_memory={git = "https://github.com/shady831213/dpi_memory"}
-terminus-macros={ path = "macros" }
-terminus-proc-macros={ path = "proc_macros" }
+bitfield="0.13.2"

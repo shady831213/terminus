@@ -1,5 +1,3 @@
-use bitfield::*;
-
 #[macro_export(local_inner_macros)]
 macro_rules! instruction {
     ($name:ident; $format:tt; $code:expr; $($rest:tt)*) => {
