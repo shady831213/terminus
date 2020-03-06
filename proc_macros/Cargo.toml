@@ -14,6 +14,7 @@ proc-macro = true
 quote = "1.0"
 proc-macro2 = "1.0"
 lazy_static = "1.4"
+regex = "1"
 
 [dependencies.syn]
 features = ["extra-traits", "full"]
