@@ -1,23 +1,3 @@
-pub fn insn_format_type() -> Vec<&'static str> {
-    vec![
-        "USER_DEFINE",
-        "R",
-        "I",
-        "S",
-        "B",
-        "U",
-        "J",
-        "CR",
-        "CIW",
-        "CI",
-        "CSS",
-        "CL",
-        "CS",
-        "CB",
-        "CJ",
-    ]
-}
-
 #[macro_export]
 macro_rules! insn_format {
     //user defined

@@ -3,13 +3,31 @@ extern crate proc_macro2;
 #[macro_use]
 extern crate quote;
 extern crate syn;
-extern crate terminus_base;
 
 use proc_macro::TokenStream;
 use syn::{DeriveInput, DataStruct, Ident};
 use proc_macro2::Span;
-use terminus_base::*;
-use terminus_base::insn::macros::insn_format_type;
+
+fn insn_format_type() -> Vec<&'static str> {
+    vec![
+        "USER_DEFINE",
+        "R",
+        "I",
+        "S",
+        "B",
+        "U",
+        "J",
+        "CR",
+        "CIW",
+        "CI",
+        "CSS",
+        "CL",
+        "CS",
+        "CB",
+        "CJ",
+    ]
+}
+
 
 #[proc_macro_derive(InsnCoding, attributes(code, mask, format))]
 pub fn insn_coding(input: TokenStream) -> TokenStream {
@@ -20,6 +38,7 @@ pub fn insn_coding(input: TokenStream) -> TokenStream {
         Err(e) => e.to_compile_error().into()
     }
 }
+
 
 fn insn_codeing_transform(ast: &DeriveInput, name:&Ident) -> Result<proc_macro2::TokenStream, syn::parse::Error> {
     if let syn::Data::Struct(data) = &ast.data {

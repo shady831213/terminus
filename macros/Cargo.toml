@@ -1,5 +1,5 @@
 [package]
-name = "terminus-base"
+name = "terminus-macros"
 version = "0.1.0"
 authors = ["shady831213 <shady831213@126.com>"]
 edition = "2018"

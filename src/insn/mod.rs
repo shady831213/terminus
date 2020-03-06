@@ -1,5 +1,3 @@
-pub mod macros;
-
 pub trait Format {
     fn rs1(&self) -> u32 {
         0
@@ -21,3 +19,8 @@ pub trait Format {
     }
 }
 
+pub trait InsnCoding {
+    fn ir(&self) -> u32;
+    fn code(&self) -> u32;
+    fn mask(&self) -> u32;
+}

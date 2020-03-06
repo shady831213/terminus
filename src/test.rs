@@ -1,5 +1,6 @@
-use terminus_base::*;
+use terminus_macros::*;
 use terminus_proc_macros::InsnCoding;
+use super::insn::{InsnCoding, Format};
 #[derive(InsnCoding)]
 #[format(B)]
 #[code(0b11_1111)]
