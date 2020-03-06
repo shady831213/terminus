@@ -1,9 +1,6 @@
 pub mod macros;
 
 pub trait Format {
-    fn ir(&self) -> u32 {
-        0
-    }
     fn rs1(&self) -> u32 {
         0
     }
