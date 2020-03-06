@@ -3,29 +3,31 @@ extern crate proc_macro2;
 #[macro_use]
 extern crate quote;
 extern crate syn;
+#[macro_use]
+extern crate lazy_static;
 
 use proc_macro::TokenStream;
 use syn::{DeriveInput, DataStruct, Ident};
 use proc_macro2::Span;
 
-fn insn_format_type() -> Vec<&'static str> {
-    vec![
-        "USER_DEFINE",
-        "R",
-        "I",
-        "S",
-        "B",
-        "U",
-        "J",
-        "CR",
-        "CIW",
-        "CI",
-        "CSS",
-        "CL",
-        "CS",
-        "CB",
-        "CJ",
-    ]
+lazy_static! {
+static ref VALID_FORMAT_TYPE:Vec<&'static str> = vec![
+    "USER_DEFINE",
+    "R",
+    "I",
+    "S",
+    "B",
+    "U",
+    "J",
+    "CR",
+    "CIW",
+    "CI",
+    "CSS",
+    "CL",
+    "CS",
+    "CB",
+    "CJ",
+];
 }
 
 
@@ -98,10 +100,10 @@ fn parse_int_attr(ast: &DeriveInput, name: &str) -> Result<u32, syn::parse::Erro
 fn parse_format_attr(ast: &DeriveInput) -> Result<Ident, syn::parse::Error> {
     if let syn::NestedMeta::Meta(syn::Meta::Path(ref path)) = parse_attr(ast, "format")? {
         if let Some(ident) = path.get_ident() {
-            if insn_format_type().contains(&&format!("{}", ident)[..])  {
+            if VALID_FORMAT_TYPE.contains(&&format!("{}", ident)[..])  {
                 Ok(ident.clone())
             } else {
-                Err(syn::parse::Error::new(Span::call_site(), format!("invalid \"{}\" value \"{}\", valid values are {:?}", "format", ident, insn_format_type())))
+                Err(syn::parse::Error::new(Span::call_site(), format!("invalid \"{}\" value \"{}\", valid values are {:?}", "format", ident,  *VALID_FORMAT_TYPE)))
             }
         } else {
             Err(syn::parse::Error::new(Span::call_site(), format!("\"{}\" is expected as Ident", "format")))
