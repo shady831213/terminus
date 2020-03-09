@@ -1,10 +1,10 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
-mod insn_maps;
+mod simple_insn_map;
+mod tree_insn_map;
 
-use insn_maps::*;
-
+use simple_insn_map::*;
 
 
 pub trait Format {
