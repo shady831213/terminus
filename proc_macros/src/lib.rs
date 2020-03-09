@@ -51,26 +51,44 @@ fn instruction_transform(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2:
         let code = parse_code_value(&code_str);
         let mask = parse_mask_value(&code_str);
         let format = parse_format_attr(ast)?;
+        let decoder_ident = format_ident!("{}Decoder", name);
+        let registery_ident = format_ident!("REGISTERY_{}", name);
         check_fields(data)?;
         Ok(quote!(
             bitfield_bitrange!{struct #name(u32)}
             insn_format!(#name, #format);
             impl #name {
-                fn _ir(&self) ->  u32 {
-                    if (self.0 & #name::mask() != #name::code()) {
-                        panic!(format!("ir 0x{:x} & mask 0x{:x} = 0x{:x}, expect 0x{:x}, it is not match code 0b{}!", self.0, #name::mask(), self.0 & #name::mask(), #name::code(), #code_str))
+                fn new(ir:u32) -> Instruction {
+                    if (ir & #mask != #code) {
+                        panic!(format!("ir 0x{:x} & mask 0x{:x} = 0x{:x}, expect 0x{:x}, it is not match code 0b{}!", ir, #mask, ir & #mask, #code, #code_str))
                     }
+                    Instruction::new(#name(ir))
+                }
+                fn _ir(&self) ->  u32 {
                     self.0
                 }
             }
-            impl Decode for #name {
-                fn code() ->  u32 {
+            impl InstructionImp for #name{}
+
+            struct #decoder_ident;
+            impl Decoder for #decoder_ident {
+                fn code(&self) ->  u32 {
                     #code
                 }
-                fn mask() ->  u32 {
+                fn mask(&self) ->  u32 {
                     #mask
                 }
+                fn matched(&self, ir:u32) -> bool {
+                    ir & self.mask() == self.code()
+                }
+                fn decode(&self, ir:u32) -> Instruction {
+                    #name::new(ir)
+                }
             }
+
+            use linkme::distributed_slice;
+            #[distributed_slice(REGISTERY_INSN)]
+            static #registery_ident: fn(&mut GlobalInsnMap) = |map| {map.registery(#decoder_ident)};
         ))
     } else {
         Err(syn::parse::Error::new(Span::call_site(), "Only Struct can derive"))
