@@ -1,4 +1,7 @@
+use linkme::distributed_slice;
+
 pub trait Format {
+    fn ir(&self) -> u32;
     fn rs1(&self) -> u32 {
         0
     }
@@ -19,8 +22,8 @@ pub trait Format {
     }
 }
 
-pub trait InsnCoding {
-    fn ir(&self) -> u32;
-    fn code(&self) -> u32;
-    fn mask(&self) -> u32;
+pub trait Decode {
+    fn code() -> u32;
+    fn mask() -> u32;
 }
+

@@ -34,18 +34,18 @@ static ref VALID_FORMAT_TYPE:Vec<&'static str> = vec![
 }
 
 
-#[proc_macro_derive(InsnCoding, attributes(code, format))]
-pub fn insn_coding(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(Instruction, attributes(code, format))]
+pub fn instruction(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).unwrap();
     let name = &ast.ident;
-    match insn_codeing_transform(&ast, name) {
+    match instruction_transform(&ast, name) {
         Ok(s) => s.into(),
         Err(e) => e.to_compile_error().into()
     }
 }
 
 
-fn insn_codeing_transform(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2::TokenStream, syn::parse::Error> {
+fn instruction_transform(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2::TokenStream, syn::parse::Error> {
     if let syn::Data::Struct(data) = &ast.data {
         let code_str= parse_code_attr(ast, "code")?;
         let code = parse_code_value(&code_str);
@@ -55,17 +55,19 @@ fn insn_codeing_transform(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2
         Ok(quote!(
             bitfield_bitrange!{struct #name(u32)}
             insn_format!(#name, #format);
-            impl InsnCoding for #name {
-                fn ir(&self) ->  u32 {
-                    if (self.0 & self.mask() != self.code()) {
-                        panic!(format!("ir 0x{:x} & mask 0x{:x} = 0x{:x}, expect 0x{:x}, it is not match code 0b{}!", self.0, self.mask(), self.0 & self.mask(), self.code(), #code_str))
+            impl #name {
+                fn _ir(&self) ->  u32 {
+                    if (self.0 & #name::mask() != #name::code()) {
+                        panic!(format!("ir 0x{:x} & mask 0x{:x} = 0x{:x}, expect 0x{:x}, it is not match code 0b{}!", self.0, #name::mask(), self.0 & #name::mask(), #name::code(), #code_str))
                     }
                     self.0
                 }
-                fn code(&self) ->  u32 {
+            }
+            impl Decode for #name {
+                fn code() ->  u32 {
                     #code
                 }
-                fn mask(&self) ->  u32 {
+                fn mask() ->  u32 {
                     #mask
                 }
             }

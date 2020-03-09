@@ -13,6 +13,9 @@ macro_rules! insn_format {
                 rs1,_:19, 15;
                 rs2,_:24, 20;
              }
+             fn ir(&self)->u32 {
+                self._ir()
+             }
         }
     };
     ($name:ident, I) => {
@@ -23,6 +26,9 @@ macro_rules! insn_format {
                 rd,_:11, 7;
                 rs1,_:19, 15;
                 imm,_:31:20;
+             }
+             fn ir(&self)->u32 {
+                self._ir()
              }
         }
     };
@@ -43,6 +49,9 @@ macro_rules! insn_format {
              }
             fn imm(&self)->u32 {
                 self._imm1() << 5 | self._imm2()
+            }
+            fn ir(&self)->u32 {
+                self._ir()
             }
         }
     };
@@ -66,6 +75,9 @@ macro_rules! insn_format {
             fn imm(&self)->u32 {
                 self._imm1() << 12 |  self._imm2() << 11 | self._imm3() << 5 | self._imm4() << 1
             }
+            fn ir(&self)->u32 {
+               self._ir()
+            }
         }
     };
     ($name:ident, U) => {
@@ -75,6 +87,9 @@ macro_rules! insn_format {
                 op,_:6,0;
                 rd,_:11, 7;
                 imm,_:31,12;
+             }
+             fn ir(&self)->u32 {
+                self._ir()
              }
         }
     };
@@ -97,6 +112,9 @@ macro_rules! insn_format {
             fn imm(&self)->u32 {
                  self._imm1() << 20 | self._imm2()  << 12 | self._imm3()  << 11 | self._imm4()  << 1
             }
+            fn ir(&self)->u32 {
+                self._ir()
+            }
         }
     };
     //compress format
@@ -109,6 +127,9 @@ macro_rules! insn_format {
                 rs1,_:11, 7;
                 rd,_:11, 7;
              }
+             fn ir(&self)->u32 {
+                self._ir()
+             }
         }
     };
     ($name:ident, CIW) => {
@@ -118,6 +139,9 @@ macro_rules! insn_format {
                 op,_:1,0;
                 rd,_:4, 2;
                 imm,_:12, 5;
+             }
+             fn ir(&self)->u32 {
+                self._ir()
              }
         }
     };
@@ -139,6 +163,9 @@ macro_rules! insn_format {
              fn imm(&self)->u32 {
                 self._imm1() << 5 | self._imm2()
              }
+             fn ir(&self)->u32 {
+                self._ir()
+             }
         }
     };
     ($name:ident, CSS) => {
@@ -148,6 +175,9 @@ macro_rules! insn_format {
                 op,_:1,0;
                 rs2,_:6,2;
                 imm,_:12, 7;
+             }
+             fn ir(&self)->u32 {
+                self._ir()
              }
         }
     };
@@ -169,6 +199,9 @@ macro_rules! insn_format {
              fn imm(&self)->u32 {
                 self._imm1() << 2 | self._imm2()
              }
+             fn ir(&self)->u32 {
+                self._ir()
+             }
         }
     };
     ($name:ident, CS) => {
@@ -189,6 +222,9 @@ macro_rules! insn_format {
              fn imm(&self)->u32 {
                 self._imm1() << 2 | self._imm2()
              }
+             fn ir(&self)->u32 {
+                self._ir()
+             }
         }
     };
     ($name:ident, CB) => {
@@ -208,6 +244,9 @@ macro_rules! insn_format {
              fn imm(&self)->u32 {
                 self._imm1() << 6 | self._imm2()
              }
+             fn ir(&self)->u32 {
+                self._ir()
+             }
         }
     };
     ($name:ident, CJ) => {
@@ -216,6 +255,9 @@ macro_rules! insn_format {
                 u32;
                 op,_:1,0;
                 imm,_:12, 2;
+             }
+             fn ir(&self)->u32 {
+                self._ir()
              }
         }
     };
