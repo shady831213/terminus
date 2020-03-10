@@ -52,7 +52,7 @@ fn instruction_transform(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2:
         let mask = parse_mask_value(&code_str);
         let format = parse_format_attr(ast)?;
         let decoder_ident = format_ident!("{}Decoder", name);
-        let registery_ident = format_ident!("REGISTERY_{}", name);
+        let registery_ident = format_ident!("REGISTERY_{}", Ident::new(&name.to_string().to_uppercase(), name.span()));
         check_fields(data)?;
         Ok(quote!(
             bitfield_bitrange!{struct #name(u32)}
