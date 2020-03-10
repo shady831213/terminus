@@ -1,12 +1,4 @@
 use std::ops::Deref;
-use std::sync::Arc;
-
-mod simple_insn_map;
-mod tree_insn_map;
-
-use simple_insn_map::*;
-use tree_insn_map::*;
-use super::*;
 
 pub trait Format {
     fn ir(&self) -> u32;
@@ -34,12 +26,6 @@ pub trait Execution {
     fn execute(&self);
 }
 
-pub trait Decoder {
-    fn code(&self) -> u32;
-    fn mask(&self) -> u32;
-    fn matched(&self, ir: u32) -> bool;
-    fn decode(&self, ir: u32) -> Instruction;
-}
 
 pub trait InstructionImp: Format + Execution {}
 
@@ -58,29 +44,5 @@ impl Deref for Instruction {
     }
 }
 
-pub trait InsnMap {
-    fn registery<T: 'static + Decoder>(&mut self, decoder: T);
-    //fixme:Error should be exception enum
-    fn decode(&self, ir: u32) -> Result<Instruction, String>;
-}
 
 
-pub type GlobalInsnMap = TreeInsnMap;
-
-impl GlobalInsnMap {
-    pub fn get() ->  Arc<GlobalInsnMap> {
-        static mut Table: Option<Arc<GlobalInsnMap>> = None;
-        unsafe {
-            Table.get_or_insert_with(|| {
-                Arc::new({let mut map = GlobalInsnMap::new();
-                    for r in REGISTERY_INSN {
-                        r(&mut map)
-                    }
-                map})
-            }).clone()
-        }
-    }
-}
-
-#[distributed_slice]
-pub static REGISTERY_INSN: [fn(&mut GlobalInsnMap)] = [..];

@@ -1,11 +1,10 @@
 use terminus_macros::*;
 use terminus_proc_macros::Instruction;
-use crate::insn::*;
+use super::insn::*;
 use super::*;
+use super::execption::*;
+use super::decode::*;
 
-use std::collections::HashMap;
-
-#[ignore]
 #[derive(Instruction)]
 #[format(B)]
 #[code("0b1??0_1110")]
@@ -16,7 +15,6 @@ impl Execution for InsnCodingTestStruct{
     fn execute(&self){}
 }
 
-#[ignore]
 #[derive(Instruction)]
 #[format(B)]
 #[code("0b1??0_1111")]
@@ -45,5 +43,5 @@ fn insn_coding_test() {
     assert_eq!(0b1001_1111, mask_bit);
 
     let result = GlobalInsnMap::get().decode(0).err();
-    assert_eq!(result, Some("invalid instruction!".to_string()))
+    assert_eq!(result, Some(Exception::IllegalInsn(0)))
 }

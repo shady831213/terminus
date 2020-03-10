@@ -1,6 +1,6 @@
 use super::{InsnMap, Instruction, Decoder};
-use std::ops::{Deref, DerefMut};
 use std::cell::RefCell;
+use super::execption::*;
 
 struct TreeNode<T> {
     left: Option<*mut TreeNode<T>>,
@@ -21,7 +21,7 @@ impl<T> TreeNode<T> {
 
     fn insert(&mut self, key: u32, value: T) {
         if self.level == 32 {
-            if let Some(ref v) = self.value {
+            if self.value.is_some() {
                 panic!(format!("duplicate definition! 0x{:x}", key))
             }
             self.value = Some(value)
@@ -93,15 +93,15 @@ impl InsnMap for TreeInsnMap {
         self.0.get_mut().insert(decoder.code(), Box::new(decoder))
     }
 
-    fn decode(&self, ir: u32) -> Result<Instruction, String> {
+    fn decode(&self, ir: u32) -> Result<Instruction, Exception> {
         if let Some(decoder) = self.0.borrow_mut().get(ir){
             if ir & decoder.mask() != decoder.code() {
-                Err("invalid instruction!".to_string())
+                Err(Exception::IllegalInsn(ir))
             } else {
                 Ok(decoder.decode(ir))
             }
         } else {
-            Err("invalid instruction!".to_string())
+            Err(Exception::IllegalInsn(ir))
         }
 
     }

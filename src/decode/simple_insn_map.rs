@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use super::{InsnMap, Instruction, Decoder};
+use super::execption::*;
 
 pub struct SimpleInsnMap(HashMap<u32, Box<dyn Decoder>>);
 
@@ -14,12 +15,12 @@ impl InsnMap for SimpleInsnMap {
         self.0.insert(decoder.code(), Box::new(decoder));
     }
 
-    fn decode(&self, ir: u32) -> Result<Instruction, String> {
+    fn decode(&self, ir: u32) -> Result<Instruction, Exception> {
         let decoder = self.0.values().find(|d| { d.matched(ir) });
         if let Some(d) = decoder {
             Ok(d.decode(ir))
         } else {
-            Err("invalid instruction!".to_string())
+            Err(Exception::IllegalInsn(ir))
         }
     }
 }

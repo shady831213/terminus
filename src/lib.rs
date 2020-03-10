@@ -1,7 +1,12 @@
 extern crate terminus_macros;
-pub extern crate linkme;
-pub extern crate terminus_proc_macros;
-pub mod insn;
-pub use linkme::*;
+extern crate linkme;
+extern crate terminus_proc_macros;
+
+mod insn;
+mod execption;
+mod decode;
+
+use linkme::*;
+
 #[cfg(test)]
 mod test;
