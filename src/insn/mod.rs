@@ -1,5 +1,5 @@
 use std::ops::Deref;
-
+use super::processor::Processor;
 pub trait Format {
     fn ir(&self) -> u32;
     fn rs1(&self) -> u32 {
@@ -23,7 +23,7 @@ pub trait Format {
 }
 
 pub trait Execution {
-    fn execute(&self);
+    fn execute(&self, p: &mut Processor);
 }
 
 

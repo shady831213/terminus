@@ -4,6 +4,7 @@ use super::insn::*;
 use super::*;
 use super::execption::*;
 use super::decode::*;
+use crate::processor::Processor;
 
 #[derive(Instruction)]
 #[format(B)]
@@ -11,8 +12,8 @@ use super::decode::*;
 #[derive(Debug)]
 struct InsnCodingTestStruct(u32);
 
-impl Execution for InsnCodingTestStruct{
-    fn execute(&self){}
+impl Execution for InsnCodingTestStruct {
+    fn execute(&self, p: &mut Processor) {}
 }
 
 #[derive(Instruction)]
@@ -21,8 +22,8 @@ impl Execution for InsnCodingTestStruct{
 #[derive(Debug)]
 struct InsnCodingTestStruct2(u32);
 
-impl Execution for InsnCodingTestStruct2{
-    fn execute(&self){}
+impl Execution for InsnCodingTestStruct2 {
+    fn execute(&self,  p: &mut Processor) {}
 }
 
 #[test]
@@ -32,14 +33,14 @@ fn insn_coding_test() {
     assert_eq!(0b10_1110, result.op());
     assert_eq!(0b1010_1110, result.ir());
     assert_eq!(0b1000_1110, InsnCodingTestStructDecoder.code());
-    let mask_bit:u32 = InsnCodingTestStructDecoder.mask().bit_range(15,0);
+    let mask_bit: u32 = InsnCodingTestStructDecoder.mask().bit_range(15, 0);
     assert_eq!(0b1001_1111, mask_bit);
 
     let result = GlobalInsnMap::get().decode(0b1010_1111).unwrap();
     assert_eq!(0b10_1111, result.op());
     assert_eq!(0b1010_1111, result.ir());
     assert_eq!(0b1000_1111, InsnCodingTestStruct2Decoder.code());
-    let mask_bit:u32 = InsnCodingTestStruct2Decoder.mask().bit_range(15,0);
+    let mask_bit: u32 = InsnCodingTestStruct2Decoder.mask().bit_range(15, 0);
     assert_eq!(0b1001_1111, mask_bit);
 
     let result = GlobalInsnMap::get().decode(0).err();
