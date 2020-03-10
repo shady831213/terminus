@@ -1,9 +1,9 @@
 use super::{InsnMap, Instruction, Decoder};
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 struct TreeNode<'a, T> {
-    left: Option<Box<TreeNode<'a, T>>>,
-    right: Option<Box<TreeNode<'a, T>>>,
+    left: Option<*mut TreeNode<'a, T>>,
+    right: Option<*mut TreeNode<'a, T>>,
     level: u32,
     value: Option<&'a T>,
 }
@@ -23,26 +23,53 @@ impl<'a, T> TreeNode<'a, T> {
             self.value = Some(value)
         } else {
             let node = if key & (1 << self.level) == 0 {
-                self.left.get_or_insert(Box::new(Self::new(self.level + 1)))
+                self.left.get_or_insert(Box::into_raw(Box::new(Self::new(self.level + 1))))
             } else {
-                self.right.get_or_insert(Box::new(Self::new(self.level + 1)))
+                self.right.get_or_insert(Box::into_raw(Box::new(Self::new(self.level + 1))))
             };
-            node.insert(key, value)
+            unsafe {
+                (*node).as_mut().unwrap().insert(key, value)
+            }
         }
     }
 
-    fn get(&self, key: u32) -> Result<&'a T, String> {
+    fn get_node(node: *mut Self) -> *mut Self {
+        let n = unsafe{
+            node.as_mut().unwrap()
+        };
+        if n.left.is_some() && n.right.is_none() {
+            Self::get_node(n.left.unwrap())
+        } else if n.right.is_some() && n.left.is_none() {
+            Self::get_node(n.right.unwrap())
+        } else {
+            node
+        }
+    }
+
+    fn get(&mut self, key: u32) -> Option<&'a T> {
+        let path_compress= |node:&mut Option<*mut Self>| {
+            if let Some(ref n) = node {
+                let new_node = Self::get_node(*n);
+                if *n != new_node {
+                    *node = Some(new_node)
+                }
+            }
+        };
         if self.level == 32 {
-            Ok(self.value.unwrap())
+            self.value
         } else {
             if let Some(node) = if key & (1 << self.level) == 0 {
-                &self.left
+                path_compress(&mut self.left);
+                self.left
             } else {
-                &self.right
-            } {
-                node.get(key)
+                path_compress(&mut self.right);
+                self.right
+            }{
+                unsafe {
+                    node.as_mut().unwrap().get(key)
+                }
             } else {
-                Err("Invalid key!".to_string())
+                None
             }
         }
     }
@@ -52,6 +79,6 @@ impl<'a, T> TreeNode<'a, T> {
 fn test_insert() {
     let mut tree: TreeNode<u32> = TreeNode::new(0);
     tree.insert(7, &7);
-    println!("get {}", tree.get(7).unwrap());
-    println!("{}", tree.get(8).err().unwrap());
+    assert_eq!(*tree.get(7).unwrap(), 7);
+    assert_eq!(tree.get(8), None);
 }
