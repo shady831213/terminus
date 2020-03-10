@@ -5,7 +5,8 @@ mod simple_insn_map;
 mod tree_insn_map;
 
 use simple_insn_map::*;
-
+use tree_insn_map::*;
+use super::*;
 
 pub trait Format {
     fn ir(&self) -> u32;
@@ -64,7 +65,7 @@ pub trait InsnMap {
 }
 
 
-pub type GlobalInsnMap = SimpleInsnMap;
+pub type GlobalInsnMap = TreeInsnMap;
 
 impl GlobalInsnMap {
     pub fn get() ->  Arc<GlobalInsnMap> {
@@ -81,6 +82,5 @@ impl GlobalInsnMap {
     }
 }
 
-use linkme::distributed_slice;
 #[distributed_slice]
 pub static REGISTERY_INSN: [fn(&mut GlobalInsnMap)] = [..];

@@ -1,9 +1,11 @@
 use terminus_macros::*;
 use terminus_proc_macros::Instruction;
 use crate::insn::*;
+use super::*;
 
 use std::collections::HashMap;
 
+#[ignore]
 #[derive(Instruction)]
 #[format(B)]
 #[code("0b1??0_1110")]
@@ -11,6 +13,17 @@ use std::collections::HashMap;
 struct InsnCodingTestStruct(u32);
 
 impl Execution for InsnCodingTestStruct{
+    fn execute(&self){}
+}
+
+#[ignore]
+#[derive(Instruction)]
+#[format(B)]
+#[code("0b1??0_1111")]
+#[derive(Debug)]
+struct InsnCodingTestStruct2(u32);
+
+impl Execution for InsnCodingTestStruct2{
     fn execute(&self){}
 }
 
@@ -22,6 +35,13 @@ fn insn_coding_test() {
     assert_eq!(0b1010_1110, result.ir());
     assert_eq!(0b1000_1110, InsnCodingTestStructDecoder.code());
     let mask_bit:u32 = InsnCodingTestStructDecoder.mask().bit_range(15,0);
+    assert_eq!(0b1001_1111, mask_bit);
+
+    let result = GlobalInsnMap::get().decode(0b1010_1111).unwrap();
+    assert_eq!(0b10_1111, result.op());
+    assert_eq!(0b1010_1111, result.ir());
+    assert_eq!(0b1000_1111, InsnCodingTestStruct2Decoder.code());
+    let mask_bit:u32 = InsnCodingTestStruct2Decoder.mask().bit_range(15,0);
     assert_eq!(0b1001_1111, mask_bit);
 
     let result = GlobalInsnMap::get().decode(0).err();

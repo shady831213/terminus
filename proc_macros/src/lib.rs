@@ -86,7 +86,6 @@ fn instruction_transform(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2:
                 }
             }
 
-            use linkme::distributed_slice;
             #[distributed_slice(REGISTERY_INSN)]
             static #registery_ident: fn(&mut GlobalInsnMap) = |map| {map.registery(#decoder_ident)};
         ))
