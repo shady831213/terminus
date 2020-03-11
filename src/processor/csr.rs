@@ -1,7 +1,17 @@
-use crate::processor::{RegT, XLen};
+use crate::processor::XLen;
 use terminus_macros::*;
 use std::ops::{Deref, DerefMut};
 use super::*;
+use terminus_global::RegT;
+use terminus_proc_macros::define_csr;
+
+
+define_csr! {
+Test {
+    fields {,},
+    map {}
+}
+}
 
 decl_csr! {
     struct Status;

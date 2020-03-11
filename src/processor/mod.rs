@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use super::extentions::Extension;
 use terminus_macros::*;
+use terminus_global::RegT;
 
 mod csr;
 
@@ -50,7 +51,6 @@ trait CsrAccess {
     }
 }
 
-type RegT = u64;
 
 pub struct Processor {
     pub xreg: [RegT; 32],

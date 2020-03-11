@@ -1,6 +1,8 @@
-extern crate terminus_macros;
+pub extern crate terminus_macros;
 extern crate linkme;
-extern crate terminus_proc_macros;
+pub extern crate terminus_proc_macros;
+pub extern crate terminus_global;
+
 use linkme::*;
 
 mod insn;
