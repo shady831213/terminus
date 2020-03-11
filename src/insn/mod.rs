@@ -1,23 +1,24 @@
 use std::ops::Deref;
 use super::processor::Processor;
+use terminus_global::InsnT;
 pub trait Format {
-    fn ir(&self) -> u32;
-    fn rs1(&self) -> u32 {
+    fn ir(&self) -> InsnT;
+    fn rs1(&self) -> InsnT {
         0
     }
-    fn rs2(&self) -> u32 {
+    fn rs2(&self) -> InsnT {
         0
     }
-    fn rs3(&self) -> u32 {
+    fn rs3(&self) -> InsnT {
         0
     }
-    fn rd(&self) -> u32 {
+    fn rd(&self) -> InsnT {
         0
     }
-    fn imm(&self) -> u32 {
+    fn imm(&self) -> InsnT {
         0
     }
-    fn op(&self) -> u32 {
+    fn op(&self) -> InsnT {
         0
     }
 }

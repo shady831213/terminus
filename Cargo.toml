@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 dpi_memory={git = "https://github.com/shady831213/dpi_memory"}
+terminus-global = { path = "global" }
 terminus-macros={ path = "macros" }
 terminus-proc-macros={ path = "proc_macros" }
 linkme = "0.1"

@@ -9,20 +9,21 @@ use std::sync::Arc;
 use super::*;
 use super::insn::*;
 use super::execption::*;
+use terminus_global::InsnT;
 
 use simple_insn_map::*;
 use tree_insn_map::*;
 
 pub trait Decoder {
-    fn code(&self) -> u32;
-    fn mask(&self) -> u32;
-    fn matched(&self, ir: u32) -> bool;
-    fn decode(&self, ir: u32) -> Instruction;
+    fn code(&self) -> InsnT;
+    fn mask(&self) -> InsnT;
+    fn matched(&self, ir: InsnT) -> bool;
+    fn decode(&self, ir: InsnT) -> Instruction;
 }
 
 pub trait InsnMap {
     fn registery<T: 'static + Decoder>(&mut self, decoder: T);
-    fn decode(&self, ir: u32) -> Result<Instruction, Exception>;
+    fn decode(&self, ir: InsnT) -> Result<Instruction, Exception>;
 }
 
 pub type GlobalInsnMap = TreeInsnMap;

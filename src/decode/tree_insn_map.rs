@@ -1,16 +1,17 @@
 use super::{InsnMap, Instruction, Decoder};
 use std::cell::RefCell;
 use super::execption::*;
+use terminus_global::{InsnT, insn_len};
 
 struct TreeNode<T> {
     left: Option<*mut TreeNode<T>>,
     right: Option<*mut TreeNode<T>>,
-    level: u32,
+    level: usize,
     value: Option<T>,
 }
 
 impl<T> TreeNode<T> {
-    fn new(level: u32) -> TreeNode<T> {
+    fn new(level: usize) -> TreeNode<T> {
         TreeNode {
             left: None,
             right: None,
@@ -19,14 +20,14 @@ impl<T> TreeNode<T> {
         }
     }
 
-    fn insert(&mut self, key: u32, value: T) {
-        if self.level == 32 {
+    fn insert(&mut self, key: InsnT, value: T) {
+        if self.level == insn_len() {
             if self.value.is_some() {
                 panic!(format!("duplicate definition! 0x{:x}", key))
             }
             self.value = Some(value)
         } else {
-            let node = if key & (1 << self.level) == 0 {
+            let node = if key & ((1 as InsnT) << self.level as InsnT) == 0 {
                 self.left.get_or_insert(Box::into_raw(Box::new(Self::new(self.level + 1))))
             } else {
                 self.right.get_or_insert(Box::into_raw(Box::new(Self::new(self.level + 1))))
@@ -50,7 +51,7 @@ impl<T> TreeNode<T> {
         }
     }
 
-    fn get(&mut self, key: u32) -> Option<&T> {
+    fn get(&mut self, key: InsnT) -> Option<&T> {
         //naturally impl mask
         let path_compress = |node: &mut Option<*mut Self>| {
             if let Some(ref n) = node {
@@ -60,10 +61,10 @@ impl<T> TreeNode<T> {
                 }
             }
         };
-        if self.level == 32 {
+        if self.level == insn_len() {
             self.value.as_ref()
         } else {
-            if let Some(node) = if key & (1 << self.level) == 0 {
+            if let Some(node) = if key & ((1 as InsnT) << self.level as InsnT) == 0 {
                 path_compress(&mut self.left);
                 self.left
             } else {
@@ -93,8 +94,8 @@ impl InsnMap for TreeInsnMap {
         self.0.get_mut().insert(decoder.code(), Box::new(decoder))
     }
 
-    fn decode(&self, ir: u32) -> Result<Instruction, Exception> {
-        if let Some(decoder) = self.0.borrow_mut().get(ir){
+    fn decode(&self, ir: InsnT) -> Result<Instruction, Exception> {
+        if let Some(decoder) = self.0.borrow_mut().get(ir) {
             if ir & decoder.mask() != decoder.code() {
                 Err(Exception::IllegalInsn(ir))
             } else {
@@ -103,7 +104,6 @@ impl InsnMap for TreeInsnMap {
         } else {
             Err(Exception::IllegalInsn(ir))
         }
-
     }
 }
 

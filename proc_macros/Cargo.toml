@@ -16,7 +16,7 @@ proc-macro2 = "1.0"
 lazy_static = "1.4"
 regex = "1"
 linkme = "0.1"
-
+terminus-global = { path = "../global" }
 
 [dependencies.syn]
 features = ["extra-traits", "full"]
