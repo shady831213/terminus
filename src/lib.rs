@@ -8,5 +8,3 @@ mod execption;
 mod decode;
 mod processor;
 mod extentions;
-#[cfg(test)]
-mod test;
