@@ -4,6 +4,7 @@ use std::ops::{Deref, DerefMut};
 use super::*;
 use terminus_global::RegT;
 use terminus_proc_macros::define_csr;
+use std::rc::Rc;
 
 
 define_csr! {
@@ -84,8 +85,112 @@ impl CsrAccess for Status {
     }
 }
 
+#[derive(Copy, Clone)]
+struct Test32(u32);
+bitfield_bitrange! {struct Test32(u32)}
+impl TestTrait for Test32 {
+    bitfield_fields! {
+    RegT;
+    field1, set_field1: 6,4;
+    field2, set_field2: 7,7;
+    }
+}
+
+#[derive(Copy, Clone)]
+struct Test64(u64);
+bitfield_bitrange! {struct Test64(u64)}
+impl TestTrait for Test64 {
+    bitfield_fields! {
+    RegT;
+    field1, set_field1: 6,4;
+    field2, set_field2: 31,31;
+    field3, set_field3: 32,32;
+    }
+}
+
+trait TestTrait {
+    fn field1(&self) -> RegT { panic!("not implemnt") }
+    fn field2(&self) -> RegT { panic!("not implemnt") }
+    fn field3(&self) -> RegT { panic!("not implemnt") }
+    fn set_field1(&mut self, value: RegT) { panic!("not implemnt") }
+    fn set_field2(&mut self, value: RegT) { panic!("not implemnt") }
+    fn set_field3(&mut self, value: RegT) { panic!("not implemnt") }
+}
+
+union TestU {
+    x32: Test32,
+    x64: Test64,
+}
+
+struct Test {
+    xlen: XLen,
+    csr: TestU,
+}
+
+impl TestTrait for Test {
+    fn field1(&self) -> RegT {
+        match self.xlen {
+            XLen::X64 => unsafe { self.csr.x64.field1() },
+            XLen::X32 => unsafe { self.csr.x32.field1() }
+        }
+    }
+    fn field2(&self) -> RegT {
+        match self.xlen {
+            XLen::X64 => unsafe { self.csr.x64.field2() },
+            XLen::X32 => unsafe { self.csr.x32.field2() }
+        }
+    }
+    fn field3(&self) -> RegT {
+        match self.xlen {
+            XLen::X64 => unsafe { self.csr.x64.field3() },
+            XLen::X32 => unsafe { self.csr.x32.field3() }
+        }
+    }
+    fn set_field1(&mut self, value: RegT) {
+        match self.xlen {
+            XLen::X64 => unsafe { self.csr.x64.set_field1(value) },
+            XLen::X32 => unsafe { self.csr.x32.set_field1(value) }
+        }
+    }
+    fn set_field2(&mut self, value: RegT) {
+        match self.xlen {
+            XLen::X64 => unsafe { self.csr.x64.set_field2(value) },
+            XLen::X32 => unsafe { self.csr.x32.set_field2(value) }
+        }
+    }
+    fn set_field3(&mut self, value: RegT) {
+        match self.xlen {
+            XLen::X64 => unsafe { self.csr.x64.set_field3(value.into()) },
+            XLen::X32 => unsafe { self.csr.x32.set_field3(value.into()) }
+        }
+    }
+}
+
+
 #[test]
 fn test_status() {
+    let mut test = Test {
+        xlen: XLen::X64,
+        csr: TestU {
+            x64: Test64(0)
+        },
+    };
+
+    test.set_field3(0xff);
+    println!("x64 field3 {:x}", test.field3());
+    test.set_field2(3);
+
+    let mut test2 = Test {
+        xlen: XLen::X32,
+        csr: TestU {
+            x64: Test64(0)
+        },
+    };
+    &test2.set_field1(0xffff_ffff_ffff);
+    println!("x32 field1 {:x}", &test2.field1());
+    println!("x32 field2 {:x}", &test2.field2());
+
+
     let mut status = Status::new(0);
     status.write(XLen::X64, 0x11);
     assert_eq!(status.read(XLen::X64), 0x11);
