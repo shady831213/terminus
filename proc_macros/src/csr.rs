@@ -246,7 +246,7 @@ impl Trait {
         self.field_names.insert(field.name.to_string(), field.name.clone());
     }
 
-    fn gen(&self) -> TokenStream {
+    fn expand(&self) -> TokenStream {
         let fns = self.field_names.values()
             .map(|name| {
                 let setter = format_ident!("set_{}", name);
@@ -313,7 +313,7 @@ pub fn expand(input: TokenStream) -> TokenStream {
         csr_trait.add(&defalut_field);
     }
 
-    csr_trait.gen()
+    csr_trait.expand()
 }
 
 
