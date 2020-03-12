@@ -1,6 +1,5 @@
-
-
-use syn::{DeriveInput, DataStruct, Ident};
+use syn::{DeriveInput, DataStruct, Ident, Result, NestedMeta, LitStr};
+use syn::parse::Error;
 use proc_macro2::Span;
 use regex::Regex;
 use terminus_global::{InsnT, insn_len};
@@ -27,7 +26,7 @@ static ref VALID_FORMAT_TYPE:Vec<&'static str> = vec![
 
 
 
-pub fn instruction_transform(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2::TokenStream, syn::parse::Error> {
+pub fn instruction_transform(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2::TokenStream> {
     if let syn::Data::Struct(data) = &ast.data {
         let code_str = parse_code_attr(ast, "code")?;
         let code = parse_code_value(&code_str);
@@ -35,7 +34,7 @@ pub fn instruction_transform(ast: &DeriveInput, name: &Ident) -> Result<proc_mac
         let format = parse_format_attr(ast)?;
         let decoder_ident = format_ident!("{}Decoder", name);
         let registery_ident = format_ident!("REGISTERY_{}", Ident::new(&name.to_string().to_uppercase(), name.span()));
-        check_fields(data)?;
+        check_fields(data, name)?;
         Ok(quote!(
             bitfield_bitrange!{struct #name(InsnT)}
             insn_format!(#name, #format);
@@ -72,48 +71,51 @@ pub fn instruction_transform(ast: &DeriveInput, name: &Ident) -> Result<proc_mac
             static #registery_ident: fn(&mut GlobalInsnMap) = |map| {map.registery(#decoder_ident)};
         ))
     } else {
-        Err(syn::parse::Error::new(Span::call_site(), "Only Struct can derive"))
+        Err(Error::new(name.span(), "Only Struct can derive"))
     }
 }
 
-fn check_fields(data: &DataStruct) -> Result<bool, syn::parse::Error> {
+fn check_fields(data: &DataStruct, name: &Ident) -> Result<bool> {
+    let msg = format!("expect \'struct {}(InsnT);\' !", name.to_string());
     if let syn::Fields::Unnamed(ref field) = data.fields {
         if field.unnamed.len() != 1 {
-            return Err(syn::parse::Error::new(Span::call_site(), "expect struct \'name\' (InsnT)!"));
+            return Err(Error::new(field.paren_token.span, msg));
         }
         if let syn::Type::Path(ref path) = field.unnamed[0].ty {
-            if path.path.segments.len() != 1 || path.path.segments[0].ident != Ident::new("InsnT", proc_macro2::Span::call_site()) {
-                return Err(syn::parse::Error::new(Span::call_site(), "expect struct \'name\' (InsnT)!"));
+            if path.path.segments.len() != 1 || path.path.segments[0].ident != Ident::new("InsnT", Span::call_site()) {
+                return Err(Error::new(path.path.segments[0].ident.span(), msg));
             }
             return Ok(true);
         } else {
-            return Err(syn::parse::Error::new(Span::call_site(), "expect struct \'name\' (InsnT)!"));
+            return Err(Error::new(name.span(), msg));
         }
     } else {
-        Err(syn::parse::Error::new(Span::call_site(), "expect struct \'name\' (InsnT)!"))
+        Err(Error::new(name.span(), msg))
     }
 }
 
-fn parse_code_attr(ast: &DeriveInput, name: &str) -> Result<String, syn::parse::Error> {
-    if let syn::NestedMeta::Lit(syn::Lit::Str(ref raw)) = parse_attr(ast, name)? {
-        parse_raw_bits(&raw.value())
+fn parse_code_attr(ast: &DeriveInput, name: &str) -> Result<String> {
+    let Attr { ident, attr } = parse_attr(ast, name)?;
+    if let NestedMeta::Lit(syn::Lit::Str(ref raw)) = attr {
+        parse_raw_bits(raw)
     } else {
-        Err(syn::parse::Error::new(Span::call_site(), format!("\"{}\" is expected as string with \"0b\" prefix!", name)))
+        Err(Error::new(ident.span(), format!("\"{}\" is expected as string with \"0b\" prefix!", name)))
     }
 }
 
-fn parse_raw_bits(code: &str) -> Result<String, syn::parse::Error> {
+fn parse_raw_bits(lit: &LitStr) -> Result<String> {
+    let code = lit.value();
     lazy_static! {
-        static ref VALID_CODE: Regex = Regex::new("^0b[10?_]+").unwrap();
-        static ref VALID_BITS: Regex = Regex::new(&("^[10?]{1,".to_string() + &format!("{}", insn_len()) + "}")).unwrap();
+        static ref VALID_CODE: Regex = Regex::new("^0b[10?_]+$").unwrap();
+        static ref VALID_BITS: Regex = Regex::new(&("^[10?]{1,".to_string() + &format!("{}", insn_len()) + "}$")).unwrap();
         static ref BITS_REP: Regex = Regex::new("_|(?:0b)").unwrap();
     }
-    if !VALID_CODE.is_match(code) {
-        return Err(syn::parse::Error::new(Span::call_site(), "code contains invalid char, valid format is ^0b[1|0|?|_]+!"));
+    if !VALID_CODE.is_match(&code) {
+        return Err(Error::new(lit.span(), "code contains invalid char, valid format is ^0b[1|0|?|_]+!"));
     }
-    let bits = BITS_REP.replace_all(code, "");
+    let bits = BITS_REP.replace_all(&code, "");
     if !VALID_BITS.is_match(&bits) {
-        return Err(syn::parse::Error::new(Span::call_site(), "code defined num of bits more than 32!"));
+        return Err(Error::new(lit.span(), format!("code defined num of bits more than {}!", insn_len())));
     }
     if bits.len() < insn_len() {
         Ok(ext_bits(&bits, insn_len()))
@@ -144,35 +146,48 @@ fn parse_mask_value(bits: &str) -> InsnT {
     parse_code_value(&ZERO.replace_all(bits, "1"))
 }
 
-fn parse_format_attr(ast: &DeriveInput) -> Result<Ident, syn::parse::Error> {
-    if let syn::NestedMeta::Meta(syn::Meta::Path(ref path)) = parse_attr(ast, "format")? {
+fn parse_format_attr(ast: &DeriveInput) -> Result<Ident> {
+    let Attr { ident, attr } = parse_attr(ast, "format")?;
+    if let NestedMeta::Meta(syn::Meta::Path(ref path)) = attr {
         if let Some(ident) = path.get_ident() {
             if VALID_FORMAT_TYPE.contains(&&format!("{}", ident)[..]) {
                 Ok(ident.clone())
             } else {
-                Err(syn::parse::Error::new(Span::call_site(), format!("invalid \"{}\" value \"{}\", valid values are {:?}", "format", ident, *VALID_FORMAT_TYPE)))
+                Err(Error::new(ident.span(), format!("invalid \"{}\" value \"{}\", valid values are {:?}", "format", ident, *VALID_FORMAT_TYPE)))
             }
         } else {
-            Err(syn::parse::Error::new(Span::call_site(), format!("\"{}\" is expected as Ident", "format")))
+            Err(Error::new(ident.span(), format!("\"{}\" is expected as Ident", "format")))
         }
     } else {
-        Err(syn::parse::Error::new(Span::call_site(), format!("\"{}\" is expected as Ident", "format")))
+        Err(Error::new(ident.span(), format!("\"{}\" is expected as Ident", "format")))
     }
 }
 
-fn parse_attr(ast: &DeriveInput, name: &str) -> Result<syn::NestedMeta, syn::parse::Error> {
+struct Attr {
+    ident: Ident,
+    attr: NestedMeta,
+}
+
+impl Attr {
+    fn new(ident: Ident, attr: NestedMeta) -> Self {
+        Attr { ident, attr }
+    }
+}
+
+fn parse_attr(ast: &DeriveInput, name: &str) -> Result<Attr> {
     if let Some(attr) = ast.attrs.iter().find(|a| { a.path.segments.len() == 1 && a.path.segments[0].ident == name }) {
-        if let syn::Meta::List(ref meta) = attr.parse_meta().unwrap() {
-            if meta.nested.len() == 1 {
-                Ok(meta.nested[0].clone())
+        let meta = attr.parse_meta()?;
+        if let syn::Meta::List(ref nestedMeta) = meta {
+            if nestedMeta.nested.len() == 1 {
+                Ok(Attr::new(attr.path.segments[0].ident.clone(), nestedMeta.nested[0].clone()))
             } else {
-                Err(syn::parse::Error::new(Span::call_site(), format!("\"{}\" is expected to be a single value", name)))
+                Err(Error::new(attr.path.segments[0].ident.span(), format!("\"{}\" is expected to be a single value", name)))
             }
         } else {
-            Err(syn::parse::Error::new(Span::call_site(), format!("\"{}\" is expected to be a single value", name)))
+            Err(Error::new(attr.path.segments[0].ident.span(), format!("\"{}\" is expected to be a single value", name)))
         }
     } else {
-        Err(syn::parse::Error::new(Span::call_site(), format!("attr \"{}\" missed", name)))
+        Err(Error::new(Span::call_site(), format!("attr \"{}\" missed", name)))
     }
 }
 
