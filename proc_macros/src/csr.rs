@@ -1,11 +1,7 @@
 use syn::parse::{Parse, ParseStream, Result, Error, ParseBuffer};
-use syn::{parenthesized, braced, Ident, Token, parse2, LitInt};
+use syn::{parenthesized, braced, Ident, Token, LitInt};
 use syn::punctuated::Punctuated;
-use proc_macro2::Span;
-use std::convert::TryInto;
 use proc_macro2::TokenStream;
-use std::collections::HashMap;
-use terminus_global::{RegT, reg_len};
 
 mod attr_kw {
     syn::custom_keyword!(fields);
@@ -102,6 +98,21 @@ struct Field {
     privilege: FieldPrivilege,
 }
 
+impl Field {
+    fn range(&self) -> (usize, usize) {
+        (self.msb.base10_parse().unwrap(), self.lsb.base10_parse().unwrap())
+    }
+
+    fn same_name(&self, rhs: &Self) -> bool {
+        self.name.to_string() == rhs.name.to_string()
+    }
+
+    fn overlap(&self, rhs: &Self) -> bool {
+        let ((msb, lsb), (rmsb, rlsb)) = (self.range(), rhs.range());
+        msb >= rlsb && msb <= rmsb || lsb >= rlsb && lsb <= rmsb
+    }
+}
+
 impl Parse for Field {
     fn parse(input: ParseStream) -> Result<Self> {
         let name: Ident = input.parse()?;
@@ -170,6 +181,65 @@ macro_rules! expand_call {
     };
 }
 
+struct Fields<'a> {
+    size: usize,
+    fields: Vec<&'a Field>,
+    default: Option<&'a Field>,
+}
+
+impl<'a> Fields<'a> {
+    fn new(size: usize) -> Self {
+        Fields {
+            size: size,
+            fields: vec![],
+            default: None,
+        }
+    }
+
+    fn overflow(&self, field: &Field) -> bool {
+        let (msb, lsb) = field.range();
+        msb >= self.size || lsb >= self.size
+    }
+
+    fn add(&mut self, field: &'a Field) -> Result<()> {
+        if self.default.is_some() {
+            panic!("add field after add default!")
+        }
+        if self.overflow(field) {
+            Err(Error::new(field.name.span(), format!("field {}{:?} overflow!", field.name.to_string(), field.range())))
+        } else {
+            for prev in self.fields.iter() {
+                if field.same_name(prev) {
+                    return Err(Error::new(field.name.span(), format!("field {} is redefined!", field.name.to_string())));
+                }
+                if field.overlap(prev) {
+                    return Err(Error::new(field.name.span(), format!("field {}{:?} is overlapped with field {}{:?}!", field.name.to_string(), field.range(), prev.name.to_string(), prev.range())));
+                }
+            }
+            Ok(self.fields.push(field))
+        }
+    }
+
+    fn add_default(&mut self, field: &'a Field) {
+        if self.default.is_some() {
+            panic!("add default more than once!")
+        }
+        if self.fields.is_empty() {
+            self.default = Some(field);
+            self.fields.push(field);
+        }
+    }
+
+    fn default_field(&self, id: &Ident) -> Field {
+        Field {
+            name: id.clone(),
+            msb: LitInt::new(&format!("{}", self.size - 1), id.span()),
+            lsb: LitInt::new("0", id.span()),
+            privilege: FieldPrivilege::RW(field_kw::RW(id.span())),
+        }
+    }
+}
+
 
 pub fn expand(input: TokenStream) -> TokenStream {
     let csr: Csr = expand_call!(syn::parse2(input));
@@ -177,55 +247,27 @@ pub fn expand(input: TokenStream) -> TokenStream {
     let fields32 = expand_call!(get_attr!(csr.attrs, CsrAttr::Fields32)());
     let fields64 = expand_call!(get_attr!(csr.attrs, CsrAttr::Fields64)());
 
-    //build maps
-    let mut fields32_map: HashMap<String, &Field> = HashMap::new();
-    let mut fields64_map: HashMap<String, &Field> = HashMap::new();
-    if let Some(Attr { key, attrs }) = fields {
+    let mut field32s = Fields::new(32);
+    let mut field64s = Fields::new(64);
+    if let Some(Attr { key:_, attrs }) = fields {
         for field in attrs {
-            if fields32_map.insert(field.name.to_string(), &field).is_some() {
-                return Error::new(field.name.span(), format!("field {} is redefined!", field.name.to_string())).to_compile_error();
-            }
-            if fields64_map.insert(field.name.to_string(), &field).is_some() {
-                return Error::new(field.name.span(), format!("field {} is redefined!", field.name.to_string())).to_compile_error();
-            }
+            expand_call!(field32s.add(field));
+            expand_call!(field64s.add(field));
         }
     }
-    if let Some(Attr { key, attrs }) = fields32 {
+    if let Some(Attr {  key:_, attrs }) = fields32 {
         for field in attrs {
-            if fields32_map.insert(field.name.to_string(), &field).is_some() {
-                return Error::new(field.name.span(), format!("field {} is redefined!", field.name.to_string())).to_compile_error();
-            }
+            expand_call!(field32s.add(field));
         }
     }
-    if let Some(Attr { key, attrs }) = fields64 {
+    if let Some(Attr {  key:_, attrs }) = fields64 {
         for field in attrs {
-            if fields64_map.insert(field.name.to_string(), &field).is_some() {
-                return Error::new(field.name.span(), format!("field {} is redefined!", field.name.to_string())).to_compile_error();
-            }
+            expand_call!(field64s.add(field));
         }
     }
-
-    //default fields and maps
-    if fields32_map.is_empty() {
-        let ident = Ident::new(&csr.name.to_string().to_lowercase(), csr.name.span());
-        fields32_map.insert(ident.to_string(),
-                            &Field {
-                                name: ident.clone(),
-                                msb: LitInt::new("31", ident.span()),
-                                lsb: LitInt::new("0", ident.span()),
-                                privilege: FieldPrivilege::RW(field_kw::RW(ident.span())),
-                            });
-    }
-    if fields64_map.is_empty() {
-        let ident = Ident::new(&csr.name.to_string().to_lowercase(), csr.name.span());
-        fields64_map.insert(ident.to_string(),
-                            &Field {
-                                name: ident.clone(),
-                                msb: LitInt::new("63", ident.span()),
-                                lsb: LitInt::new("0", ident.span()),
-                                privilege: FieldPrivilege::RW(field_kw::RW(ident.span())),
-                            });
-    }
+    let default_id = Ident::new(&csr.name.to_string().to_lowercase(), csr.name.span());
+    field32s.add_default(&field32s.default_field(&default_id));
+    field64s.add_default(&field64s.default_field(&default_id));
 
 
     println!("{:?}", fields);

@@ -177,9 +177,9 @@ impl Attr {
 fn parse_attr(ast: &DeriveInput, name: &str) -> Result<Attr> {
     if let Some(attr) = ast.attrs.iter().find(|a| { a.path.segments.len() == 1 && a.path.segments[0].ident == name }) {
         let meta = attr.parse_meta()?;
-        if let syn::Meta::List(ref nestedMeta) = meta {
-            if nestedMeta.nested.len() == 1 {
-                Ok(Attr::new(attr.path.segments[0].ident.clone(), nestedMeta.nested[0].clone()))
+        if let syn::Meta::List(ref nested_meta) = meta {
+            if nested_meta.nested.len() == 1 {
+                Ok(Attr::new(attr.path.segments[0].ident.clone(), nested_meta.nested[0].clone()))
             } else {
                 Err(Error::new(attr.path.segments[0].ident.span(), format!("\"{}\" is expected to be a single value", name)))
             }
