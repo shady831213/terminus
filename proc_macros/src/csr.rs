@@ -1,12 +1,12 @@
 use syn::parse::{Parse, ParseStream, Result, Error};
-use syn::{braced, Ident, Token, parse2};
+use syn::{braced, Ident, Token, parse2, LitInt};
 use syn::punctuated::Punctuated;
 use proc_macro2::Span;
 use std::convert::TryInto;
 use proc_macro2::TokenStream;
 
 
-mod kw {
+mod attr_kw {
     syn::custom_keyword!(fields);
     syn::custom_keyword!(map32);
     syn::custom_keyword!(map64);
@@ -47,10 +47,10 @@ impl<K, T, P> Attr<K, T, P> {
 
 #[derive(Debug)]
 enum CsrAttr {
-    Fields(Attr<kw::fields, Field, Token![,]>),
-    Map32(Attr<kw::map32, FieldMap, Token![,]>),
-    Map64(Attr<kw::map64, FieldMap, Token![,]>),
-    Map(Attr<kw::map, FieldMap, Token![,]>),
+    Fields(Attr<attr_kw::fields, Field, Token![;]>),
+    Map32(Attr<attr_kw::map32, FieldMap, Token![;]>),
+    Map64(Attr<attr_kw::map64, FieldMap, Token![;]>),
+    Map(Attr<attr_kw::map, FieldMap, Token![;]>),
 }
 
 macro_rules! parse_attr {
@@ -68,40 +68,67 @@ macro_rules! parse_attr {
 impl Parse for CsrAttr {
     fn parse(input: ParseStream) -> Result<Self> {
         let lookahead = input.lookahead1();
-        if lookahead.peek(kw::fields) {
-            parse_attr!(input, kw::fields, CsrAttr::Fields, Field)()
-        } else if lookahead.peek(kw::map) {
-            parse_attr!(input, kw::map, CsrAttr::Map, FieldMap)()
-        } else if lookahead.peek(kw::map32) {
-            parse_attr!(input, kw::map32, CsrAttr::Map32, FieldMap)()
-        } else if lookahead.peek(kw::map64) {
-            parse_attr!(input, kw::map64, CsrAttr::Map64, FieldMap)()
+        if lookahead.peek(attr_kw::fields) {
+            parse_attr!(input, attr_kw::fields, CsrAttr::Fields, Field)()
+        } else if lookahead.peek(attr_kw::map) {
+            parse_attr!(input, attr_kw::map, CsrAttr::Map, FieldMap)()
+        } else if lookahead.peek(attr_kw::map32) {
+            parse_attr!(input, attr_kw::map32, CsrAttr::Map32, FieldMap)()
+        } else if lookahead.peek(attr_kw::map64) {
+            parse_attr!(input, attr_kw::map64, CsrAttr::Map64, FieldMap)()
         } else {
             Err(lookahead.error())
         }
     }
 }
 
+mod field_kw {
+    syn::custom_keyword!(RO);
+    syn::custom_keyword!(WO);
+    syn::custom_keyword!(RW);
+}
+
 #[derive(Debug)]
 enum FieldPrivilege {
-    RO,
-    WO,
-    WR,
+    RO(field_kw::RO),
+    WO(field_kw::WO),
+    RW(field_kw::RW),
 }
 
 #[derive(Debug)]
 struct Field {
     name: Ident,
-    width: usize,
+    width: LitInt,
     privilege: FieldPrivilege,
 }
 
 impl Parse for Field {
     fn parse(input: ParseStream) -> Result<Self> {
+        let name: Ident = input.parse()?;
+        input.parse::<Token![:]>()?;
+
+        use FieldPrivilege::*;
+        let lookahead = input.lookahead1();
+        let span = input.span();
+        let privilege = if lookahead.peek(field_kw::RO) {
+            input.parse::<field_kw::RO>()?;
+            RO(field_kw::RO(span))
+        } else if lookahead.peek(field_kw::WO) {
+            input.parse::<field_kw::WO>()?;
+            WO(field_kw::WO(span))
+        } else if lookahead.peek(field_kw::RW) {
+            input.parse::<field_kw::RW>()?;
+            RW(field_kw::RW(span))
+        } else {
+            return Err(lookahead.error());
+        };
+        input.parse::<Token![,]>()?;
+
+        let width: LitInt = input.parse()?;
         Ok(Field {
-            name: Ident::new("field", Span::call_site()),
-            width: 1,
-            privilege: FieldPrivilege::WR,
+            name,
+            width,
+            privilege,
         })
     }
 }
@@ -109,14 +136,18 @@ impl Parse for Field {
 #[derive(Debug)]
 struct FieldMap {
     field: Ident,
-    pos: usize,
+    pos: LitInt,
 }
 
 impl Parse for FieldMap {
     fn parse(input: ParseStream) -> Result<Self> {
+        let field: Ident = input.parse()?;
+        input.parse::<Token![:]>()?;
+
+        let pos: LitInt = input.parse()?;
         Ok(FieldMap {
-            field: Ident::new("field", Span::call_site()),
-            pos: 1,
+            field,
+            pos,
         })
     }
 }
@@ -158,6 +189,10 @@ pub fn expand(input: TokenStream) -> TokenStream {
     let maps = expand_call!(get_attr!(csr.attrs, CsrAttr::Map)());
     let map32s = expand_call!(get_attr!(csr.attrs, CsrAttr::Map32)());
     let map64s = expand_call!(get_attr!(csr.attrs, CsrAttr::Map64)());
+    println!("{:?}", fields);
+    println!("{:?}", maps);
+    println!("{:?}", map32s);
+    println!("{:?}", map64s);
 
     quote! {struct A;}
 }
