@@ -2,6 +2,7 @@ use syn::parse::{Parse, ParseStream, Result, Error, ParseBuffer};
 use syn::{parenthesized, braced, Ident, Token, LitInt};
 use syn::punctuated::Punctuated;
 use proc_macro2::TokenStream;
+use std::collections::HashMap;
 
 mod attr_kw {
     syn::custom_keyword!(fields);
@@ -184,7 +185,6 @@ macro_rules! expand_call {
 struct Fields<'a> {
     size: usize,
     fields: Vec<&'a Field>,
-    default: Option<&'a Field>,
 }
 
 impl<'a> Fields<'a> {
@@ -192,7 +192,6 @@ impl<'a> Fields<'a> {
         Fields {
             size: size,
             fields: vec![],
-            default: None,
         }
     }
 
@@ -202,9 +201,6 @@ impl<'a> Fields<'a> {
     }
 
     fn add(&mut self, field: &'a Field) -> Result<()> {
-        if self.default.is_some() {
-            panic!("add field after add default!")
-        }
         if self.overflow(field) {
             Err(Error::new(field.name.span(), format!("field {}{:?} overflow!", field.name.to_string(), field.range())))
         } else {
@@ -220,22 +216,58 @@ impl<'a> Fields<'a> {
         }
     }
 
-    fn add_default(&mut self, field: &'a Field) {
-        if self.default.is_some() {
-            panic!("add default more than once!")
-        }
-        if self.fields.is_empty() {
-            self.default = Some(field);
-            self.fields.push(field);
-        }
-    }
-
     fn default_field(&self, id: &Ident) -> Field {
         Field {
             name: id.clone(),
             msb: LitInt::new(&format!("{}", self.size - 1), id.span()),
             lsb: LitInt::new("0", id.span()),
             privilege: FieldPrivilege::RW(field_kw::RW(id.span())),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.fields.is_empty()
+    }
+}
+
+struct Trait {
+    name: Ident,
+    field_names: HashMap<String, Ident>,
+    trait_name: Ident,
+}
+
+impl Trait {
+    fn new(name: Ident) -> Self {
+        let trait_name = format_ident!("{}Trait", name.to_string());
+        Trait { name, field_names: HashMap::new(), trait_name }
+    }
+
+    fn add(&mut self, field: &Field) {
+        self.field_names.insert(field.name.to_string(), field.name.clone());
+    }
+
+    fn gen(&self) -> TokenStream {
+        let fns = self.field_names.values()
+            .map(|name| {
+                let setter = format_ident!("set_{}", name);
+                let getter_msg = format!("{} not implement {} in current xlen setting!", self.name.to_string(), name.to_string());
+                let setter_msg = format!("{} not implement {} in current xlen setting!", self.name.to_string(), setter.to_string());
+                quote! {
+                fn #name(&self) -> RegT { panic!(#getter_msg)}
+                fn #setter(&self, value:RegT) { panic!(#setter_msg)}
+            }
+            })
+            .fold(quote! {}, |acc, q| {
+                quote! {
+                #acc
+                #q
+                }
+            });
+        let trait_name = &self.trait_name;
+        quote! {
+            trait #trait_name {
+                #fns
+            }
         }
     }
 }
@@ -249,32 +281,39 @@ pub fn expand(input: TokenStream) -> TokenStream {
 
     let mut field32s = Fields::new(32);
     let mut field64s = Fields::new(64);
-    if let Some(Attr { key:_, attrs }) = fields {
+    let mut csr_trait = Trait::new(csr.name.clone());
+    if let Some(Attr { key: _, attrs }) = fields {
         for field in attrs {
             expand_call!(field32s.add(field));
             expand_call!(field64s.add(field));
+            csr_trait.add(field);
         }
     }
-    if let Some(Attr {  key:_, attrs }) = fields32 {
+    if let Some(Attr { key: _, attrs }) = fields32 {
         for field in attrs {
             expand_call!(field32s.add(field));
+            csr_trait.add(field);
         }
     }
-    if let Some(Attr {  key:_, attrs }) = fields64 {
+    if let Some(Attr { key: _, attrs }) = fields64 {
         for field in attrs {
             expand_call!(field64s.add(field));
+            csr_trait.add(field);
         }
     }
     let default_id = Ident::new(&csr.name.to_string().to_lowercase(), csr.name.span());
-    field32s.add_default(&field32s.default_field(&default_id));
-    field64s.add_default(&field64s.default_field(&default_id));
+    if field32s.is_empty() {
+        let defalut_field = field32s.default_field(&default_id);
+        field32s.add(&defalut_field);
+        csr_trait.add(&defalut_field);
+    }
+    if field64s.is_empty() {
+        let defalut_field = field64s.default_field(&default_id);
+        field64s.add(&defalut_field);
+        csr_trait.add(&defalut_field);
+    }
 
-
-    println!("{:?}", fields);
-    println!("{:?}", fields32);
-    println!("{:?}", fields64);
-
-    quote! {struct A;}
+    csr_trait.gen()
 }
 
 
