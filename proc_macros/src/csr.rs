@@ -23,7 +23,7 @@ struct Csr {
 impl Parse for Csr {
     fn parse(input: ParseStream) -> Result<Self> {
         let name: Ident = input.parse()?;
-        let content:ParseBuffer;
+        let content: ParseBuffer;
         braced!(content in input);
         Ok(Csr {
             name: name,
@@ -106,7 +106,7 @@ impl Parse for Field {
     fn parse(input: ParseStream) -> Result<Self> {
         let name: Ident = input.parse()?;
         use FieldPrivilege::*;
-        let content:ParseBuffer;
+        let content: ParseBuffer;
         parenthesized!(content in input);
         let privilege = if content.peek(field_kw::RO) {
             content.parse::<field_kw::RO>()?;
@@ -177,67 +177,55 @@ pub fn expand(input: TokenStream) -> TokenStream {
     let fields32 = expand_call!(get_attr!(csr.attrs, CsrAttr::Fields32)());
     let fields64 = expand_call!(get_attr!(csr.attrs, CsrAttr::Fields64)());
 
-    // //build fields table
-    // let mut fields_table: HashMap<String, &Field> = HashMap::new();
-    // if let Some(Attr { key, attrs }) = fields {
-    //     for field in attrs {
-    //         if fields_table.insert(field.name.to_string(), field).is_some() {
-    //             return Error::new(field.name.span(), format!("field {} is redefined!", field.name.to_string())).to_compile_error();
-    //         }
-    //     }
-    // }
-    //
-    // //build map32 & map64 table
-    // let mut map32s_table: HashMap<String, &FieldMap> = HashMap::new();
-    // let mut map64s_table: HashMap<String, &FieldMap> = HashMap::new();
-    // if let Some(Attr { key, attrs }) = maps {
-    //     for map in attrs {
-    //         if fields_table.get(&map.name.to_string()).is_none() {
-    //             return Error::new(map.name.span(), format!("field name {} is invalid!", map.name.to_string())).to_compile_error();
-    //         }
-    //         if map32s_table.insert(map.name.to_string(), map).is_some() {
-    //             return Error::new(map.name.span(), format!("map {} is redefined!", map.name.to_string())).to_compile_error();
-    //         }
-    //         if map64s_table.insert(map.name.to_string(), map).is_some() {
-    //             return Error::new(map.name.span(), format!("map {} is redefined!", map.name.to_string())).to_compile_error();
-    //         }
-    //     }
-    // }
-    // if let Some(Attr { key, attrs }) = map32s {
-    //     for map in attrs {
-    //         if fields_table.get(&map.name.to_string()).is_none() {
-    //             return Error::new(map.name.span(), format!("field name {} is invalid!", map.name.to_string())).to_compile_error();
-    //         }
-    //         if map32s_table.insert(map.name.to_string(), map).is_some() {
-    //             return Error::new(map.name.span(), format!("map {} is redefined!", map.name.to_string())).to_compile_error();
-    //         }
-    //     }
-    // }
-    // if let Some(Attr { key, attrs }) = map64s {
-    //     for map in attrs {
-    //         if fields_table.get(&map.name.to_string()).is_none() {
-    //             return Error::new(map.name.span(), format!("field name {} is invalid!", map.name.to_string())).to_compile_error();
-    //         }
-    //         if map64s_table.insert(map.name.to_string(), map).is_some() {
-    //             return Error::new(map.name.span(), format!("map {} is redefined!", map.name.to_string())).to_compile_error();
-    //         }
-    //     }
-    // }
-    //
-    // //default fields and maps
-    // if fields_table.is_empty() {
-    //     let ident = Ident::new(&csr.name.to_string().to_lowercase(), csr.name.span());
-    //     fields_table.insert(ident.to_string(),
-    //                         &Field {
-    //                             name: ident.clone(),
-    //                             width: LitInt::new(&format!("{}", reg_len()), ident.span()),
-    //                             privilege: FieldPrivilege::RW(field_kw::RW(ident.span())),
-    //                         });
-    //
-    //     let map = FieldMap { name: ident.clone(), pos: LitInt::new("0", ident.span()) };
-    //     map32s_table.insert(ident.to_string(), &map);
-    //     map64s_table.insert(ident.to_string(), &map);
-    // }
+    //build maps
+    let mut fields32_map: HashMap<String, &Field> = HashMap::new();
+    let mut fields64_map: HashMap<String, &Field> = HashMap::new();
+    if let Some(Attr { key, attrs }) = fields {
+        for field in attrs {
+            if fields32_map.insert(field.name.to_string(), &field).is_some() {
+                return Error::new(field.name.span(), format!("field {} is redefined!", field.name.to_string())).to_compile_error();
+            }
+            if fields64_map.insert(field.name.to_string(), &field).is_some() {
+                return Error::new(field.name.span(), format!("field {} is redefined!", field.name.to_string())).to_compile_error();
+            }
+        }
+    }
+    if let Some(Attr { key, attrs }) = fields32 {
+        for field in attrs {
+            if fields32_map.insert(field.name.to_string(), &field).is_some() {
+                return Error::new(field.name.span(), format!("field {} is redefined!", field.name.to_string())).to_compile_error();
+            }
+        }
+    }
+    if let Some(Attr { key, attrs }) = fields64 {
+        for field in attrs {
+            if fields64_map.insert(field.name.to_string(), &field).is_some() {
+                return Error::new(field.name.span(), format!("field {} is redefined!", field.name.to_string())).to_compile_error();
+            }
+        }
+    }
+
+    //default fields and maps
+    if fields32_map.is_empty() {
+        let ident = Ident::new(&csr.name.to_string().to_lowercase(), csr.name.span());
+        fields32_map.insert(ident.to_string(),
+                            &Field {
+                                name: ident.clone(),
+                                msb: LitInt::new("31", ident.span()),
+                                lsb: LitInt::new("0", ident.span()),
+                                privilege: FieldPrivilege::RW(field_kw::RW(ident.span())),
+                            });
+    }
+    if fields64_map.is_empty() {
+        let ident = Ident::new(&csr.name.to_string().to_lowercase(), csr.name.span());
+        fields64_map.insert(ident.to_string(),
+                            &Field {
+                                name: ident.clone(),
+                                msb: LitInt::new("63", ident.span()),
+                                lsb: LitInt::new("0", ident.span()),
+                                privilege: FieldPrivilege::RW(field_kw::RW(ident.span())),
+                            });
+    }
 
 
     println!("{:?}", fields);
