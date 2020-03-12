@@ -26,7 +26,7 @@ static ref VALID_FORMAT_TYPE:Vec<&'static str> = vec![
 
 
 
-pub fn instruction_transform(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2::TokenStream> {
+pub fn expand(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2::TokenStream> {
     if let syn::Data::Struct(data) = &ast.data {
         let code_str = parse_code_attr(ast, "code")?;
         let code = parse_code_value(&code_str);

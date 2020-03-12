@@ -11,13 +11,12 @@ mod insn;
 
 use proc_macro::TokenStream;
 use syn::DeriveInput;
-use insn::instruction_transform;
 
 #[proc_macro_derive(Instruction, attributes(code, format))]
 pub fn instruction(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).unwrap();
     let name = &ast.ident;
-    match instruction_transform(&ast, name) {
+    match insn::expand(&ast, name) {
         Ok(s) => s.into(),
         Err(e) => e.to_compile_error().into()
     }

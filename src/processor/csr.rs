@@ -9,51 +9,30 @@ use terminus_proc_macros::define_csr;
 define_csr! {
 Status {
     fields {
-         uie: RW, 1;
-         sie: RW, 1;
-         mie: RW, 1;
-         upie: RW, 1;
-         spie: RW, 1;
-         mpie: RW, 1;
-         spp: RW, 1;
-         mpp: RW, 2;
-         fs: RW, 2;
-         xs: RW, 2;
-         mprv: RW, 1;
-         sum: RW, 1;
-         mxr: RW, 1;
-         tvm: RW, 1;
-         tw: RW, 1;
-         tsr: RW, 1;
-         uxl: RW, 2;
-         sxl: RW, 2;
-         sd: RW, 1;
+         uie(RW): 0, 0;
+         sie(RW): 1, 1;
+         mie(RW): 3, 3;
+         upie(RW): 4, 4;
+         spie(RW): 5, 5;
+         mpie(RW): 7, 7;
+         spp(RW): 8, 8;
+         mpp(RW): 12, 11;
+         fs(RW): 14, 13;
+         xs(RW): 16, 15;
+         mprv(RW): 17, 17;
+         sum(RW): 18, 18;
+         mxr(RW): 19, 19;
+         tvm(RW): 20, 20;
+         tw(RW): 21, 21;
+         tsr(RW): 22, 22;
     },
-    map {
-         uie: 0;
-         sie: 1;
-         mie: 3;
-         upie: 4;
-         spie: 5;
-         mpie: 7;
-         spp: 8;
-         mpp: 11;
-         fs: 13;
-         xs: 15;
-         mprv: 17;
-         sum: 18;
-         mxr: 19;
-         tvm: 20;
-         tw: 21;
-         tsr: 22;
+    fields32 {
+         sd(RW): 31, 31;
     },
-    map32 {
-         sd: 31;
-    },
-    map64 {
-         uxl: 32;
-         sxl: 34;
-         sd: 63;
+    fields64 {
+         uxl(RW): 33, 32;
+         sxl(RW): 35,34;
+         sd(RW): 63, 63;
     },
 }
 }
