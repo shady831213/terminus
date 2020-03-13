@@ -6,7 +6,7 @@ use terminus_proc_macros::{define_csr, csr_map};
 use std::rc::Rc;
 
 csr_map! {
-pub CSR(0x0, 0xfff) {
+pub BaicCsr(0x0, 0xfff) {
     mstatus(RW):MStatus, 0x300;
 }
 }
