@@ -341,20 +341,20 @@ pub fn define_csr(input: TokenStream) -> TokenStream {
 ///     csr.write(1, 0xffffffff_ffffffff);
 ///     assert_eq!(csr.test1.get(), 0x1_0000_0070);
 ///     assert_eq!(csr.test1.field2(), 0x1);
-///     assert_eq!(csr.read(1), 0x1_0000_0070);
-///     //csr.read(0xb);
+///     assert_eq!(csr.read(1).unwrap(), 0x1_0000_0070);
+///     assert_eq!(csr.read(0xb), None);
 ///     let mut csr_p = CSR_p::new(XLen::X32);
 ///
 ///     csr_p.write(7, 0xffffffff_ffffffff);
 ///     csr_p.write(1, 0xffffffff_ffffffff);
-///     assert_eq!(csr_p.read(7), 0);
+///     assert_eq!(csr_p.read(7).unwrap(), 0);
 ///     assert_eq!(csr_p.test2.get(), 0x0);
-///     assert_eq!(csr_p.read(1), 0);
+///     assert_eq!(csr_p.read(1).unwrap(), 0);
 ///     csr_p.test2.set( 0xffffffff_ffffffff);
-///     assert_eq!(csr_p.read(7), 0x70);
-///     assert_eq!(csr_p.read(1), 0);
+///     assert_eq!(csr_p.read(7).unwrap(), 0x70);
+///     assert_eq!(csr_p.read(1).unwrap(), 0);
 ///     assert_eq!(csr_p.test1.get(), 0x70);
-///     //csr_p.write(2, 0);
+///     assert_eq!(csr_p.write(2, 0), None);
 /// # }
 ///
 /// ```

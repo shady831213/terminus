@@ -134,9 +134,9 @@ impl<'a> Maps<'a> {
             let name = &csr_map.name;
             let addr = &csr_map.addr;
             let block = if csr_map.privilege.writeable() {
-                quote! {self.#name.set(value)}
+                quote! {Some(self.#name.set(value))}
             } else {
-                quote! {{}}
+                quote! {Some(())}
             };
             quote! {
                 #addr => #block,
@@ -146,9 +146,9 @@ impl<'a> Maps<'a> {
             let name = &csr_map.name;
             let addr = &csr_map.addr;
             let block = if csr_map.privilege.readable() {
-                quote! {self.#name.get()}
+                quote! {Some(self.#name.get())}
             } else {
-                quote! {0}
+                quote! {Some(0)}
             };
             quote! { #addr => #block,}
         });
@@ -164,17 +164,17 @@ impl<'a> Maps<'a> {
                     }
                 }
 
-                pub fn write(&mut self, addr:RegT, value:RegT) {
+                pub fn write(&mut self, addr:RegT, value:RegT)->Option<()> {
                     match addr {
                         #write_matchs
-                        _ => panic!(format!("0x{:x} is unmapped!", addr))
+                        _ => None
                     }
                 }
 
-                pub fn read(&self, addr:RegT) -> RegT {
+                pub fn read(&self, addr:RegT) -> Option<RegT> {
                     match addr {
                         #read_matchs
-                        _ => panic!(format!("0x{:x} is unmapped!", addr))
+                        _ => None
                     }
                 }
             }
