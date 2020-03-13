@@ -258,6 +258,47 @@ impl<'a> Fields<'a> {
                     #q
                 }
             });
+        let set = self.fields.iter()
+            .filter(|field| {
+                match field.privilege {
+                    FieldPrivilege::RW(_) => true,
+                    FieldPrivilege::WO(_) => true,
+                    FieldPrivilege::RO(_) => false
+                }
+            })
+            .map(|field| {
+                let lsb = &field.lsb;
+                let setter = field.setter_name();
+                quote! {
+                    self.#setter(value >> (#lsb as RegT));
+                }
+            })
+            .fold(quote! {}, |acc, q| {
+                quote! {
+                    #acc
+                    #q
+                }
+            });
+        let get = self.fields.iter()
+            .filter(|field| {
+                match field.privilege {
+                    FieldPrivilege::RW(_) => true,
+                    FieldPrivilege::WO(_) => false,
+                    FieldPrivilege::RO(_) => true
+                }
+            })
+            .map(|field| {
+                let lsb = &field.lsb;
+                let getter = field.getter_name();
+                quote! {
+                    (self.#getter() << (#lsb as RegT))
+                }
+            })
+            .fold(quote! {(0 as RegT)}, |acc, q| {
+                quote! {
+                    #acc | #q
+                }
+            });
         let struct_name = self.struct_name();
         let size = format_ident!("u{}", self.size);
         quote! {
@@ -265,6 +306,12 @@ impl<'a> Fields<'a> {
             struct #struct_name(#size);
             bitfield_bitrange! {struct #struct_name(#size)}
             impl #trait_name for #struct_name {
+                fn get(&self) -> RegT {
+                   #get
+                }
+                fn set(&mut self, value:RegT) {
+                    #set
+                }
                 bitfield_fields! {
                     RegT;
                     #fields
@@ -312,6 +359,8 @@ impl<'a> FieldSet<'a> {
         let trait_name = self.trait_name();
         quote! {
             pub trait #trait_name {
+                fn get(&self) -> RegT;
+                fn set(&mut self, value:RegT);
                 #fns
             }
         }
@@ -371,6 +420,18 @@ impl<'a> FieldSet<'a> {
             }
 
             impl #trait_name for #top_name {
+                fn get(&self) -> RegT {
+                    match self.xlen {
+                        XLen::X64 => unsafe { self.csr.x64.get() },
+                        XLen::X32 => unsafe { self.csr.x32.get() }
+                    }
+                }
+                fn set(&mut self, value:RegT) {
+                    match self.xlen {
+                        XLen::X64 => unsafe { self.csr.x64.set(value) },
+                        XLen::X32 => unsafe { self.csr.x32.set(value) }
+                    }
+                }
                 #fns
             }
         }

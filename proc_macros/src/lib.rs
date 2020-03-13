@@ -41,10 +41,10 @@ use syn::parse_macro_input;
 ///          field1(RW): 6, 4;
 ///     },
 ///     fields32 {
-///          field2(RW): 8, 7;
+///          field2(RO): 8, 7;
 ///     },
 ///     fields64 {
-///          field2(RW): 31, 31;
+///          field2(WO): 31, 31;
 ///          field3(RW): 32, 32;
 ///     },
 /// }
@@ -55,12 +55,25 @@ use syn::parse_macro_input;
 ///     assert_eq!(test.field3(), 0x1);
 ///     test.set_field2(3);
 ///     assert_eq!(test.field2(), 0x1);
+///     test.set(0);
+///     assert_eq!(test.get(), 0x0);
+///     test.set(0xffffffff_ffffffff);
+///     assert_eq!(test.get(), 0x1_0000_0070);
+///     assert_eq!(test.field2(), 0x1);
 ///
 ///     let mut test2 = Test::new(XLen::X32);
 ///     test2.set_field1(0xffff_ffff_ffff);
 ///     assert_eq!(test2.field1(), 0x7);
 ///     test2.set_field2(0xffff_ffff_ffff);
 ///     assert_eq!(test2.field2(), 0x3);
+///     test2.set_field2(0x0);
+///     test2.set(0);
+///     assert_eq!(test2.get(), 0x0);
+///     test2.set(0xffffffff_ffffffff);
+///     assert_eq!(test2.get(), 0x70);
+///     test2.set_field2(0xf);
+///     assert_eq!(test2.field2(), 0x3);
+///     assert_eq!(test2.get(), 0x1f0);
 /// # }
 /// ```
 /// generate code like this:
@@ -76,6 +89,12 @@ use syn::parse_macro_input;
 /// struct Test32(u32);
 /// bitfield_bitrange! {struct Test32(u32)}
 /// impl TestTrait for Test32 {
+///     fn get(&self) -> RegT{
+///         (0 as RegT) | (self.field1() << (4 as RegT)) | (self.field2() << (7 as RegT))
+///     }
+///     fn set(&mut self, value:RegT) {
+///         self.set_field1(value >> (4 as RegT));
+///     }
 ///     bitfield_fields! {
 ///     RegT;
 ///     field1, set_field1: 6,4;
@@ -87,6 +106,14 @@ use syn::parse_macro_input;
 /// struct Test64(u64);
 /// bitfield_bitrange! {struct Test64(u64)}
 /// impl TestTrait for Test64 {
+///     fn get(&self) -> RegT{
+///         (0 as RegT) | (self.field1() << (4 as RegT)) | (self.field3() << (32 as RegT))
+///     }
+///     fn set(&mut self, value:RegT) {
+///         self.set_field1(value >> (4 as RegT));
+///         self.set_field2(value >> (31 as RegT));
+///         self.set_field3(value >> (32 as RegT));
+///     }
 ///     bitfield_fields! {
 ///     RegT;
 ///     field1, set_field1: 6,4;
@@ -96,9 +123,11 @@ use syn::parse_macro_input;
 /// }
 ///
 /// pub trait TestTrait {
+///     fn get(&self) -> RegT;
 ///     fn field1(&self) -> RegT { panic!("not implemnt") }
 ///     fn field2(&self) -> RegT { panic!("not implemnt") }
 ///     fn field3(&self) -> RegT { panic!("not implemnt") }
+///     fn set(&mut self, value:RegT);
 ///     fn set_field1(&mut self, value: RegT) { panic!("not implemnt") }
 ///     fn set_field2(&mut self, value: RegT) { panic!("not implemnt") }
 ///     fn set_field3(&mut self, value: RegT) { panic!("not implemnt") }
@@ -123,6 +152,18 @@ use syn::parse_macro_input;
 ///     }
 /// }
 /// impl TestTrait for Test {
+///     fn get(&self) -> RegT {
+///         match self.xlen {
+///             XLen::X64 => unsafe { self.csr.x64.get() },
+///             XLen::X32 => unsafe { self.csr.x32.get() }
+///         }
+///     }
+///     fn set(&mut self, value:RegT) {
+///         match self.xlen {
+///             XLen::X64 => unsafe { self.csr.x64.set(value) },
+///             XLen::X32 => unsafe { self.csr.x32.set(value) }
+///         }
+///     }
 ///     fn field1(&self) -> RegT {
 ///         match self.xlen {
 ///             XLen::X64 => unsafe { self.csr.x64.field1() },
@@ -160,7 +201,32 @@ use syn::parse_macro_input;
 ///         }
 ///     }
 /// }
-/// #
+/// fn main() {
+///     let mut test = Test::new(XLen::X64);
+///     test.set_field3(0xff);
+///     assert_eq!(test.field3(), 0x1);
+///     test.set_field2(3);
+///     assert_eq!(test.field2(), 0x1);
+///     test.set(0);
+///     assert_eq!(test.get(), 0x0);
+///     test.set(0xffffffff_ffffffff);
+///     assert_eq!(test.get(), 0x1_0000_0070);
+///     assert_eq!(test.field2(), 0x1);
+///
+///     let mut test2 = Test::new(XLen::X32);
+///     test2.set_field1(0xffff_ffff_ffff);
+///     assert_eq!(test2.field1(), 0x7);
+///     test2.set_field2(0xffff_ffff_ffff);
+///     assert_eq!(test2.field2(), 0x3);
+///     test2.set_field2(0x0);
+///     test2.set(0);
+///     assert_eq!(test2.get(), 0x0);
+///     test2.set(0xffffffff_ffffffff);
+///     assert_eq!(test2.get(), 0x70);
+///     test2.set_field2(0xf);
+///     assert_eq!(test2.field2(), 0x3);
+///     assert_eq!(test2.get(), 0x1f0);
+/// # }
 /// ```
 #[proc_macro]
 pub fn define_csr(input: TokenStream) -> TokenStream {
