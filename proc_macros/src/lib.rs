@@ -300,3 +300,67 @@ pub fn define_csr(input: TokenStream) -> TokenStream {
     csr::define_csr::expand(parse_macro_input!(input)).into()
 }
 
+/// # Example
+/// ```rust
+/// #
+/// extern crate terminus_macros;
+/// extern crate terminus_proc_macros;
+/// extern crate terminus_global;
+/// use terminus_global::*;
+/// use terminus_macros::*;
+/// use terminus_proc_macros::{define_csr, csr_map};
+/// define_csr! {
+/// Test {
+///     fields {
+///          field1(RW): 6, 4;
+///     },
+///     fields32 {
+///          field2(RO): 8, 7;
+///     },
+///     fields64 {
+///          field2(WO): 31, 31;
+///          field3(RW): 32, 32;
+///     },
+/// }
+/// }
+///
+/// csr_map! {
+/// pub CSR(0x0, 0xa) {
+///     test1(RW):Test, 0x1;
+///     test2(RW):Test, 0x7;
+/// }
+/// }
+/// csr_map! {
+/// CSR_p(0x0, 0xa) {
+///     test1(WO):Test, 0x1;
+///     test2(RO):Test, 0x7;
+/// }
+/// }
+/// fn main(){
+///     let mut csr = CSR::new(XLen::X64);
+///     csr.write(1, 0xffffffff_ffffffff);
+///     assert_eq!(csr.test1.get(), 0x1_0000_0070);
+///     assert_eq!(csr.test1.field2(), 0x1);
+///     assert_eq!(csr.read(1), 0x1_0000_0070);
+///     //csr.read(0xb);
+///     let mut csr_p = CSR_p::new(XLen::X32);
+///
+///     csr_p.write(7, 0xffffffff_ffffffff);
+///     csr_p.write(1, 0xffffffff_ffffffff);
+///     assert_eq!(csr_p.read(7), 0);
+///     assert_eq!(csr_p.test2.get(), 0x0);
+///     assert_eq!(csr_p.read(1), 0);
+///     csr_p.test2.set( 0xffffffff_ffffffff);
+///     assert_eq!(csr_p.read(7), 0x70);
+///     assert_eq!(csr_p.read(1), 0);
+///     assert_eq!(csr_p.test1.get(), 0x70);
+///     //csr_p.write(2, 0);
+/// # }
+///
+/// ```
+#[proc_macro]
+pub fn csr_map(input: TokenStream) -> TokenStream {
+    csr::csr_map::expand(parse_macro_input!(input)).into()
+}
+
+

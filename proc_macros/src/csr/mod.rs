@@ -1,4 +1,5 @@
 use syn::parse::{Parse, ParseStream, Result, Error};
+use proc_macro2::TokenStream;
 
 macro_rules! expand_call {
     ($exp:expr) => {
@@ -7,6 +8,19 @@ macro_rules! expand_call {
             Err(err) => return err.to_compile_error(),
         }
     };
+}
+
+fn map_fold<T, O, I: Iterator<Item=T>, MF: Fn(T) -> O, FF: Fn(O, O) -> O>(iter: I, m: MF, init: O, f: FF) -> O {
+    iter.map(m).fold(init, f)
+}
+
+fn quote_map_fold<T, I: Iterator<Item=T>, MF: Fn(T) -> TokenStream>(iter: I, m: MF) -> TokenStream {
+    map_fold(iter, m, quote! {}, |acc, q| {
+        quote! {
+                    #acc
+                    #q
+                }
+    })
 }
 
 mod privilege_kw {
@@ -20,6 +34,24 @@ enum CsrPrivilege {
     RO(privilege_kw::RO),
     WO(privilege_kw::WO),
     RW(privilege_kw::RW),
+}
+
+impl CsrPrivilege {
+    fn writeable(&self) -> bool {
+        match self {
+            CsrPrivilege::RW(_) => true,
+            CsrPrivilege::WO(_) => true,
+            CsrPrivilege::RO(_) => false
+        }
+    }
+
+    fn readable(&self) -> bool {
+        match self {
+            CsrPrivilege::RW(_) => true,
+            CsrPrivilege::WO(_) => false,
+            CsrPrivilege::RO(_) => true
+        }
+    }
 }
 
 impl Parse for CsrPrivilege {

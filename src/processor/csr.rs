@@ -2,12 +2,17 @@ use terminus_macros::*;
 use terminus_global::*;
 use super::*;
 use terminus_global::RegT;
-use terminus_proc_macros::define_csr;
+use terminus_proc_macros::{define_csr, csr_map};
 use std::rc::Rc;
 
+csr_map! {
+pub CSR(0x0, 0xfff) {
+    mstatus(RW):MStatus, 0x300;
+}
+}
 
 define_csr! {
-Status {
+MStatus {
     fields {
          uie(RW): 0, 0;
          sie(RW): 1, 1;
@@ -39,7 +44,7 @@ Status {
 
 #[test]
 fn test_status() {
-    let mut status = Status::new(XLen::X32);
+    let mut status = MStatus::new(XLen::X32);
     status.set_xs(0xf);
     assert_eq!(status.xs(), 0x3);
     status.set_xs(0);

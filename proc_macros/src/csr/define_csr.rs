@@ -135,28 +135,6 @@ impl Parse for Field {
     }
 }
 
-macro_rules! get_attr {
-    ($attrs: expr, $exp: path) => {
-        || {
-            let _attr = $attrs.iter().filter_map(|f| {
-                if let $exp(a) = f {
-                    Some(a)
-                } else {
-                    None
-                }
-            }).collect::<Vec<_>>();
-            if _attr.len() == 0 {
-                Ok(None)
-            } else if _attr.len() == 1 {
-                Ok(Some(_attr[0]))
-            } else {
-                Err(Error::new(_attr[1].key.span, format!("{:?} is redefined!", _attr[1].key)))
-            }
-
-        }
-    };
-}
-
 struct Fields<'a> {
     name: Ident,
     size: usize,
@@ -211,49 +189,22 @@ impl<'a> Fields<'a> {
     }
 
     fn struct_expand(&self, trait_name: &Ident) -> TokenStream {
-        let fields = self.fields.iter()
-            .map(|field| {
-                let (setter, getter) = (field.setter_name(), field.getter_name());
-                let (msb, lsb) = (&field.msb, &field.lsb);
-                quote! {
+        let fields = quote_map_fold(self.fields.iter(), |field| {
+            let (setter, getter) = (field.setter_name(), field.getter_name());
+            let (msb, lsb) = (&field.msb, &field.lsb);
+            quote! {
                     #getter, #setter: #msb, #lsb;
                 }
-            })
-            .fold(quote! {}, |acc, q| {
-                quote! {
-                    #acc
-                    #q
-                }
-            });
-        let set = self.fields.iter()
-            .filter(|field| {
-                match field.privilege {
-                    CsrPrivilege::RW(_) => true,
-                    CsrPrivilege::WO(_) => true,
-                    CsrPrivilege::RO(_) => false
-                }
-            })
-            .map(|field| {
-                let lsb = &field.lsb;
-                let setter = field.setter_name();
-                quote! {
-                    self.#setter(value >> (#lsb as RegT));
-                }
-            })
-            .fold(quote! {}, |acc, q| {
-                quote! {
-                    #acc
-                    #q
-                }
-            });
+        });
+        let set = quote_map_fold(self.fields.iter().filter(|field| { field.privilege.writeable() }), |field| {
+            let lsb = &field.lsb;
+            let setter = field.setter_name();
+            quote! {
+                self.#setter(value >> (#lsb as RegT));
+            }
+        });
         let get = self.fields.iter()
-            .filter(|field| {
-                match field.privilege {
-                    CsrPrivilege::RW(_) => true,
-                    CsrPrivilege::WO(_) => false,
-                    CsrPrivilege::RO(_) => true
-                }
-            })
+            .filter(|field| { field.privilege.readable() })
             .map(|field| {
                 let lsb = &field.lsb;
                 let getter = field.getter_name();
@@ -307,22 +258,15 @@ impl<'a> FieldSet<'a> {
     }
 
     fn trait_expand(&self) -> TokenStream {
-        let fns = self.field_names.values()
-            .map(|field| {
-                let (setter, getter) = (field.setter_name(), field.getter_name());
-                let getter_msg = format!("{} not implement {} in current xlen setting!", self.name.to_string(), getter.to_string());
-                let setter_msg = format!("{} not implement {} in current xlen setting!", self.name.to_string(), setter.to_string());
-                quote! {
+        let fns = quote_map_fold(self.field_names.values(), |field| {
+            let (setter, getter) = (field.setter_name(), field.getter_name());
+            let getter_msg = format!("{} not implement {} in current xlen setting!", self.name.to_string(), getter.to_string());
+            let setter_msg = format!("{} not implement {} in current xlen setting!", self.name.to_string(), setter.to_string());
+            quote! {
                 fn #getter(&self) -> RegT { panic!(#getter_msg)}
                 fn #setter(&mut self, value:RegT) { panic!(#setter_msg)}
             }
-            })
-            .fold(quote! {}, |acc, q| {
-                quote! {
-                #acc
-                #q
-                }
-            });
+        });
         let trait_name = self.trait_name();
         quote! {
             pub trait #trait_name {
@@ -345,10 +289,9 @@ impl<'a> FieldSet<'a> {
         let top_name = &self.name;
         let trait_name = self.trait_name();
 
-        let fns = self.field_names.values()
-            .map(|field| {
-                let (setter, getter) = (field.setter_name(), field.getter_name());
-                quote! {
+        let fns = quote_map_fold(self.field_names.values(), |field| {
+            let (setter, getter) = (field.setter_name(), field.getter_name());
+            quote! {
                 fn #getter(&self) -> RegT {
                     match self.xlen {
                         XLen::X64 => unsafe { self.csr.x64.#getter() },
@@ -362,14 +305,7 @@ impl<'a> FieldSet<'a> {
                     }
                 }
             }
-            })
-            .fold(quote! {}, |acc, q| {
-                quote! {
-                #acc
-                #q
-                }
-            });
-
+        });
         quote! {
             #union_target
             pub struct #top_name {
@@ -405,6 +341,28 @@ impl<'a> FieldSet<'a> {
     }
 }
 
+
+macro_rules! get_attr {
+    ($attrs: expr, $exp: path) => {
+        || {
+            let _attr = $attrs.iter().filter_map(|f| {
+                if let $exp(a) = f {
+                    Some(a)
+                } else {
+                    None
+                }
+            }).collect::<Vec<_>>();
+            if _attr.len() == 0 {
+                Ok(None)
+            } else if _attr.len() == 1 {
+                Ok(Some(_attr[0]))
+            } else {
+                Err(Error::new(_attr[1].key.span, format!("{:?} is redefined!", _attr[1].key)))
+            }
+
+        }
+    };
+}
 
 pub fn expand(input: TokenStream) -> TokenStream {
     let csr: Csr = expand_call!(syn::parse2(input));
