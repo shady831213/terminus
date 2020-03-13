@@ -20,6 +20,7 @@ terminus-global = { path = "../global" }
 
 [dev-dependencies]
 terminus-macros = { path = "../macros" }
+terminus = { path = ".." }
 
 [dependencies.syn]
 features = ["extra-traits", "full"]

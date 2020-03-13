@@ -2,9 +2,6 @@ use std::ops::Deref;
 use super::processor::Processor;
 use terminus_global::InsnT;
 
-#[cfg(test)]
-mod test;
-
 pub trait Format {
     fn ir(&self) -> InsnT;
     fn rs1(&self) -> InsnT {

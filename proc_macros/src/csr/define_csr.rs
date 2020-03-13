@@ -113,21 +113,9 @@ impl Field {
 impl Parse for Field {
     fn parse(input: ParseStream) -> Result<Self> {
         let name: Ident = input.parse()?;
-        use CsrPrivilege::*;
         let content: ParseBuffer;
         parenthesized!(content in input);
-        let privilege = if content.peek(privilege_kw::RO) {
-            content.parse::<privilege_kw::RO>()?;
-            RO(privilege_kw::RO(content.span()))
-        } else if content.peek(privilege_kw::WO) {
-            content.parse::<privilege_kw::WO>()?;
-            WO(privilege_kw::WO(content.span()))
-        } else if content.peek(privilege_kw::RW) {
-            content.parse::<privilege_kw::RW>()?;
-            RW(privilege_kw::RW(content.span()))
-        } else {
-            return Err(Error::new(content.span(), "expect [RO|WR|WO]"));
-        };
+        let privilege = content.call(CsrPrivilege::parse)?;
         input.parse::<Token![:]>()?;
 
         let msb: LitInt = input.parse()?;
@@ -165,15 +153,6 @@ macro_rules! get_attr {
                 Err(Error::new(_attr[1].key.span, format!("{:?} is redefined!", _attr[1].key)))
             }
 
-        }
-    };
-}
-
-macro_rules! expand_call {
-    ($exp:expr) => {
-        match $exp {
-            Ok(result) => result,
-            Err(err) => return err.to_compile_error(),
         }
     };
 }
@@ -459,11 +438,11 @@ pub fn expand(input: TokenStream) -> TokenStream {
     let defalut_field32 = field32s.default_field(&default_id);
     let defalut_field64 = field64s.default_field(&default_id);
     if field32s.is_empty() {
-        field32s.add(&defalut_field32);
+        expand_call!(field32s.add(&defalut_field32));
         field_set.add(&defalut_field32);
     }
     if field64s.is_empty() {
-        field64s.add(&defalut_field64);
+        expand_call!(field64s.add(&defalut_field64));
         field_set.add(&defalut_field64);
     }
 
