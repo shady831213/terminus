@@ -1,16 +1,11 @@
 use std::collections::HashMap;
 use super::extentions::Extension;
 use terminus_macros::*;
-use terminus_global::RegT;
+use terminus_global::*;
 
 mod csr;
 
 use csr::*;
-
-pub enum XLen {
-    X32 = 32,
-    X64 = 64,
-}
 
 trait CsrAccess {
     fn write(&mut self, xlen: XLen, value: RegT) {

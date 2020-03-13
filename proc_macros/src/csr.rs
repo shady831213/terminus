@@ -112,6 +112,14 @@ impl Field {
         let ((msb, lsb), (rmsb, rlsb)) = (self.range(), rhs.range());
         msb >= rlsb && msb <= rmsb || lsb >= rlsb && lsb <= rmsb
     }
+
+    fn setter_name(&self) -> Ident {
+        format_ident!("set_{}", self.name)
+    }
+
+    fn getter_name(&self) -> Ident {
+        self.name.clone()
+    }
 }
 
 impl Parse for Field {
@@ -183,13 +191,15 @@ macro_rules! expand_call {
 }
 
 struct Fields<'a> {
+    name: Ident,
     size: usize,
     fields: Vec<&'a Field>,
 }
 
 impl<'a> Fields<'a> {
-    fn new(size: usize) -> Self {
+    fn new(name: Ident, size: usize) -> Self {
         Fields {
+            name,
             size: size,
             fields: vec![],
         }
@@ -228,33 +238,69 @@ impl<'a> Fields<'a> {
     fn is_empty(&self) -> bool {
         self.fields.is_empty()
     }
+
+    fn struct_name(&self) -> Ident {
+        format_ident!("{}{}", self.name.to_string(),self.size)
+    }
+
+    fn struct_expand(&self, trait_name: &Ident) -> TokenStream {
+        let fields = self.fields.iter()
+            .map(|field| {
+                let (setter, getter) = (field.setter_name(), field.getter_name());
+                let (msb, lsb) = (&field.msb, &field.lsb);
+                quote! {
+                    #getter, #setter: #msb, #lsb;
+                }
+            })
+            .fold(quote! {}, |acc, q| {
+                quote! {
+                    #acc
+                    #q
+                }
+            });
+        let struct_name = self.struct_name();
+        let size = format_ident!("u{}", self.size);
+        quote! {
+            #[derive(Copy, Clone)]
+            struct #struct_name(#size);
+            bitfield_bitrange! {struct #struct_name(#size)}
+            impl #trait_name for #struct_name {
+                bitfield_fields! {
+                    RegT;
+                    #fields
+                }
+            }
+        }
+    }
 }
 
-struct Trait {
+struct FieldSet<'a> {
     name: Ident,
-    field_names: HashMap<String, Ident>,
-    trait_name: Ident,
+    field_names: HashMap<String, &'a Field>,
 }
 
-impl Trait {
+impl<'a> FieldSet<'a> {
     fn new(name: Ident) -> Self {
-        let trait_name = format_ident!("{}Trait", name.to_string());
-        Trait { name, field_names: HashMap::new(), trait_name }
+        FieldSet { name, field_names: HashMap::new() }
     }
 
-    fn add(&mut self, field: &Field) {
-        self.field_names.insert(field.name.to_string(), field.name.clone());
+    fn add(&mut self, field: &'a Field) {
+        self.field_names.insert(field.name.to_string(), field);
     }
 
-    fn expand(&self) -> TokenStream {
+    fn trait_name(&self) -> Ident {
+        format_ident!("{}Trait", self.name.to_string())
+    }
+
+    fn trait_expand(&self) -> TokenStream {
         let fns = self.field_names.values()
-            .map(|name| {
-                let setter = format_ident!("set_{}", name);
-                let getter_msg = format!("{} not implement {} in current xlen setting!", self.name.to_string(), name.to_string());
+            .map(|field| {
+                let (setter, getter) = (field.setter_name(), field.getter_name());
+                let getter_msg = format!("{} not implement {} in current xlen setting!", self.name.to_string(), getter.to_string());
                 let setter_msg = format!("{} not implement {} in current xlen setting!", self.name.to_string(), setter.to_string());
                 quote! {
-                fn #name(&self) -> RegT { panic!(#getter_msg)}
-                fn #setter(&self, value:RegT) { panic!(#setter_msg)}
+                fn #getter(&self) -> RegT { panic!(#getter_msg)}
+                fn #setter(&mut self, value:RegT) { panic!(#setter_msg)}
             }
             })
             .fold(quote! {}, |acc, q| {
@@ -263,9 +309,68 @@ impl Trait {
                 #q
                 }
             });
-        let trait_name = &self.trait_name;
+        let trait_name = self.trait_name();
         quote! {
-            trait #trait_name {
+            pub trait #trait_name {
+                #fns
+            }
+        }
+    }
+
+    fn top_expand(&self, struct32_name: &Ident, struct64_name: &Ident) -> TokenStream {
+        let union_name = format_ident!("{}Union", self.name.to_string());
+        let union_target = quote! {
+            union #union_name {
+                x32: #struct32_name,
+                x64: #struct64_name,
+            }
+        };
+
+        let top_name = &self.name;
+        let trait_name = self.trait_name();
+
+        let fns = self.field_names.values()
+            .map(|field| {
+                let (setter, getter) = (field.setter_name(), field.getter_name());
+                quote! {
+                fn #getter(&self) -> RegT {
+                    match self.xlen {
+                        XLen::X64 => unsafe { self.csr.x64.#getter() },
+                        XLen::X32 => unsafe { self.csr.x32.#getter() }
+                    }
+                }
+                fn #setter(&mut self, value:RegT) {
+                    match self.xlen {
+                        XLen::X64 => unsafe { self.csr.x64.#setter(value) },
+                        XLen::X32 => unsafe { self.csr.x32.#setter(value) }
+                    }
+                }
+            }
+            })
+            .fold(quote! {}, |acc, q| {
+                quote! {
+                #acc
+                #q
+                }
+            });
+
+        quote! {
+            #union_target
+            pub struct #top_name {
+                xlen:XLen,
+                csr:#union_name,
+            }
+
+            impl #top_name {
+                pub fn new(xlen:XLen) -> #top_name {
+                    #top_name{
+                        xlen,
+                        csr:#union_name{x64:{#struct64_name(0)}}
+                    }
+                }
+            }
+
+            impl #trait_name for #top_name {
                 #fns
             }
         }
@@ -279,41 +384,52 @@ pub fn expand(input: TokenStream) -> TokenStream {
     let fields32 = expand_call!(get_attr!(csr.attrs, CsrAttr::Fields32)());
     let fields64 = expand_call!(get_attr!(csr.attrs, CsrAttr::Fields64)());
 
-    let mut field32s = Fields::new(32);
-    let mut field64s = Fields::new(64);
-    let mut csr_trait = Trait::new(csr.name.clone());
+    let mut field32s = Fields::new(csr.name.clone(), 32);
+    let mut field64s = Fields::new(csr.name.clone(), 64);
+    let mut field_set = FieldSet::new(csr.name.clone());
     if let Some(Attr { key: _, attrs }) = fields {
         for field in attrs {
             expand_call!(field32s.add(field));
             expand_call!(field64s.add(field));
-            csr_trait.add(field);
+            field_set.add(field);
         }
     }
     if let Some(Attr { key: _, attrs }) = fields32 {
         for field in attrs {
             expand_call!(field32s.add(field));
-            csr_trait.add(field);
+            field_set.add(field);
         }
     }
     if let Some(Attr { key: _, attrs }) = fields64 {
         for field in attrs {
             expand_call!(field64s.add(field));
-            csr_trait.add(field);
+            field_set.add(field);
         }
     }
     let default_id = Ident::new(&csr.name.to_string().to_lowercase(), csr.name.span());
+    let defalut_field32 = field32s.default_field(&default_id);
+    let defalut_field64 = field64s.default_field(&default_id);
     if field32s.is_empty() {
-        let defalut_field = field32s.default_field(&default_id);
-        field32s.add(&defalut_field);
-        csr_trait.add(&defalut_field);
+        field32s.add(&defalut_field32);
+        field_set.add(&defalut_field32);
     }
     if field64s.is_empty() {
-        let defalut_field = field64s.default_field(&default_id);
-        field64s.add(&defalut_field);
-        csr_trait.add(&defalut_field);
+        field64s.add(&defalut_field64);
+        field_set.add(&defalut_field64);
     }
 
-    csr_trait.expand()
+    let trait_name = field_set.trait_name();
+    let trait_target = field_set.trait_expand();
+    let struct32_target = field32s.struct_expand(&trait_name);
+    let struct64_target = field64s.struct_expand(&trait_name);
+    let top_target = field_set.top_expand(&field32s.struct_name(), &field64s.struct_name());
+
+    quote! {
+        #trait_target
+        #struct32_target
+        #struct64_target
+        #top_target
+    }
 }
 
 

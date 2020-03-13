@@ -12,3 +12,6 @@ terminus-global = { path = "global" }
 terminus-macros={ path = "macros" }
 terminus-proc-macros={ path = "proc_macros" }
 linkme = "0.1"
+
+[workspace]
+members = ["global","macros","proc_macros"]

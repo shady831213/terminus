@@ -18,6 +18,9 @@ regex = "1"
 linkme = "0.1"
 terminus-global = { path = "../global" }
 
+[dev-dependencies]
+terminus-macros = { path = "../macros" }
+
 [dependencies.syn]
 features = ["extra-traits", "full"]
 version = "1.0"
