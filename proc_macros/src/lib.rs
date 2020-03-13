@@ -230,5 +230,6 @@ use syn::parse_macro_input;
 /// ```
 #[proc_macro]
 pub fn define_csr(input: TokenStream) -> TokenStream {
-    csr::expand(parse_macro_input!(input)).into()
+    csr::define_csr::expand(parse_macro_input!(input)).into()
 }
+

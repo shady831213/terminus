@@ -3,6 +3,7 @@ use syn::{parenthesized, braced, Ident, Token, LitInt};
 use syn::punctuated::Punctuated;
 use proc_macro2::TokenStream;
 use std::collections::HashMap;
+use super::*;
 
 mod attr_kw {
     syn::custom_keyword!(fields);
@@ -78,25 +79,12 @@ impl Parse for CsrAttr {
     }
 }
 
-mod field_kw {
-    syn::custom_keyword!(RO);
-    syn::custom_keyword!(WO);
-    syn::custom_keyword!(RW);
-}
-
-#[derive(Debug)]
-enum FieldPrivilege {
-    RO(field_kw::RO),
-    WO(field_kw::WO),
-    RW(field_kw::RW),
-}
-
 #[derive(Debug)]
 struct Field {
     name: Ident,
     msb: LitInt,
     lsb: LitInt,
-    privilege: FieldPrivilege,
+    privilege: CsrPrivilege,
 }
 
 impl Field {
@@ -125,18 +113,18 @@ impl Field {
 impl Parse for Field {
     fn parse(input: ParseStream) -> Result<Self> {
         let name: Ident = input.parse()?;
-        use FieldPrivilege::*;
+        use CsrPrivilege::*;
         let content: ParseBuffer;
         parenthesized!(content in input);
-        let privilege = if content.peek(field_kw::RO) {
-            content.parse::<field_kw::RO>()?;
-            RO(field_kw::RO(content.span()))
-        } else if content.peek(field_kw::WO) {
-            content.parse::<field_kw::WO>()?;
-            WO(field_kw::WO(content.span()))
-        } else if content.peek(field_kw::RW) {
-            content.parse::<field_kw::RW>()?;
-            RW(field_kw::RW(content.span()))
+        let privilege = if content.peek(privilege_kw::RO) {
+            content.parse::<privilege_kw::RO>()?;
+            RO(privilege_kw::RO(content.span()))
+        } else if content.peek(privilege_kw::WO) {
+            content.parse::<privilege_kw::WO>()?;
+            WO(privilege_kw::WO(content.span()))
+        } else if content.peek(privilege_kw::RW) {
+            content.parse::<privilege_kw::RW>()?;
+            RW(privilege_kw::RW(content.span()))
         } else {
             return Err(Error::new(content.span(), "expect [RO|WR|WO]"));
         };
@@ -231,7 +219,7 @@ impl<'a> Fields<'a> {
             name: id.clone(),
             msb: LitInt::new(&format!("{}", self.size - 1), id.span()),
             lsb: LitInt::new("0", id.span()),
-            privilege: FieldPrivilege::RW(field_kw::RW(id.span())),
+            privilege: CsrPrivilege::RW(privilege_kw::RW(id.span())),
         }
     }
 
@@ -261,9 +249,9 @@ impl<'a> Fields<'a> {
         let set = self.fields.iter()
             .filter(|field| {
                 match field.privilege {
-                    FieldPrivilege::RW(_) => true,
-                    FieldPrivilege::WO(_) => true,
-                    FieldPrivilege::RO(_) => false
+                    CsrPrivilege::RW(_) => true,
+                    CsrPrivilege::WO(_) => true,
+                    CsrPrivilege::RO(_) => false
                 }
             })
             .map(|field| {
@@ -282,9 +270,9 @@ impl<'a> Fields<'a> {
         let get = self.fields.iter()
             .filter(|field| {
                 match field.privilege {
-                    FieldPrivilege::RW(_) => true,
-                    FieldPrivilege::WO(_) => false,
-                    FieldPrivilege::RO(_) => true
+                    CsrPrivilege::RW(_) => true,
+                    CsrPrivilege::WO(_) => false,
+                    CsrPrivilege::RO(_) => true
                 }
             })
             .map(|field| {
