@@ -1,7 +1,9 @@
-pub extern crate terminus_macros;
 extern crate linkme;
+extern crate dpi_memory;
+pub extern crate terminus_macros;
 pub extern crate terminus_proc_macros;
 pub extern crate terminus_global;
+extern crate xmas_elf;
 
 pub use linkme::*;
 
@@ -18,3 +20,5 @@ mod processor;
 pub use processor::Processor;
 
 mod extentions;
+
+mod machine;
