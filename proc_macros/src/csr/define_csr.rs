@@ -98,7 +98,7 @@ impl Field {
 
     fn overlap(&self, rhs: &Self) -> bool {
         let ((msb, lsb), (rmsb, rlsb)) = (self.range(), rhs.range());
-        msb >= rlsb && msb <= rmsb || lsb >= rlsb && lsb <= rmsb
+        msb >= rlsb && msb <= rmsb || lsb >= rlsb && lsb <= rmsb || rmsb >= lsb && rmsb <= msb || rlsb >= lsb && rlsb <= msb
     }
 
     fn setter_name(&self) -> Ident {

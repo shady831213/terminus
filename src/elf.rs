@@ -1,7 +1,7 @@
-use xmas_elf::sections::{SectionHeader, SectionData};
 use xmas_elf::ElfFile;
-use xmas_elf::program::{FLAG_X, FLAG_R};
+use xmas_elf::program::{FLAG_X, FLAG_R, SegmentData};
 use xmas_elf::header;
+use xmas_elf::sections::SectionHeader;
 
 pub struct ElfLoader<'a> {
     elf: ElfFile<'a>,
@@ -28,20 +28,36 @@ impl<'a> ElfLoader<'a> {
         }
     }
 
-    fn sections_filter(&self) -> impl Iterator<Item=SectionHeader> {
-        self.elf.section_iter().filter(|s| {
-            s.flags() & (FLAG_X as u64) | s.flags() & (FLAG_R as u64) != 0
-        })
-    }
+    // pub fn program_sections(&self) -> impl Iterator<Item=SectionHeader> {
+    //     self.elf.section_iter().filter(|s| {
+    //         s.flags() & (FLAG_X as u64) & (FLAG_R as u64) != 0
+    //     })
+    // }
 
-    pub fn load<F: Fn(&str, u64, &[u8]) -> Result<(), String>>(&self, f: F) -> Result<(), String> {
+    pub fn htif_section(&self) -> Option<SectionHeader> {
+        if let Some(s) = self.elf.find_section_by_name(".tohost") {
+            Some(s)
+        } else if let Some(s) = self.elf.find_section_by_name(".htif") {
+            Some(s)
+        } else {
+            None
+        }
+    }
+    //
+    // pub fn data_sections(&self) -> impl Iterator<Item=SectionHeader> {
+    //     self.elf.section_iter().filter(|s| {
+    //         s.flags() & (FLAG_X as u64) & (FLAG_R as u64) != 0
+    //     })
+    // }
+
+    pub fn load<F: Fn(u64, &[u8]) -> Result<(), String>>(&self, f: F) -> Result<(), String> {
         self.check_header()?;
-        let result = self.sections_filter().map(|s| {
-            let data = match s.get_data(&self.elf)? {
-                SectionData::Undefined(d) => Ok(d),
+        let result = self.elf.program_iter().map(|p| {
+            let data = match p.get_data(&self.elf)? {
+                SegmentData::Undefined(d) => Ok(d),
                 _ => Err("Only support Undefined SectionData for now!")
             };
-            f(s.get_name(&self.elf)?, s.address(), data?)
+            f(p.virtual_addr(), data?)
         });
         for r in result {
             if let Err(e) = r {
