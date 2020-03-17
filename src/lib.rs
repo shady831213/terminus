@@ -21,4 +21,9 @@ pub use processor::Processor;
 
 mod extentions;
 
+mod elf;
+
+mod devices;
+
 mod machine;
+

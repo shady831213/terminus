@@ -1,10 +1,9 @@
-use dpi_memory::{Space, SpaceTable, MemInfo, Heap, Region};
+use dpi_memory::{Space, SpaceTable, Heap, Region, BytesAccess};
 use std::sync::{Arc, RwLock};
-use std::ops::Deref;
-use xmas_elf::ElfFile;
-use xmas_elf::header::Header;
-use xmas_elf::header;
 use std::fs;
+use super::elf::ElfLoader;
+use std::ops::Deref;
+use super::devices::htif::HTIF;
 
 pub struct Machine {
     name: String,
@@ -19,41 +18,30 @@ impl Machine {
         }
     }
 
-    pub fn register_mem(&self, name: &str, info: MemInfo) {
-        let mem = Heap::global().alloc(info.size, 1);
-        self.mem_space.write().unwrap().add_region(name, &Region::mmap(info.base, &mem));
+    pub fn register_region(&self, name: &str, base: u64, region: &Arc<Region>) {
+        self.mem_space.write().unwrap().add_region(name, &Region::mmap(base, &region));
+    }
+
+    pub fn load_elf(&self, file_path: &str) {
+        let blob = fs::read(file_path).expect("Can't read binary");
+        let elf = ElfLoader::new(blob.as_slice()).expect(&format!("Invalid ELF {}!", file_path));
+        elf.load(|name, addr, data| {
+            let region = self.mem_space.read().unwrap().get_region_by_addr(addr);
+            if addr + data.len() as u64 > region.info.base + region.info.size {
+                Err(format!("section {} not enough memory!", name))
+            } else {
+                Ok(BytesAccess::write(region.deref(), addr, data))
+            }
+        }).expect(&format!("{} load fail!", file_path));
     }
 }
 
 #[test]
 fn machine_basic() {
     let m = Machine::new("m0");
-    m.register_mem("main_memory", MemInfo { base: 0x80000000, size: 0x10000000 });
-    m.register_mem("rom", MemInfo { base: 0x20000000, size: 0x10000000 });
+    m.register_region("main_memory", 0x80000000, &Heap::global().alloc(0x1000, 1));
+    m.register_region("rom", 0x20000000, &Heap::global().alloc(0x1000, 1));
+    m.register_region("htif", 0x80001000, &Region::io(0, 0x1000, Box::new(HTIF::new())));
+    m.load_elf("top_tests/elf/rv64ui-p-add");
 }
 
-struct ElfLoader<'a> {
-    elf: ElfFile<'a>,
-}
-
-impl<'a> ElfLoader<'a> {
-    pub fn new(input: &'a [u8]) -> Result<ElfLoader<'a>, String> {
-        let elf = ElfFile::new(input)?;
-        Ok(ElfLoader {
-            elf
-        })
-    }
-
-    fn check_header(&self) -> Result<Header, String> {
-        //check riscv
-        if let header::Machine::Other(id) = self.elf.header.pt2.machine().as_machine() {
-            if id == 243 {
-                Ok(self.elf.header)
-            } else {
-                Err(format!("Invalid Arch {:?}!", self.elf.header.pt2.machine()))
-            }
-        } else {
-            Err(format!("Invalid Arch {:?}!", self.elf.header.pt2.machine()))
-        }
-    }
-}
