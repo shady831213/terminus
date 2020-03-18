@@ -1,5 +1,5 @@
 extern crate linkme;
-extern crate dpi_memory;
+extern crate terminus_spaceport;
 pub extern crate terminus_macros;
 pub extern crate terminus_proc_macros;
 pub extern crate terminus_global;

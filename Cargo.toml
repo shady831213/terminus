@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dpi-memory={git = "https://github.com/shady831213/dpi_memory"}
+terminus-spaceport={git = "https://github.com/shady831213/terminus_spaceport"}
 terminus-global = { path = "global" }
 terminus-macros={ path = "macros" }
 terminus-proc-macros={ path = "proc_macros" }

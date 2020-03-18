@@ -1,6 +1,6 @@
-use dpi_memory::{Heap, Region, BytesAccess, MemInfo};
-use dpi_memory::space::{Space, SpaceTable};
-use dpi_memory::space;
+use terminus_spaceport::memory::{Heap, Region, BytesAccess, MemInfo};
+use terminus_spaceport::space::{Space, SpaceTable};
+use terminus_spaceport::space;
 use std::sync::{Arc, RwLock};
 use std::{fs, fmt};
 use super::elf::ElfLoader;

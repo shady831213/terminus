@@ -1,4 +1,5 @@
-use dpi_memory::{BytesAccess, U8Access, U16Access, U32Access, U64Access, IOAccess, dm_io};
+use terminus_spaceport::memory::{BytesAccess, U8Access, U16Access, U32Access, U64Access, IOAccess};
+use terminus_spaceport::ts_io;
 use std::sync::Mutex;
 use terminus_macros::*;
 
@@ -16,7 +17,7 @@ impl HTIFDesp {
     }
 }
 
-#[dm_io(Bytes, U32)]
+#[ts_io(Bytes, U32)]
 pub struct HTIF(Mutex<HTIFDesp>);
 
 impl HTIF {
