@@ -86,8 +86,8 @@ fn machine_basic() {
     let blob = fs::read("top_tests/elf/rv64ui-p-add").expect("Can't read binary");
     let elf = ElfLoader::new(blob.as_slice()).expect("Invalid ELF {}!");
     m.try_register_htif(&elf);
-    m.register_memory("main_memory", 0x80000000, &Heap::global().alloc(0x10000000, 1));
-    m.register_memory("rom", 0x20000000, &Heap::global().alloc(0x10000000, 1));
+    m.register_memory("main_memory", 0x80000000, &Heap::global().alloc(0x10000000, 1).expect("main_memory alloc fail!"));
+    m.register_memory("rom", 0x20000000, &Heap::global().alloc(0x10000000, 1).expect("rom alloc fail!"));
     m.load_elf(&elf);
     println!("{}", m.to_string())
 }
