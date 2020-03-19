@@ -54,10 +54,10 @@ impl Machine {
                         self.register_region(&format!("{}_1", name), info.base, &Region::remap_partial(0, mem, info.base - base, info.size)).unwrap();
                     });
                 } else {
-                    panic!(space::Error::Overlap(n, msg))
+                    panic!(msg)
                 }
             }
-            Err(e) => panic!(format!("{:?}", e))
+            Err(space::Error::Renamed(_, msg)) => panic!(msg)
         }
     }
 
