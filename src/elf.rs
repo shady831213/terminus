@@ -1,5 +1,5 @@
 use xmas_elf::ElfFile;
-use xmas_elf::program::{FLAG_X, FLAG_R, SegmentData};
+use xmas_elf::program::SegmentData;
 use xmas_elf::header;
 use xmas_elf::sections::SectionHeader;
 
@@ -28,12 +28,6 @@ impl<'a> ElfLoader<'a> {
         }
     }
 
-    // pub fn program_sections(&self) -> impl Iterator<Item=SectionHeader> {
-    //     self.elf.section_iter().filter(|s| {
-    //         s.flags() & (FLAG_X as u64) & (FLAG_R as u64) != 0
-    //     })
-    // }
-
     pub fn htif_section(&self) -> Option<SectionHeader> {
         if let Some(s) = self.elf.find_section_by_name(".tohost") {
             Some(s)
@@ -43,12 +37,6 @@ impl<'a> ElfLoader<'a> {
             None
         }
     }
-    //
-    // pub fn data_sections(&self) -> impl Iterator<Item=SectionHeader> {
-    //     self.elf.section_iter().filter(|s| {
-    //         s.flags() & (FLAG_X as u64) & (FLAG_R as u64) != 0
-    //     })
-    // }
 
     pub fn load<F: Fn(u64, &[u8]) -> Result<(), String>>(&self, f: F) -> Result<(), String> {
         self.check_header()?;
