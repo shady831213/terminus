@@ -4,7 +4,7 @@ extern crate proc_macro2;
 extern crate quote;
 extern crate syn;
 #[macro_use]
-extern crate lazy_static;
+extern crate terminus_macros;
 extern crate regex;
 
 mod insn;
@@ -50,7 +50,7 @@ use syn::DeriveInput;
 ///         let p = thread::spawn(move || {
 ///             thread::sleep(Duration::from_millis(3 - i));
 ///             println!("test 1 the spawned thread {}!", i);
-///             let result = GlobalInsnMap::get().decode(0b1010_1110).unwrap();
+///             let result = GDECODER.decode(0b1010_1110).unwrap();
 ///             assert_eq!(0b10_1110, result.op());
 ///             assert_eq!(0b1010_1110, result.ir());
 ///             assert_eq!(0b1000_1110, InsnCodingTestStructDecoder.code());
@@ -59,7 +59,7 @@ use syn::DeriveInput;
 ///             thread::sleep(Duration::from_millis(3 - i));
 ///             println!("test 2 the spawned thread {}!", i);
 /// 
-///             let result = GlobalInsnMap::get().decode(0b1010_1111).unwrap();
+///             let result = GDECODER.decode(0b1010_1111).unwrap();
 ///             assert_eq!(0b10_1111, result.op());
 ///             assert_eq!(0b1010_1111, result.ir());
 ///             assert_eq!(0b1000_1111, InsnCodingTestStruct2Decoder.code());
@@ -68,7 +68,7 @@ use syn::DeriveInput;
 ///             thread::sleep(Duration::from_millis(3 - i));
 ///             println!("test 3 the spawned thread {}!", i);
 /// 
-///             let result = GlobalInsnMap::get().decode(0).err();
+///             let result = GDECODER.decode(0).err();
 ///             assert_eq!(result, Some(Exception::IllegalInsn(0)))
 ///         });
 ///         threads.push(p);

@@ -13,13 +13,12 @@ proc-macro = true
 [dependencies]
 quote = "1.0"
 proc-macro2 = "1.0"
-lazy_static = "1.4"
 regex = "1"
 linkme = "0.1"
 terminus-global = { path = "../global" }
+terminus-macros = { path = "../macros" }
 
 [dev-dependencies]
-terminus-macros = { path = "../macros" }
 terminus = { path = ".." }
 
 [dependencies.syn]

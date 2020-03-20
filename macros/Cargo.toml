@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 bitfield="0.13.2"
+lazy_static = "1.4"

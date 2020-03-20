@@ -24,27 +24,24 @@ pub trait Decoder {
 pub trait InsnMap {
     fn registery<T: 'static + Decoder>(&mut self, decoder: T);
     fn decode(&self, ir: InsnT) -> Result<Instruction, Exception>;
-    fn lock(&mut self){}
+    fn lock(&mut self) {}
 }
 
 pub type GlobalInsnMap = TreeInsnMap;
 
-impl GlobalInsnMap {
-    pub fn get() -> Arc<GlobalInsnMap> {
-        static mut MAP: Option<Arc<GlobalInsnMap>> = None;
-        unsafe {
-            MAP.get_or_insert_with(|| {
-                Arc::new({
-                    let mut map = GlobalInsnMap::new();
-                    for r in REGISTERY_INSN {
-                        r(&mut map)
-                    }
-                    map.lock();
-                    map
-                })
-            }).clone()
+unsafe impl Sync for GlobalInsnMap {}
+
+unsafe impl Send for GlobalInsnMap {}
+
+lazy_static! {
+    pub static ref GDECODER:GlobalInsnMap = {
+        let mut map = GlobalInsnMap::new();
+        for r in REGISTERY_INSN {
+            r(&mut map)
         }
-    }
+        map.lock();
+        map
+    };
 }
 
 #[distributed_slice]
