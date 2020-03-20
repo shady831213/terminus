@@ -1,5 +1,4 @@
 use super::{InsnMap, Instruction, Decoder};
-use std::cell::RefCell;
 use super::execption::*;
 use terminus_global::{InsnT, insn_len};
 
@@ -51,7 +50,7 @@ impl<T> TreeNode<T> {
         }
     }
 
-    fn get(&mut self, key: InsnT) -> Option<&T> {
+    fn compress(&mut self) {
         //naturally impl mask
         let path_compress = |node: &mut Option<*mut Self>| {
             if let Some(ref n) = node {
@@ -62,13 +61,22 @@ impl<T> TreeNode<T> {
             }
         };
         if self.level == insn_len() {
+            return;
+        } else {
+            path_compress(&mut self.left);
+            path_compress(&mut self.right);
+            self.left.iter_mut().for_each(|n| { unsafe { n.as_mut().unwrap().compress() } });
+            self.right.iter_mut().for_each(|n| { unsafe { n.as_mut().unwrap().compress() } });
+        }
+    }
+
+    fn get(&self, key: InsnT) -> Option<&T> {
+        if self.level == insn_len() {
             self.value.as_ref()
         } else {
             if let Some(node) = if key & ((1 as InsnT) << self.level as InsnT) == 0 {
-                path_compress(&mut self.left);
                 self.left
             } else {
-                path_compress(&mut self.right);
                 self.right
             } {
                 unsafe {
@@ -81,21 +89,21 @@ impl<T> TreeNode<T> {
     }
 }
 
-pub struct TreeInsnMap(RefCell<TreeNode<Box<dyn Decoder>>>);
+pub struct TreeInsnMap(TreeNode<Box<dyn Decoder>>);
 
 impl TreeInsnMap {
     pub fn new() -> TreeInsnMap {
-        TreeInsnMap(RefCell::new(TreeNode::new(0)))
+        TreeInsnMap(TreeNode::new(0))
     }
 }
 
 impl InsnMap for TreeInsnMap {
     fn registery<T: 'static + Decoder>(&mut self, decoder: T) {
-        self.0.get_mut().insert(decoder.code(), Box::new(decoder))
+        self.0.insert(decoder.code(), Box::new(decoder))
     }
 
     fn decode(&self, ir: InsnT) -> Result<Instruction, Exception> {
-        if let Some(decoder) = self.0.borrow_mut().get(ir) {
+        if let Some(decoder) = self.0.get(ir) {
             if ir & decoder.mask() != decoder.code() {
                 Err(Exception::IllegalInsn(ir))
             } else {
@@ -105,12 +113,17 @@ impl InsnMap for TreeInsnMap {
             Err(Exception::IllegalInsn(ir))
         }
     }
+    fn lock(&mut self){
+        self.0.compress();
+    }
+
 }
 
 #[test]
 fn test_insert() {
     let mut tree: TreeNode<u32> = TreeNode::new(0);
     tree.insert(7, 7);
+    tree.compress();
     assert_eq!(*tree.get(7).unwrap(), 7);
     assert_eq!(tree.get(8), None);
 }

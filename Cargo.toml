@@ -19,4 +19,8 @@ members = ["global","macros","proc_macros"]
 
 [[test]]
 name = "load_elf"
-path = "top_tests/load_elf/load_elf.rs"
+path = "top_tests/load_elf.rs"
+
+[[test]]
+name = "decode"
+path = "top_tests/decode.rs"

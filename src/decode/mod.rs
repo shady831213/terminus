@@ -24,6 +24,7 @@ pub trait Decoder {
 pub trait InsnMap {
     fn registery<T: 'static + Decoder>(&mut self, decoder: T);
     fn decode(&self, ir: InsnT) -> Result<Instruction, Exception>;
+    fn lock(&mut self){}
 }
 
 pub type GlobalInsnMap = TreeInsnMap;
@@ -38,6 +39,7 @@ impl GlobalInsnMap {
                     for r in REGISTERY_INSN {
                         r(&mut map)
                     }
+                    map.lock();
                     map
                 })
             }).clone()
