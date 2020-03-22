@@ -113,11 +113,14 @@ impl InsnMap for TreeInsnMap {
             Err(Exception::IllegalInsn(ir))
         }
     }
-    fn lock(&mut self){
+    fn lock(&mut self) {
         self.0.compress();
     }
-
 }
+//immutable after 'lock'
+unsafe impl Sync for TreeInsnMap {}
+//immutable after 'lock'
+unsafe impl Send for TreeInsnMap {}
 
 #[test]
 fn test_insert() {

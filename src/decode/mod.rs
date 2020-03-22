@@ -14,7 +14,7 @@ use terminus_global::InsnT;
 use simple_insn_map::*;
 use tree_insn_map::*;
 
-pub trait Decoder {
+pub trait Decoder:Send+Sync {
     fn code(&self) -> InsnT;
     fn mask(&self) -> InsnT;
     fn matched(&self, ir: InsnT) -> bool;
@@ -28,10 +28,6 @@ pub trait InsnMap {
 }
 
 pub type GlobalInsnMap = TreeInsnMap;
-
-unsafe impl Sync for GlobalInsnMap {}
-
-unsafe impl Send for GlobalInsnMap {}
 
 lazy_static! {
     pub static ref GDECODER:GlobalInsnMap = {
