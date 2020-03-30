@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use terminus_global::*;
 use terminus_macros::*;
 use std::convert::TryFrom;
-use num_enum::{IntoPrimitive,TryFromPrimitive};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 pub struct Mmu<'p> {
     p: &'p Processor,
@@ -31,39 +31,33 @@ impl<'p> Mmu<'p> {
         self.p.basic_csr.read(0x3b0 + idx as RegT).unwrap()
     }
 
-    pub fn match_pmpcfg_entry(&self, addr: u64) -> Option<PmpCfgEntry> {
-        for (idx, entry) in self.pmpcfgs_iter().enumerate() {
-            let trail_addr = addr >> 2;
-            let pmp_atype = PmpAType::try_from(entry.a()).unwrap();
-            match pmp_atype {
-                PmpAType::OFF => {}
-                PmpAType::TOR => {
-                    let low = if idx == 0 {
-                        0
-                    } else {
-                        self.get_pmpaddr((idx - 1) as u8)
-                    };
-                    let high = self.get_pmpaddr(idx as u8);
-                    if trail_addr >= low && trail_addr < high {
-                        return Some(entry);
+    pub fn match_pmpcfg_entry<F: Fn(&Processor, &PmpCfgEntry) -> bool>(&self, addr: u64, condition: F) -> Option<PmpCfgEntry> {
+        let trail_addr = addr >> 2;
+        self.pmpcfgs_iter().enumerate()
+            .find(|(idx, entry)| {
+                condition(self.p, entry) && match PmpAType::try_from(entry.a()).unwrap() {
+                    PmpAType::OFF => false,
+                    PmpAType::TOR => {
+                        let low = if *idx == 0 {
+                            0
+                        } else {
+                            self.get_pmpaddr((*idx - 1) as u8)
+                        };
+                        let high = self.get_pmpaddr(*idx as u8);
+                        trail_addr >= low && trail_addr < high
+                    }
+                    PmpAType::NA4 => {
+                        let pmpaddr = self.get_pmpaddr(*idx as u8);
+                        trail_addr == pmpaddr
+                    }
+                    PmpAType::NAPOT => {
+                        let pmpaddr = self.get_pmpaddr(*idx as u8);
+                        let trialing_ones = (!pmpaddr).trailing_zeros();
+                        (trail_addr >> trialing_ones) == (pmpaddr >> trialing_ones)
                     }
                 }
-                PmpAType::NA4 => {
-                    let pmpaddr = self.get_pmpaddr(idx as u8);
-                    if trail_addr == pmpaddr {
-                        return Some(entry);
-                    }
-                }
-                PmpAType::NAPOT => {
-                    let pmpaddr = self.get_pmpaddr(idx as u8);
-                    let trialing_ones = (!pmpaddr).trailing_zeros();
-                    if (trail_addr >> trialing_ones) == (pmpaddr >> trialing_ones) {
-                        return Some(entry);
-                    }
-                }
-            }
-        }
-        None
+            })
+            .map(|(_, entry)| { entry })
     }
 }
 
