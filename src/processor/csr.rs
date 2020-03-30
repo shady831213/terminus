@@ -6,8 +6,28 @@ use terminus_proc_macros::{define_csr, csr_map};
 use std::rc::Rc;
 
 csr_map! {
-pub BaicCsr(0x0, 0xfff) {
+pub BasicCsr(0x0, 0xfff) {
     mstatus(RW):MStatus, 0x300;
+    pmpcfg0(RW):PmpCfg, 0x3A0;
+    pmpcfg1(RW):PmpCfg, 0x3A1;
+    pmpcfg2(RW):PmpCfg, 0x3A2;
+    pmpcfg3(RW):PmpCfg, 0x3A3;
+    pmpaddr0(RW):PmpAddr, 0x3B0;
+    pmpaddr1(RW):PmpAddr, 0x3B1;
+    pmpaddr2(RW):PmpAddr, 0x3B2;
+    pmpaddr3(RW):PmpAddr, 0x3B3;
+    pmpaddr4(RW):PmpAddr, 0x3B4;
+    pmpaddr5(RW):PmpAddr, 0x3B5;
+    pmpaddr6(RW):PmpAddr, 0x3B6;
+    pmpaddr7(RW):PmpAddr, 0x3B7;
+    pmpaddr8(RW):PmpAddr, 0x3B8;
+    pmpaddr9(RW):PmpAddr, 0x3B9;
+    pmpaddr10(RW):PmpAddr, 0x3BA;
+    pmpaddr11(RW):PmpAddr, 0x3BB;
+    pmpaddr12(RW):PmpAddr, 0x3BC;
+    pmpaddr13(RW):PmpAddr, 0x3BD;
+    pmpaddr14(RW):PmpAddr, 0x3BE;
+    pmpaddr15(RW):PmpAddr, 0x3BF;
 }
 }
 
@@ -39,6 +59,50 @@ MStatus {
          sxl(RW): 35,34;
          sd(RW): 63, 63;
     },
+}
+}
+
+bitfield! {
+pub struct PmpCfgEntry(u8);
+impl Debug;
+pub r, set_r:0, 0;
+pub w, set_w:1, 1;
+pub x, set_x:2, 2;
+pub a, set_a:4,3;
+pub l, set_l:7, 7;
+}
+
+impl From<u8> for PmpCfgEntry {
+    fn from(v: u8) -> Self {
+        PmpCfgEntry(v)
+    }
+}
+
+define_csr! {
+PmpCfg{
+    fields {
+        pmpcfg0(RW):7,0;
+        pmpcfg1(RW):15,8;
+        pmpcfg2(RW):23,16;
+        pmpcfg3(RW):31,24;
+    },
+    fields64{
+        pmpcfg4(RW):39,32;
+        pmpcfg5(RW):47,40;
+        pmpcfg6(RW):55,48;
+        pmpcfg7(RW):63,56;
+    }
+}
+}
+
+define_csr! {
+PmpAddr {
+    fields32 {
+        addr(RW):31, 0;
+    },
+    fields64 {
+        addr(RW):53, 0;
+    }
 }
 }
 

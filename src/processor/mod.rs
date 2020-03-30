@@ -4,8 +4,11 @@ use terminus_macros::*;
 use terminus_global::*;
 
 mod csr;
-
 use csr::*;
+
+mod mmu;
+use mmu::*;
+
 
 trait CsrAccess {
     fn write(&mut self, xlen: XLen, value: RegT) {
