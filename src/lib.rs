@@ -5,6 +5,7 @@ pub extern crate terminus_macros;
 pub extern crate terminus_proc_macros;
 pub extern crate terminus_global;
 extern crate xmas_elf;
+extern crate num_enum;
 
 pub use linkme::*;
 

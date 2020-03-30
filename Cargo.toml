@@ -13,6 +13,7 @@ terminus-macros={ path = "macros" }
 terminus-proc-macros={ path = "proc_macros" }
 linkme = "0.1"
 xmas-elf = "0.7.0"
+num_enum = "0.4.3"
 
 [workspace]
 members = ["global","macros","proc_macros"]

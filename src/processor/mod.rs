@@ -4,53 +4,35 @@ use terminus_macros::*;
 use terminus_global::*;
 
 mod csr;
+
 use csr::*;
 
 mod mmu;
+
 use mmu::*;
+use std::marker::PhantomData;
 
-
-trait CsrAccess {
-    fn write(&mut self, xlen: XLen, value: RegT) {
-        use XLen::*;
-        match xlen {
-            X64 => self.write64(value & Self::wmask64()),
-            X32 => self.write32(value & Self::wmask32())
-        }
-    }
-    fn write32(&mut self, value: RegT);
-    fn write64(&mut self, value: RegT);
-    fn read(&self, xlen: XLen) -> RegT {
-        use XLen::*;
-        match xlen {
-            X64 => self.read64() & Self::rmask64(),
-            X32 => self.read32() & Self::rmask32()
-        }
-    }
-    fn read32(&self) -> RegT;
-    fn read64(&self) -> RegT;
-    fn mask32() -> RegT {
-        0xffffffff
-    }
-    fn mask64() -> RegT {
-        0xffffffff_ffffffff
-    }
-    fn wmask32() -> RegT {
-        Self::mask32()
-    }
-    fn wmask64() -> RegT {
-        Self::mask64()
-    }
-    fn rmask32() -> RegT {
-        Self::mask32()
-    }
-    fn rmask64() -> RegT {
-        Self::mask64()
-    }
-}
-
+#[cfg(test)]
+mod test;
 
 pub struct Processor {
     pub xreg: [RegT; 32],
     extentions: HashMap<char, Extension>,
+    pub basic_csr: BasicCsr,
+    pub xlen: XLen,
+}
+
+impl Processor {
+    pub fn new(xlen: XLen) -> Processor {
+        Processor {
+            xreg: [0 as RegT; 32],
+            extentions: HashMap::new(),
+            basic_csr: BasicCsr::new(xlen),
+            xlen,
+        }
+    }
+
+    pub fn mmu(&self) -> Mmu {
+        Mmu::new(self, PhantomData)
+    }
 }

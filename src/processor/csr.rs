@@ -4,6 +4,7 @@ use super::*;
 use terminus_global::RegT;
 use terminus_proc_macros::{define_csr, csr_map};
 use std::rc::Rc;
+use num_enum::{IntoPrimitive,TryFromPrimitive};
 
 csr_map! {
 pub BasicCsr(0x0, 0xfff) {
@@ -62,7 +63,17 @@ MStatus {
 }
 }
 
+#[derive(IntoPrimitive, TryFromPrimitive, Debug)]
+#[repr(u8)]
+pub enum PmpAType {
+    OFF = 0,
+    TOR = 1,
+    NA4 = 2,
+    NAPOT = 3,
+}
+
 bitfield! {
+#[derive(Eq,PartialEq)]
 pub struct PmpCfgEntry(u8);
 impl Debug;
 pub r, set_r:0, 0;
@@ -93,6 +104,19 @@ PmpCfg{
         pmpcfg7(RW):63,56;
     }
 }
+}
+
+impl BitRange<u8> for PmpCfg {
+    fn bit_range(&self, msb: usize, lsb: usize) -> u8 {
+        let width = msb - lsb + 1;
+        let mask = (1 << width) - 1;
+        ((self.get() >> lsb) & mask) as u8
+    }
+    fn set_bit_range(&mut self, msb: usize, lsb: usize, value: u8) {
+        let width = msb - lsb + 1;
+        let mask = !((((1 << width) - 1) << lsb) as RegT);
+        self.set((value  as RegT) << (lsb as RegT) | self.get() & mask)
+    }
 }
 
 define_csr! {
