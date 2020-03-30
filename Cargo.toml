@@ -24,3 +24,7 @@ path = "top_tests/load_elf.rs"
 [[test]]
 name = "decode"
 path = "top_tests/decode.rs"
+
+[[example]]
+name = "htif_test"
+path = "top_tests/htif_test.rs"

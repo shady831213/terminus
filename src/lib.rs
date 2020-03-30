@@ -28,7 +28,7 @@ mod extentions;
 
 mod elf;
 
-mod devices;
+pub mod devices;
 
 mod machine;
 
