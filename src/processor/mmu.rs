@@ -64,7 +64,7 @@ impl<'p> Mmu<'p> {
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug)]
 #[repr(u8)]
-pub enum PmpAType {
+enum PmpAType {
     OFF = 0,
     TOR = 1,
     NA4 = 2,
@@ -73,13 +73,13 @@ pub enum PmpAType {
 
 bitfield! {
 #[derive(Eq,PartialEq)]
-pub struct PmpCfgEntry(u8);
+struct PmpCfgEntry(u8);
 impl Debug;
-pub r, set_r:0, 0;
-pub w, set_w:1, 1;
-pub x, set_x:2, 2;
-pub a, set_a:4,3;
-pub l, set_l:7, 7;
+r, set_r:0, 0;
+w, set_w:1, 1;
+x, set_x:2, 2;
+a, set_a:4,3;
+l, set_l:7, 7;
 }
 
 impl From<u8> for PmpCfgEntry {
@@ -88,7 +88,7 @@ impl From<u8> for PmpCfgEntry {
     }
 }
 
-pub struct PmpCfgsIter<'m, 'p> {
+struct PmpCfgsIter<'m, 'p> {
     mmu: &'m Mmu<'p>,
     idx: u8,
     marker: PhantomData<&'m Mmu<'p>>,
