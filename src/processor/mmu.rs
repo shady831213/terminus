@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use terminus_global::*;
 use terminus_macros::*;
 use std::convert::TryFrom;
+use num_enum::{IntoPrimitive,TryFromPrimitive};
 
 pub struct Mmu<'p> {
     p: &'p Processor,
@@ -66,6 +67,32 @@ impl<'p> Mmu<'p> {
     }
 }
 
+
+#[derive(IntoPrimitive, TryFromPrimitive, Debug)]
+#[repr(u8)]
+pub enum PmpAType {
+    OFF = 0,
+    TOR = 1,
+    NA4 = 2,
+    NAPOT = 3,
+}
+
+bitfield! {
+#[derive(Eq,PartialEq)]
+pub struct PmpCfgEntry(u8);
+impl Debug;
+pub r, set_r:0, 0;
+pub w, set_w:1, 1;
+pub x, set_x:2, 2;
+pub a, set_a:4,3;
+pub l, set_l:7, 7;
+}
+
+impl From<u8> for PmpCfgEntry {
+    fn from(v: u8) -> Self {
+        PmpCfgEntry(v)
+    }
+}
 
 pub struct PmpCfgsIter<'m, 'p> {
     mmu: &'m Mmu<'p>,
