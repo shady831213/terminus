@@ -1,4 +1,5 @@
-use terminus_spaceport::memory::{GHEAP, Region, BytesAccess, MemInfo};
+use terminus_spaceport::memory::region::{GHEAP, Region, BytesAccess};
+use terminus_spaceport::memory::MemInfo;
 use terminus_spaceport::space::{Space, SPACE_TABLE};
 use terminus_spaceport::space;
 use std::sync::Arc;
@@ -67,7 +68,11 @@ impl Machine {
             if addr + data.len() as u64 > region.info.base + region.info.size {
                 Err(format!("not enough memory!"))
             } else {
-                Ok(BytesAccess::write(region.deref(), addr, data))
+                if let Err(e) = BytesAccess::write(region.deref(), addr, data) {
+                    Err(format!("{:?}", e))
+                } else {
+                    Ok(())
+                }
             }
         }).expect(&format!("{} load elf fail!", self.name));
     }

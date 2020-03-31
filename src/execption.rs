@@ -6,4 +6,6 @@ pub enum Exception {
     FetchAccess(InsnT, u64),
     LoadAccess(InsnT, u64),
     StoreAccess(InsnT, u64),
+    BusAccess(u64),
+    BusMisalign(u64),
 }

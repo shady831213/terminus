@@ -2,15 +2,16 @@ use std::collections::HashMap;
 use super::extentions::Extension;
 use terminus_macros::*;
 use terminus_global::*;
+use std::marker::PhantomData;
 
 mod csr;
-
 use csr::*;
 
 mod mmu;
-
 use mmu::*;
-use std::marker::PhantomData;
+
+mod bus;
+use bus::*;
 
 #[cfg(test)]
 mod test;

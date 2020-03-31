@@ -1,6 +1,7 @@
-use terminus_spaceport::memory::{BytesAccess, U8Access, U16Access, U32Access, U64Access, IOAccess};
+use terminus_spaceport::memory::region::{BytesAccess, U8Access, U16Access, U32Access, U64Access, IOAccess};
 use terminus_spaceport::{derive_io, EXIT_CTRL};
 use terminus_spaceport::devices::TERM;
+use terminus_spaceport::memory::region;
 use std::sync::Mutex;
 use std::io::{Write, Error, ErrorKind, Read};
 use terminus_macros::*;
@@ -35,9 +36,10 @@ impl HTIF {
         HTIF(Mutex::new(HTIFDesp { tohost: 0, fromhost: 0 }))
     }
 
-    fn handle_cmd(desp: &mut HTIFDesp) {
+    fn handle_cmd(desp: &mut HTIFDesp) -> region::Result<()> {
         if desp.tohost == 1 {
             EXIT_CTRL.exit("htif shutdown!").unwrap();
+            Ok(())
         } else if (desp.tohost_device() == 1 && desp.tohost_cmd() == 1) {
             let mut data = [0u8; 1];
             data[0] = desp.tohost as u8;
@@ -45,10 +47,12 @@ impl HTIF {
             stdout.lock().write(&data).unwrap();
             stdout.lock().flush().unwrap();
             desp.tohost = 0;
+            Ok(())
         } else if (desp.tohost_device() == 1 && desp.tohost_cmd() == 0) {
             desp.tohost = 0;
+            Ok(())
         } else {
-            panic!(format!("HTIF:unsupportd tohost={:#x}", desp.tohost))
+            Err(region::Error::AccessErr(desp.tohost, format!("HTIF:unsupportd tohost={:#x}", desp.tohost)))
         }
     }
 
@@ -58,7 +62,7 @@ impl HTIF {
             let mut data = [0u8; 1];
             match TERM.stdin().lock().read_exact(&mut data) {
                 Ok(_) => desp.borrow_mut().fromhost.set_bit_range(7, 0, data[0]),
-                Err(e) if e.kind() == ErrorKind::WouldBlock => {},
+                Err(e) if e.kind() == ErrorKind::WouldBlock => {}
                 Err(e) => panic!("{:?}", e)
             }
         }
@@ -66,60 +70,56 @@ impl HTIF {
 }
 
 impl BytesAccess for HTIF {
-    fn write(&self, _: u64, _: &[u8]) {}
-
-    fn read(&self, _: u64, _: &mut [u8]) {
-        panic!("HTIF BytesAccess::read not implement!")
-    }
+    fn write(&self, _: u64, _: &[u8]) -> region::Result<()> {Ok(())}
 }
 
 impl U32Access for HTIF {
-    fn write(&self, addr: u64, data: u32) {
+    fn write(&self, addr: u64, data: u32) -> region::Result<()> {
         match addr {
-            0x0 => self.0.lock().unwrap().tohost.set_bit_range(31, 0, data),
+            0x0 => Ok(self.0.lock().unwrap().tohost.set_bit_range(31, 0, data)),
             0x4 => {
                 let mut desp = self.0.lock().unwrap();
                 desp.borrow_mut().tohost.set_bit_range(63, 32, data);
-                HTIF::handle_cmd(desp.borrow_mut());
+                HTIF::handle_cmd(desp.borrow_mut())
             }
-            0x8 => self.0.lock().unwrap().fromhost.set_bit_range(31, 0, data),
-            0xc => self.0.lock().unwrap().fromhost.set_bit_range(63, 32, data),
-            _ => {}
+            0x8 => Ok(self.0.lock().unwrap().fromhost.set_bit_range(31, 0, data)),
+            0xc => Ok(self.0.lock().unwrap().fromhost.set_bit_range(63, 32, data)),
+            _ => Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
         }
     }
 
-    fn read(&self, addr: u64) -> u32 {
+    fn read(&self, addr: u64) -> region::Result<u32> {
         self.fromhost_poll();
         match addr {
-            0x0 => self.0.lock().unwrap().tohost.bit_range(31, 0),
-            0x4 => self.0.lock().unwrap().tohost.bit_range(63, 32),
-            0x8 => self.0.lock().unwrap().fromhost.bit_range(31, 0),
-            0xc => self.0.lock().unwrap().fromhost.bit_range(63, 32),
-            _ => 0
+            0x0 => Ok(self.0.lock().unwrap().tohost.bit_range(31, 0)),
+            0x4 => Ok(self.0.lock().unwrap().tohost.bit_range(63, 32)),
+            0x8 => Ok(self.0.lock().unwrap().fromhost.bit_range(31, 0)),
+            0xc => Ok(self.0.lock().unwrap().fromhost.bit_range(63, 32)),
+            _ => Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
         }
     }
 }
 
 
 impl U64Access for HTIF {
-    fn write(&self, addr: u64, data: u64) {
+    fn write(&self, addr: u64, data: u64) -> region::Result<()> {
         match addr {
             0x0 => {
                 let mut desp = self.0.lock().unwrap();
                 desp.borrow_mut().tohost = data;
-                HTIF::handle_cmd(desp.borrow_mut());
+                HTIF::handle_cmd(desp.borrow_mut())
             }
-            0x8 => self.0.lock().unwrap().fromhost = data,
-            _ => {}
+            0x8 => Ok(self.0.lock().unwrap().fromhost = data),
+            _ => Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
         }
     }
 
-    fn read(&self, addr: u64) -> u64 {
+    fn read(&self, addr: u64) -> region::Result<u64> {
         self.fromhost_poll();
         match addr {
-            0x0 => self.0.lock().unwrap().tohost,
-            0x8 => self.0.lock().unwrap().fromhost,
-            _ => 0
+            0x0 => Ok(self.0.lock().unwrap().tohost),
+            0x8 => Ok(self.0.lock().unwrap().fromhost),
+            _ => Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
         }
     }
 }
