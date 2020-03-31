@@ -141,7 +141,8 @@ impl<'a, 'b> Iterator for PmpCfgsIter<'a, 'b> {
 
 #[test]
 fn pmp_basic_test() {
-    let mut p = Processor::new(XLen::X32);
+    let space = Arc::new(Space::new());
+    let mut p = Processor::new(XLen::X32, &space);
     //no valid region
     assert_eq!(p.mmu().match_pmpcfg_entry(0, |p, entry| { true }), None);
     //NA4
