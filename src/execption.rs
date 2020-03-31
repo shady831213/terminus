@@ -3,9 +3,10 @@ use terminus_global::InsnT;
 pub enum Exception {
     IllegalInsn(InsnT),
     MemAccess(InsnT,u64),
-    FetchAccess(InsnT, u64),
-    LoadAccess(InsnT, u64),
-    StoreAccess(InsnT, u64),
-    BusAccess(u64),
-    BusMisalign(u64),
+    FetchAccess(u64),
+    LoadAccess(u64),
+    StoreAccess(u64),
+    FetchPageFault(u64),
+    LoadPageFault(u64),
+    StorePageFault(u64),
 }
