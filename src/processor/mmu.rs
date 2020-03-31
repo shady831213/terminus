@@ -1,3 +1,5 @@
+#![feature(concat_idents)]
+
 use super::*;
 use crate::Exception;
 use std::marker::PhantomData;
@@ -139,6 +141,338 @@ impl<'a, 'b> Iterator for PmpCfgsIter<'a, 'b> {
     }
 }
 
+#[derive(IntoPrimitive, TryFromPrimitive, Debug)]
+#[repr(u8)]
+enum PteMode {
+    Bare = 0,
+    Sv32 = 1,
+    Sv39 = 8,
+    Sv48 = 9,
+    Sv57 = 10,
+    Sv64 = 11,
+}
+
+struct PteInfo {
+    mode: PteMode,
+    level: usize,
+    size: usize,
+}
+
+impl From<Satp> for PteInfo {
+    fn from(v: Satp) -> Self {
+        match v.xlen {
+            XLen::X32 => PteInfo {
+                mode: PteMode::try_from(v.mode() as u8).unwrap(),
+                level: 2,
+                size: 4,
+            },
+            XLen::X64 => {
+                let mode = PteMode::try_from(v.mode() as u8).unwrap();
+                let level = match mode {
+                    PteMode::Sv39 => 3,
+                    PteMode::Sv48 => 4,
+                    PteMode::Bare => 0,
+                    _ => unreachable!()
+                };
+                PteInfo {
+                    mode,
+                    level,
+                    size: 8,
+                }
+            }
+        }
+    }
+}
+
+
+bitfield! {
+#[derive(Eq,PartialEq)]
+struct PteAttr(u8);
+impl Debug;
+v, set_v:0, 0;
+r, set_r:1, 1;
+w, set_w:2, 2;
+x, set_x:3, 3;
+u, set_u:4, 4;
+g, set_g:5, 5;
+a, set_a:6,6;
+d, set_d:7, 7;
+}
+
+
+impl From<u8> for PteAttr {
+    fn from(v: u8) -> Self {
+        PteAttr(v)
+    }
+}
+
+bitfield! {
+struct Sv32Vaddr(RegT);
+impl Debug;
+vpn1,_:31, 22;
+vpn0,_:21, 12;
+offset,_:11,0;
+}
+
+impl Sv32Vaddr {
+    fn vpn(&self, level: usize) -> Option<RegT> {
+        match level {
+            0 => Some(self.vpn0()),
+            1 => Some(self.vpn1()),
+            _ => None
+        }
+    }
+}
+
+bitfield! {
+struct Sv32Paddr(RegT);
+impl Debug;
+ppn1,_:33, 22;
+ppn0,_:21, 12;
+offset,_:11,0;
+}
+
+impl Sv32Paddr {
+    fn ppn(&self, level: usize) -> Option<RegT> {
+        match level {
+            0 => Some(self.ppn0()),
+            1 => Some(self.ppn1()),
+            _ => None
+        }
+    }
+}
+
+bitfield! {
+struct Sv32Pte(RegT);
+impl Debug;
+ppn1,_:31, 20;
+ppn0,_:19, 10;
+rsw,_:9,8;
+attr_raw,_:7,0;
+}
+
+impl Sv32Pte {
+    fn ppn(&self, level: usize) -> Option<RegT> {
+        match level {
+            0 => Some(self.ppn0()),
+            1 => Some(self.ppn1()),
+            _ => None
+        }
+    }
+}
+
+bitfield! {
+struct Sv39Vaddr(RegT);
+impl Debug;
+vpn2,_:38, 30;
+vpn1,_:29, 21;
+vpn0,_:20, 12;
+offset,_:11,0;
+}
+
+impl Sv39Vaddr {
+    fn vpn(&self, level: usize) -> Option<RegT> {
+        match level {
+            0 => Some(self.vpn0()),
+            1 => Some(self.vpn1()),
+            2 => Some(self.vpn2()),
+            _ => None
+        }
+    }
+}
+
+bitfield! {
+struct Sv39Paddr(RegT);
+impl Debug;
+ppn2,_:55, 30;
+ppn1,_:29, 21;
+ppn0,_:20, 12;
+offset,_:11,0;
+}
+
+impl Sv39Paddr {
+    fn ppn(&self, level: usize) -> Option<RegT> {
+        match level {
+            0 => Some(self.ppn0()),
+            1 => Some(self.ppn1()),
+            2 => Some(self.ppn2()),
+            _ => None
+        }
+    }
+}
+
+bitfield! {
+struct Sv39Pte(RegT);
+impl Debug;
+ppn2,_:53, 28;
+ppn1,_:27, 19;
+ppn0,_:18, 10;
+rsw,_:9,8;
+attr_raw,_:7,0;
+}
+
+impl Sv39Pte {
+    fn ppn(&self, level: usize) -> Option<RegT> {
+        match level {
+            0 => Some(self.ppn0()),
+            1 => Some(self.ppn1()),
+            2 => Some(self.ppn2()),
+            _ => None
+        }
+    }
+}
+
+bitfield! {
+struct Sv48Vaddr(RegT);
+impl Debug;
+vpn3,_:47, 39;
+vpn2,_:38, 30;
+vpn1,_:29, 21;
+vpn0,_:20, 12;
+offset,_:11,0;
+}
+
+impl Sv48Vaddr {
+    fn vpn(&self, level: usize) -> Option<RegT> {
+        match level {
+            0 => Some(self.vpn0()),
+            1 => Some(self.vpn1()),
+            2 => Some(self.vpn2()),
+            2 => Some(self.vpn3()),
+            _ => None
+        }
+    }
+}
+
+bitfield! {
+struct Sv48Paddr(RegT);
+impl Debug;
+ppn3,_:55, 39;
+ppn2,_:38, 30;
+ppn1,_:29, 21;
+ppn0,_:20, 12;
+offset,_:11,0;
+}
+
+impl Sv48Paddr {
+    fn ppn(&self, level: usize) -> Option<RegT> {
+        match level {
+            0 => Some(self.ppn0()),
+            1 => Some(self.ppn1()),
+            2 => Some(self.ppn2()),
+            3 => Some(self.ppn3()),
+            _ => None
+        }
+    }
+}
+
+bitfield! {
+struct Sv48Pte(RegT);
+impl Debug;
+ppn3,_:53, 37;
+ppn2,_:36, 28;
+ppn1,_:27, 19;
+ppn0,_:18, 10;
+rsw,_:9,8;
+attr_raw,_:7,0;
+}
+
+impl Sv48Pte {
+    fn ppn(&self, level: usize) -> Option<RegT> {
+        match level {
+            0 => Some(self.ppn0()),
+            1 => Some(self.ppn1()),
+            2 => Some(self.ppn2()),
+            3 => Some(self.ppn3()),
+            _ => None
+        }
+    }
+}
+
+
+macro_rules! pt_export {
+    ($name:ident, $method:ident, $rt:ty, $($args:ident : $ty:ty),*) => {
+        fn $method(&self, $($args : $ty,)*) -> $rt {
+            match self {
+                $name::Sv32(addr) => addr.$method($($args),*),
+                $name::Sv39(addr)  => addr.$method($($args),*),
+                $name::Sv48(addr) => addr.$method($($args),*),
+            }
+        }
+    };
+    ($name:ident, $method:ident, $rt:ty) => {
+        fn $method(&self) -> $rt {
+            match self {
+                $name::Sv32(addr) => addr.$method(),
+                $name::Sv39(addr)  => addr.$method(),
+                $name::Sv48(addr) => addr.$method(),
+            }
+        }
+    };
+}
+
+enum Vaddr {
+    Sv32(Sv32Vaddr),
+    Sv39(Sv39Vaddr),
+    Sv48(Sv48Vaddr),
+}
+
+impl Vaddr {
+    fn new(mode: PteMode) -> Option<Vaddr> {
+        match mode {
+            PteMode::Sv32 => Some(Vaddr::Sv32(Sv32Vaddr(0))),
+            PteMode::Sv39 => Some(Vaddr::Sv39(Sv39Vaddr(0))),
+            PteMode::Sv48 => Some(Vaddr::Sv48(Sv48Vaddr(0))),
+            _ => None
+        }
+    }
+    pt_export!(Vaddr, offset, RegT);
+    pt_export!(Vaddr, vpn, Option<RegT>, level:usize);
+}
+
+enum Paddr {
+    Sv32(Sv32Paddr),
+    Sv39(Sv39Paddr),
+    Sv48(Sv48Paddr),
+}
+
+impl Paddr {
+    fn new(mode: PteMode) -> Option<Paddr> {
+        match mode {
+            PteMode::Sv32 => Some(Paddr::Sv32(Sv32Paddr(0))),
+            PteMode::Sv39 => Some(Paddr::Sv39(Sv39Paddr(0))),
+            PteMode::Sv48 => Some(Paddr::Sv48(Sv48Paddr(0))),
+            _ => None
+        }
+    }
+    pt_export!(Paddr, offset, RegT);
+    pt_export!(Paddr, ppn, Option<RegT>, level:usize);
+}
+
+enum Pte {
+    Sv32(Sv32Pte),
+    Sv39(Sv39Pte),
+    Sv48(Sv48Pte),
+}
+
+impl Pte {
+    fn new(mode: PteMode) -> Option<Pte> {
+        match mode {
+            PteMode::Sv32 => Some(Pte::Sv32(Sv32Pte(0))),
+            PteMode::Sv39 => Some(Pte::Sv39(Sv39Pte(0))),
+            PteMode::Sv48 => Some(Pte::Sv48(Sv48Pte(0))),
+            _ => None
+        }
+    }
+    pt_export!(Pte, rsw, RegT);
+    pt_export!(Pte, ppn, Option<RegT>, level:usize);
+    pt_export!(Pte, attr_raw, RegT);
+    fn attr(&self) -> PteAttr {
+        (self.attr_raw() as u8).into()
+    }
+}
+
+
 #[test]
 fn pmp_basic_test() {
     let space = Arc::new(Space::new());
@@ -168,5 +502,4 @@ fn pmp_basic_test() {
     assert_eq!(p.mmu().match_pmpcfg_entry(0x2001_0000, |p, entry| { entry.l() == 1 }), None);
     p.basic_csr.pmpcfg3.set_bit_range(23, 23, 1);
     assert!(p.mmu().match_pmpcfg_entry(0x2001_0000, |p, entry| { entry.l() == 1 }).is_some());
-
 }

@@ -7,6 +7,7 @@ use std::rc::Rc;
 
 csr_map! {
 pub BasicCsr(0x0, 0xfff) {
+    satp(RW):Satp, 0x180;
     mstatus(RW):MStatus, 0x300;
     pmpcfg0(RW):PmpCfg, 0x3A0;
     pmpcfg1(RW):PmpCfg, 0x3A1;
@@ -88,7 +89,7 @@ impl BitRange<u8> for PmpCfg {
     fn set_bit_range(&mut self, msb: usize, lsb: usize, value: u8) {
         let width = msb - lsb + 1;
         let mask = !((((1 << width) - 1) << lsb) as RegT);
-        self.set((value  as RegT) << (lsb as RegT) | self.get() & mask)
+        self.set((value as RegT) << (lsb as RegT) | self.get() & mask)
     }
 }
 
@@ -99,6 +100,21 @@ PmpAddr {
     },
     fields64 {
         addr(RW):53, 0;
+    }
+}
+}
+
+define_csr! {
+Satp {
+    fields32{
+        ppn(RW):21, 0;
+        asid(RW):30, 22;
+        mode(RW):31,31;
+    },
+    fields64{
+        ppn(RW):43, 0;
+        asid(RW):59, 44;
+        mode(RW):63, 60;
     }
 }
 }

@@ -309,7 +309,7 @@ impl<'a> FieldSet<'a> {
         quote! {
             #union_target
             pub struct #top_name {
-                xlen:XLen,
+                pub xlen:XLen,
                 csr:#union_name,
             }
 

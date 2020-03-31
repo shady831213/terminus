@@ -206,7 +206,7 @@ use syn::parse_macro_input;
 /// }
 ///
 /// struct Test {
-///     xlen: XLen,
+///     pub xlen: XLen,
 ///     csr: TestU,
 /// }
 ///
