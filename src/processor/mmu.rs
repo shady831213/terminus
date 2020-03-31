@@ -7,7 +7,7 @@ use std::convert::TryFrom;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use terminus_spaceport::memory::region::{U32Access, U64Access};
 
-#[derive(Copy,Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum MmuOpt {
     Load,
     Store,
@@ -86,32 +86,35 @@ impl<'p> Mmu<'p> {
         PteInfo::new(&self.p.basic_csr.satp)
     }
 
-    fn get_privileage(&self) -> Privilege {
-        if self.p.basic_csr.mstatus.mprv() == 1 {
+    fn get_privileage(&self, opt: MmuOpt) -> Privilege {
+        if self.p.basic_csr.mstatus.mprv() == 1 && opt != MmuOpt::Fetch {
             Privilege::try_from(self.p.basic_csr.mstatus.mpp() as u8).unwrap()
         } else {
             self.p.privilege
         }
     }
 
-    pub fn va2pa(&self, va: RegT, opt: MmuOpt) -> Result<u64, Exception> {
-        if self.get_privileage() == Privilege::M {
+    pub fn va2pa(&self, va: RegT, len: RegT, opt: MmuOpt) -> Result<u64, Exception> {
+        let privilege = self.get_privileage(opt);
+        if privilege == Privilege::M {
             return Ok(va as u64);
         }
         let info = self.pte_info();
         if let Some(vaddr) = Vaddr::new(&info.mode, va) {
+            //step 1
             let ppn = self.p.basic_csr.satp.ppn();
             let mut a = ppn * info.page_size as RegT;
             let mut level = info.level - 1;
             let mut leaf_pte: Pte;
             loop {
+                //step 2
                 let pte_addr = (a + vaddr.vpn(level).unwrap() * info.size as RegT) as u64;
-                if !self.check_pmp(pte_addr, info.size, opt,self.get_privileage()) {
+                if !self.check_pmp(pte_addr, info.size, opt, privilege) {
                     return match opt {
                         MmuOpt::Fetch => Err(Exception::FetchAccess(va as u64)),
                         MmuOpt::Load => Err(Exception::LoadAccess(va as u64)),
                         MmuOpt::Store => Err(Exception::StoreAccess(va as u64))
-                    }
+                    };
                 }
                 let pte = Pte::new(&info.mode, match info.size {
                     4 => {
@@ -137,6 +140,7 @@ impl<'p> Mmu<'p> {
                     _ => unreachable!()
                 }).unwrap();
 
+                //step 3
                 if pte.attr().v() == 0 || pte.attr().r() == 0 && pte.attr().w() == 1 {
                     return match opt {
                         MmuOpt::Fetch => Err(Exception::FetchPageFault(va as u64)),
@@ -145,8 +149,10 @@ impl<'p> Mmu<'p> {
                     };
                 }
 
+                //step 4
                 if pte.attr().r() == 1 || pte.attr().x() == 1 {
                     leaf_pte = pte;
+                    //step 6
                     if level > 0 && leaf_pte.ppn(level - 1).unwrap() != 0 {
                         return match opt {
                             MmuOpt::Fetch => Err(Exception::FetchPageFault(va as u64)),
@@ -166,23 +172,24 @@ impl<'p> Mmu<'p> {
                     a = pte.ppn_all() * info.page_size as RegT;
                 }
             }
+            //step 5
             match opt {
                 MmuOpt::Fetch => {
                     if leaf_pte.attr().x() == 0 {
                         return Err(Exception::FetchPageFault(va as u64));
                     }
-                    if leaf_pte.attr().u() == 0 && self.get_privileage() != Privilege::S {
+                    if leaf_pte.attr().u() == 0 && privilege != Privilege::S {
                         return Err(Exception::FetchPageFault(va as u64));
                     }
-                    if leaf_pte.attr().u() == 1 && self.get_privileage() == Privilege::S {
+                    if leaf_pte.attr().u() == 1 && privilege == Privilege::S {
                         return Err(Exception::FetchPageFault(va as u64));
                     }
                 }
                 MmuOpt::Load => {
-                    if self.get_privileage() == Privilege::S && self.p.basic_csr.mstatus.sum() == 0 && leaf_pte.attr().u() == 1 {
+                    if privilege == Privilege::S && self.p.basic_csr.mstatus.sum() == 0 && leaf_pte.attr().u() == 1 {
                         return Err(Exception::LoadPageFault(va as u64));
                     }
-                    if leaf_pte.attr().u() == 0 && self.get_privileage() != Privilege::S {
+                    if leaf_pte.attr().u() == 0 && privilege != Privilege::S {
                         return Err(Exception::LoadPageFault(va as u64));
                     }
                     if self.p.basic_csr.mstatus.mxr() == 0 && leaf_pte.attr().r() == 0 || self.p.basic_csr.mstatus.mxr() == 1 && leaf_pte.attr().r() == 0 && leaf_pte.attr().x() == 0 {
@@ -190,10 +197,10 @@ impl<'p> Mmu<'p> {
                     }
                 }
                 MmuOpt::Store => {
-                    if self.get_privileage() == Privilege::S && self.p.basic_csr.mstatus.sum() == 0 && leaf_pte.attr().u() == 1 {
+                    if privilege == Privilege::S && self.p.basic_csr.mstatus.sum() == 0 && leaf_pte.attr().u() == 1 {
                         return Err(Exception::StorePageFault(va as u64));
                     }
-                    if leaf_pte.attr().u() == 0 && self.get_privileage() != Privilege::S {
+                    if leaf_pte.attr().u() == 0 && privilege != Privilege::S {
                         return Err(Exception::StorePageFault(va as u64));
                     }
                     if leaf_pte.attr().w() == 0 || leaf_pte.attr().r() == 0 {
@@ -201,8 +208,9 @@ impl<'p> Mmu<'p> {
                     }
                 }
             }
+            //step 7
 
-
+            //step 8
             Ok(0)
         } else {
             Ok(va as u64)
