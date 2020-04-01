@@ -255,7 +255,16 @@ impl Mmu {
                 }
             }
             //step 8
-            Ok(Paddr::new(&vaddr, &leaf_pte, &info, level).value() as u64)
+            let pa = Paddr::new(&vaddr, &leaf_pte, &info, level).value() as u64;
+            if !self.check_pmp(pa, len as usize, opt, privilege) {
+                match opt {
+                    MmuOpt::Fetch => Err(Exception::FetchAccess(va as u64)),
+                    MmuOpt::Load => Err(Exception::LoadAccess(va as u64)),
+                    MmuOpt::Store => Err(Exception::StoreAccess(va as u64))
+                }
+            } else {
+                Ok(pa)
+            }
         } else {
             Ok(va as u64)
         }
