@@ -9,14 +9,14 @@ use std::ops::Deref;
 use super::devices::htif::HTIF;
 use std::fmt::{Display, Formatter};
 
-pub struct Machine {
+pub struct System {
     name: String,
     mem_space: Arc<Space>,
 }
 
-impl Machine {
-    pub fn new(name: &str) -> Machine {
-        Machine {
+impl System {
+    pub fn new(name: &str) -> System {
+        System {
             name: name.to_string(),
             mem_space: SPACE_TABLE.get_space(name),
         }
@@ -76,9 +76,13 @@ impl Machine {
             }
         }).expect(&format!("{} load elf fail!", self.name));
     }
+
+    pub fn mem_space(&self) -> &Arc<Space> {
+        &self.mem_space
+    }
 }
 
-impl Display for Machine {
+impl Display for System {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         writeln!(f, "Machine {}:", self.name)?;
         writeln!(f, "   {}", self.mem_space.to_string())
@@ -87,7 +91,7 @@ impl Display for Machine {
 
 #[test]
 fn machine_basic() {
-    let m = Machine::new("m0");
+    let m = System::new("m0");
     let blob = fs::read("top_tests/elf/rv64ui-p-add").expect("Can't read binary");
     let elf = ElfLoader::new(blob.as_slice()).expect("Invalid ELF {}!");
     m.try_register_htif(&elf);

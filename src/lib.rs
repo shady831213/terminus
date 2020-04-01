@@ -21,15 +21,13 @@ mod decode;
 
 pub use decode::{Decoder, InsnMap, GDECODER, GlobalInsnMap, REGISTERY_INSN};
 
-mod processor;
-
-pub use processor::Processor;
+pub mod processor;
 
 mod extentions;
 
-mod elf;
+pub mod elf;
 
 pub mod devices;
 
-mod machine;
+pub mod system;
 

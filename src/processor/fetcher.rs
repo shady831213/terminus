@@ -1,0 +1,57 @@
+use super::*;
+use crate::insn::Instruction;
+use crate::Exception;
+use terminus_spaceport::memory::region::{U16Access, U32Access};
+use terminus_spaceport::memory::region;
+use crate::decode::*;
+
+pub struct Fetcher {
+    p: Rc<ProcessorState>,
+}
+
+impl Fetcher {
+    pub fn new(p: &Rc<ProcessorState>) -> Fetcher {
+        Fetcher {
+            p: p.clone(),
+        }
+    }
+
+    pub fn fetch(&self, pc: RegT, mmu: &Mmu) -> Result<Instruction, Exception> {
+        println!("pc = {:#x}", pc);
+        if pc.trailing_zeros() == 0 {
+            return Err(Exception::FetchMisaligned(pc));
+        }
+        let code = {
+            //expect compress, if is not support, raise illegeInst exception later
+            if pc.trailing_zeros() == 1 {
+                let pa = mmu.translate(pc, 2, MmuOpt::Fetch)?;
+                match U16Access::read(&self.p.bus, pa) {
+                    Ok(data) => data as InsnT,
+                    Err(e) => match e {
+                        region::Error::AccessErr(_, _) => return Err(Exception::FetchAccess(pc)),
+                        region::Error::Misaligned(_) => return Err(Exception::FetchMisaligned(pc))
+                    }
+                }
+            } else {
+                let pa = mmu.translate(pc, 4, MmuOpt::Fetch)?;
+                match U32Access::read(&self.p.bus, pa) {
+                    Ok(data) => {
+                        //expect compress, if is not support, raise illegeInst exception later
+                        if data & 0x3 != 0x3 {
+                            data as u16 as InsnT
+                        } else {
+                            data as InsnT
+                        }
+                    }
+                    Err(e) => match e {
+                        region::Error::AccessErr(_, _) => return Err(Exception::FetchAccess(pc)),
+                        region::Error::Misaligned(_) => return Err(Exception::FetchMisaligned(pc))
+                    }
+                }
+            }
+        };
+        println!("code = {:#x}", code);
+
+        GDECODER.decode(code)
+    }
+}

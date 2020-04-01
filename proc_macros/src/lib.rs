@@ -32,7 +32,9 @@ use syn::DeriveInput;
 /// #[derive(Debug)]
 /// struct InsnCodingTestStruct(InsnT);
 /// impl Execution for InsnCodingTestStruct {
-///     fn execute(&self, p: &mut Processor) {}
+///     fn execute(&self, p: &Processor)->Result<RegT, Exception> {
+///         Ok(0)
+///     }
 /// }
 /// #[derive(Instruction)]
 /// #[format(B)]
@@ -41,9 +43,11 @@ use syn::DeriveInput;
 /// struct InsnCodingTestStruct2(InsnT);
 /// 
 /// impl Execution for InsnCodingTestStruct2 {
-///     fn execute(&self, p: &mut Processor) {}
+///     fn execute(&self, p: &Processor)->Result<RegT, Exception> {
+///         Ok(0)
+///     }
 /// }
-/// 
+///
 /// fn main() {
 ///     let mut threads = vec![];
 ///     for i in 0..3 {

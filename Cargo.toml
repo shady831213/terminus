@@ -23,8 +23,8 @@ name = "load_elf"
 path = "top_tests/load_elf.rs"
 
 [[test]]
-name = "decode"
-path = "top_tests/decode.rs"
+name = "riscv_test"
+path = "top_tests/riscv_test.rs"
 
 [[example]]
 name = "htif_test"

@@ -229,7 +229,7 @@ impl Mmu {
 #[test]
 fn pmp_basic_test() {
     let space = Arc::new(Space::new());
-    let p = Processor::new(ProcessorCfg { xlen: XLen::X32, enabel_dirty: true }, &space);
+    let p = Processor::new(ProcessorCfg { xlen: XLen::X32, start_address:0, enabel_dirty: true }, &space);
     //no valid region
     assert_eq!(p.mmu().match_pmpcfg_entry(0, 1), None);
     //NA4

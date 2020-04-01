@@ -38,6 +38,10 @@ impl<'a> ElfLoader<'a> {
         }
     }
 
+    pub fn entry_point(&self) -> u64 {
+        self.elf.header.pt2.entry_point()
+    }
+
     pub fn load<F: Fn(u64, &[u8]) -> Result<(), String>>(&self, f: F) -> Result<(), String> {
         self.check_header()?;
         let result = self.elf.program_iter().map(|p| {

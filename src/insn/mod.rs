@@ -1,6 +1,7 @@
 use std::ops::Deref;
 use super::processor::Processor;
-use terminus_global::InsnT;
+use terminus_global::*;
+use crate::Exception;
 
 pub trait Format {
     fn ir(&self) -> InsnT;
@@ -25,7 +26,7 @@ pub trait Format {
 }
 
 pub trait Execution {
-    fn execute(&self, p: &mut Processor);
+    fn execute(&self, p: &Processor) -> Result<RegT, Exception>;
 }
 
 
