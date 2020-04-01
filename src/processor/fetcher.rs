@@ -17,7 +17,6 @@ impl Fetcher {
     }
 
     pub fn fetch(&self, pc: RegT, mmu: &Mmu) -> Result<Instruction, Exception> {
-        println!("pc = {:#x}", pc);
         if pc.trailing_zeros() == 0 {
             return Err(Exception::FetchMisaligned(pc));
         }
@@ -50,8 +49,6 @@ impl Fetcher {
                 }
             }
         };
-        println!("code = {:#x}", code);
-
         GDECODER.decode(code)
     }
 }

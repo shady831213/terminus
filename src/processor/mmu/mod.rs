@@ -61,7 +61,7 @@ impl Mmu {
     }
 
     fn get_pmpaddr(&self, idx: u8) -> RegT {
-        self.p.csr().read(0x3b0 + idx as RegT).unwrap()
+        self.p.csrs().read(0x3b0 + idx as RegT).unwrap()
     }
 
     fn match_pmpcfg_entry(&self, addr: u64, len: usize) -> Option<PmpCfgEntry> {
@@ -105,12 +105,12 @@ impl Mmu {
     }
 
     fn pte_info(&self) -> PteInfo {
-        PteInfo::new(&self.p.csr().satp)
+        PteInfo::new(&self.p.csrs().satp)
     }
 
     fn get_privileage(&self, opt: MmuOpt) -> Privilege {
-        if self.p.csr().mstatus.mprv() == 1 && opt != MmuOpt::Fetch {
-            Privilege::try_from(self.p.csr().mstatus.mpp() as u8).unwrap()
+        if self.p.csrs().mstatus.mprv() == 1 && opt != MmuOpt::Fetch {
+            Privilege::try_from(self.p.csrs().mstatus.mpp() as u8).unwrap()
         } else {
             self.p.privilege.borrow().clone()
         }
@@ -123,8 +123,8 @@ impl Mmu {
         let pte_u = pte_attr.u() == 1;
         let pte_r = pte_attr.r() == 1;
         let pte_w = pte_attr.w() == 1;
-        let mxr = self.p.csr().mstatus.mxr() == 1;
-        let sum = self.p.csr().mstatus.sum() == 1;
+        let mxr = self.p.csrs().mstatus.mxr() == 1;
+        let sum = self.p.csrs().mstatus.sum() == 1;
         match opt {
             MmuOpt::Fetch => {
                 if !pte_x || pte_u == priv_s {
@@ -155,7 +155,7 @@ impl Mmu {
         }
         let vaddr = Vaddr::new(&info.mode, va);
         //step 1
-        let ppn = self.p.csr().satp.ppn();
+        let ppn = self.p.csrs().satp.ppn();
         let mut a = ppn * info.page_size as RegT;
         let mut level = info.level - 1;
         let mut leaf_pte: Pte;
@@ -229,18 +229,18 @@ impl Mmu {
 #[test]
 fn pmp_basic_test() {
     let space = Arc::new(Space::new());
-    let p = Processor::new(ProcessorCfg { xlen: XLen::X32, start_address:0, enabel_dirty: true }, &space);
+    let p = Processor::new(ProcessorCfg { xlen: XLen::X32, hartid:0, start_address:0, enabel_dirty: true }, &space);
     //no valid region
     assert_eq!(p.mmu().match_pmpcfg_entry(0, 1), None);
     //NA4
-    p.state.csr_mut().pmpcfg0.set_bit_range(4, 3, PmpAType::NA4.into());
-    p.state.csr_mut().pmpaddr0.set(0x8000_0000 >> 2);
+    p.state.csrs_mut().pmpcfg0.set_bit_range(4, 3, PmpAType::NA4.into());
+    p.state.csrs_mut().pmpaddr0.set(0x8000_0000 >> 2);
     assert!(p.mmu().match_pmpcfg_entry(0x8000_0000, 4).is_some());
     assert!(p.mmu().match_pmpcfg_entry(0x8000_0000, 5).is_none());
 
     //NAPOT
-    p.state.csr_mut().pmpcfg3.set_bit_range(4, 3, PmpAType::NAPOT.into());
-    p.state.csr_mut().pmpaddr12.set((0x2000_0000 + 0x1_0000 - 1) >> 2);
+    p.state.csrs_mut().pmpcfg3.set_bit_range(4, 3, PmpAType::NAPOT.into());
+    p.state.csrs_mut().pmpaddr12.set((0x2000_0000 + 0x1_0000 - 1) >> 2);
     assert!(p.mmu().match_pmpcfg_entry(0x2000_0000, 4).is_some());
     assert!(p.mmu().match_pmpcfg_entry(0x2000_ffff, 1).is_some());
     assert!(p.mmu().match_pmpcfg_entry(0x2000_ffff, 2).is_none());
@@ -248,14 +248,14 @@ fn pmp_basic_test() {
     assert_eq!(p.mmu().match_pmpcfg_entry(0x1000_ffff, 1), None);
     assert_eq!(p.mmu().match_pmpcfg_entry(0x2001_0000, 4), None);
     //TOR
-    p.state.csr_mut().pmpcfg3.set_bit_range(12, 11, PmpAType::TOR.into());
-    p.state.csr_mut().pmpaddr13.set((0x2000_0000 + 0x1_0000) >> 2);
-    p.state.csr_mut().pmpcfg3.set_bit_range(20, 19, PmpAType::TOR.into());
-    p.state.csr_mut().pmpaddr14.set((0x2000_0000 + 0x2_0000) >> 2);
+    p.state.csrs_mut().pmpcfg3.set_bit_range(12, 11, PmpAType::TOR.into());
+    p.state.csrs_mut().pmpaddr13.set((0x2000_0000 + 0x1_0000) >> 2);
+    p.state.csrs_mut().pmpcfg3.set_bit_range(20, 19, PmpAType::TOR.into());
+    p.state.csrs_mut().pmpaddr14.set((0x2000_0000 + 0x2_0000) >> 2);
     assert!(p.mmu().match_pmpcfg_entry(0x2001_0000, 4).is_some());
     assert!(p.mmu().match_pmpcfg_entry(0x2001_ffff, 1).is_some());
     assert!(p.mmu().match_pmpcfg_entry(0x2001_ffff, 2).is_none());
     assert_eq!(p.mmu().match_pmpcfg_entry(0x2002_0000, 4), None);
-    p.state.csr_mut().pmpcfg3.set_bit_range(23, 23, 1);
+    p.state.csrs_mut().pmpcfg3.set_bit_range(23, 23, 1);
     assert!(p.mmu().match_pmpcfg_entry(0x2001_0000, 4).is_some());
 }

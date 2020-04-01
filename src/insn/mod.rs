@@ -26,7 +26,7 @@ pub trait Format {
 }
 
 pub trait Execution {
-    fn execute(&self, p: &Processor) -> Result<RegT, Exception>;
+    fn execute(&self, p: &Processor) -> Result<(), Exception>;
 }
 
 

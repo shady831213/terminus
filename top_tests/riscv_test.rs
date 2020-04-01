@@ -16,12 +16,17 @@ fn riscv_basic_test() {
     sys.load_elf(&elf);
 
     let processor_cfg = ProcessorCfg {
-        xlen:XLen::X64,
-        start_address:elf.entry_point(),
-        enabel_dirty:true
+        xlen: XLen::X64,
+        hartid: 0,
+        start_address: elf.entry_point(),
+        enabel_dirty: true,
     };
 
     let p = Processor::new(processor_cfg, sys.mem_space());
-    println!("{:#x?}", p.execute_one())
+    p.execute_one().unwrap();
+    p.execute_one().unwrap();
+    println!("{:#x?}", p.execute_one());
+    println!("{}", p.state().to_string())
+
 }
 

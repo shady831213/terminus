@@ -25,6 +25,7 @@ pub BasicCsr(0x0, 0xfff) {
     pmpaddr13(RW):PmpAddr, 0x3BD;
     pmpaddr14(RW):PmpAddr, 0x3BE;
     pmpaddr15(RW):PmpAddr, 0x3BF;
+    mhartid(RO):Mhartid, 0xF14;
 }
 }
 
@@ -113,6 +114,10 @@ Satp {
         mode(RW):63, 60;
     }
 }
+}
+
+define_csr! {
+Mhartid{}
 }
 
 #[test]

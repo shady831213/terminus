@@ -25,7 +25,7 @@ macro_rules! insn_format {
                 op,_:6,0;
                 rd,_:11, 7;
                 rs1,_:19, 15;
-                imm,_:31:20;
+                imm,_:31, 20;
              }
              fn ir(&self)->InsnT {
                 self._ir()

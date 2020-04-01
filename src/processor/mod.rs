@@ -24,6 +24,7 @@ mod fetcher;
 
 use fetcher::*;
 use crate::Exception;
+use std::fmt::{Display, Formatter};
 
 #[cfg(test)]
 mod test;
@@ -36,8 +37,10 @@ pub enum Privilege {
     M = 3,
 }
 
+#[derive(Debug)]
 pub struct ProcessorCfg {
     pub xlen: XLen,
+    pub hartid: RegT,
     pub start_address: u64,
     pub enabel_dirty: bool,
 }
@@ -45,22 +48,85 @@ pub struct ProcessorCfg {
 pub struct ProcessorState {
     config: ProcessorCfg,
     privilege: RefCell<Privilege>,
-    pub xreg: RefCell<[RegT; 32]>,
+    xreg: RefCell<[RegT; 32]>,
     extentions: RefCell<HashMap<char, Extension>>,
     basic_csr: RefCell<BasicCsr>,
     pc: RefCell<RegT>,
+    ir: RefCell<InsnT>,
     pub bus: ProcessorBus,
 }
 
 impl ProcessorState {
-    pub fn csr(&self) -> Ref<'_, BasicCsr> {
+    pub fn csrs(&self) -> Ref<'_, BasicCsr> {
         self.basic_csr.borrow()
     }
-    pub fn csr_mut(&self) -> RefMut<'_, BasicCsr> {
+    pub fn csrs_mut(&self) -> RefMut<'_, BasicCsr> {
         self.basic_csr.borrow_mut()
     }
+
+    fn csr_privilege_check(&self, id: RegT) -> Result<(), Exception> {
+        let cur_priv: u8 = (*self.privilege.borrow()).into();
+        let csr_priv: u8 = id.bit_range(9, 8);
+        if cur_priv < csr_priv {
+            return Err(Exception::CsrAccess);
+        }
+        Ok(())
+    }
+    pub fn csr(&self, id: RegT) -> Result<RegT, Exception> {
+        let trip_id = id & 0xfff;
+        self.csr_privilege_check(trip_id)?;
+        match self.csrs().read(trip_id) {
+            Some(v) => Ok(v),
+            None => Err(Exception::CsrAccess)
+        }
+    }
+    pub fn set_csr(&self, id: RegT, value: RegT) -> Result<(), Exception> {
+        let trip_id = id & 0xfff;
+        self.csr_privilege_check(trip_id)?;
+        match self.csrs_mut().write(trip_id, value) {
+            Some(_) => Ok(()),
+            None => Err(Exception::CsrAccess)
+        }
+    }
+
     pub fn check_extension(&self, ext: char) -> bool {
         self.extentions.borrow().contains_key(&ext)
+    }
+    pub fn pc(&self) -> RegT {
+        *self.pc.borrow()
+    }
+    pub fn set_pc(&self, pc: RegT) {
+        *self.pc.borrow_mut() = pc
+    }
+    pub fn xreg(&self, id: RegT) -> RegT {
+        let trip_id = id & 0x1f;
+        if trip_id == 0 {
+            0
+        } else {
+            (*self.xreg.borrow())[trip_id as usize]
+        }
+    }
+    pub fn set_xreg(&self, id: RegT, value: RegT) {
+        let trip_id = id & 0x1f;
+        if trip_id != 0 {
+            (*self.xreg.borrow_mut())[trip_id as usize] = value
+        }
+    }
+}
+
+impl Display for ProcessorState {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        writeln!(f, "config:")?;
+        writeln!(f, "{:#x?}", self.config)?;
+        writeln!(f, "")?;
+        writeln!(f, "privilege = {:?};pc = {:#x}; ir = {:#x}", *self.privilege.borrow(), *self.pc.borrow(), *self.ir.borrow())?;
+        writeln!(f, "")?;
+        writeln!(f, "registers:")?;
+        for (i, v) in self.xreg.borrow().iter().enumerate() {
+            writeln!(f, "   x{:<2} : {:#x}", i, v)?;
+        }
+        writeln!(f, "")?;
+        Ok(())
     }
 }
 
@@ -72,11 +138,11 @@ pub struct Processor {
 
 impl Processor {
     pub fn new(config: ProcessorCfg, space: &Arc<Space>) -> Processor {
-        let xlen = config.xlen;
-        let start_address = config.start_address;
+        let ProcessorCfg { xlen, hartid, start_address, enabel_dirty } = config;
         if xlen == XLen::X32 && start_address.leading_zeros() < 32 {
             panic!(format!("invalid start addr {:#x} when xlen == X32!", start_address))
         }
+
         let state = Rc::new(ProcessorState {
             config,
             privilege: RefCell::new(Privilege::M),
@@ -84,8 +150,10 @@ impl Processor {
             extentions: RefCell::new(HashMap::new()),
             basic_csr: RefCell::new(BasicCsr::new(xlen)),
             pc: RefCell::new(start_address),
+            ir: RefCell::new(0),
             bus: ProcessorBus::new(space),
         });
+        state.csrs_mut().mhartid.set(hartid);
         let mmu = Mmu::new(&state);
         let fetcher = Fetcher::new(&state);
         Processor {
@@ -99,8 +167,13 @@ impl Processor {
         &self.mmu
     }
 
-    pub fn execute_one(&self) -> Result<RegT, Exception> {
+    pub fn state(&self) -> &ProcessorState {
+        self.state.deref()
+    }
+
+    pub fn execute_one(&self) -> Result<(), Exception> {
         let inst = self.fetcher.fetch(*self.state.pc.borrow(), self.mmu())?;
+        *self.state.ir.borrow_mut() = inst.ir();
         inst.execute(self)
     }
 
@@ -108,7 +181,7 @@ impl Processor {
 
     pub fn step_one(&self) {
         match self.execute_one() {
-            Ok(next_pc) => *self.state.pc.borrow_mut() = next_pc,
+            Ok(_) => {}
             Err(e) => self.handle_exception(e)
         }
     }
