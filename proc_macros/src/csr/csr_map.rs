@@ -154,12 +154,14 @@ impl<'a> Maps<'a> {
         });
         quote! {
             #vis struct #name {
+                pub xlen:XLen,
                 #fields
             }
 
             impl #name {
                 pub fn new(xlen:XLen)->#name {
                     #name{
+                    xlen,
                     #new_fn
                     }
                 }

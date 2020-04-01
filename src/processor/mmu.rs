@@ -252,8 +252,8 @@ struct PmpCfgsIter<'m> {
 
 
 impl<'m> PmpCfgsIter<'m> {
-    fn get_cfg<'a>(&self, csr:&'a BasicCsr) -> &'a PmpCfg {
-        match self.mmu.p.xlen {
+    fn get_cfg<'a>(&self, csr: &'a BasicCsr) -> &'a PmpCfg {
+        match csr.xlen {
             XLen::X32 => {
                 match (self.idx >> 2) & 0x3 {
                     0 => &csr.pmpcfg0,
@@ -274,11 +274,12 @@ impl<'m> PmpCfgsIter<'m> {
     }
 
     fn get_entry(&self) -> PmpCfgEntry {
-        let offset: u8 = match self.mmu.p.xlen {
+        let csr = self.mmu.p.csr();
+        let offset: u8 = match csr.xlen {
             XLen::X32 => self.idx.bit_range(1, 0),
             XLen::X64 => self.idx.bit_range(2, 0),
         };
-        (self.get_cfg(self.mmu.p.csr().deref()).bit_range(((offset as usize) << 3) + 7, (offset as usize) << 3)).into()
+        (self.get_cfg(csr.deref()).bit_range(((offset as usize) << 3) + 7, (offset as usize) << 3)).into()
     }
 }
 
@@ -642,7 +643,7 @@ impl Pte {
 #[test]
 fn pmp_basic_test() {
     let space = Arc::new(Space::new());
-    let mut p = Processor::new(XLen::X32, &space);
+    let mut p = Processor::new(ProcessorCfg { xlen: XLen::X32, enabel_dirty: true }, &space);
     //no valid region
     assert_eq!(p.mmu().match_pmpcfg_entry(0, 1), None);
     //NA4

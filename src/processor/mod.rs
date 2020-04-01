@@ -33,12 +33,17 @@ pub enum Privilege {
     M = 3,
 }
 
+pub struct ProcessorCfg {
+    pub xlen: XLen,
+    pub enabel_dirty: bool,
+}
+
 pub struct ProcessorState {
+    config: ProcessorCfg,
     privilege: RefCell<Privilege>,
     pub xreg: RefCell<[RegT; 32]>,
     extentions: RefCell<HashMap<char, Extension>>,
     basic_csr: RefCell<BasicCsr>,
-    pub xlen: XLen,
     pub bus: ProcessorBus,
 }
 
@@ -46,7 +51,7 @@ impl ProcessorState {
     pub fn csr(&self) -> Ref<'_, BasicCsr> {
         self.basic_csr.borrow()
     }
-    pub fn csr_mut(&self) -> RefMut<'_, BasicCsr>  {
+    pub fn csr_mut(&self) -> RefMut<'_, BasicCsr> {
         self.basic_csr.borrow_mut()
     }
 }
@@ -57,13 +62,14 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn new(xlen: XLen, space: &Arc<Space>) -> Processor {
+    pub fn new(config: ProcessorCfg, space: &Arc<Space>) -> Processor {
+        let xlen = config.xlen;
         let state = Rc::new(ProcessorState {
+            config,
             privilege: RefCell::new(Privilege::M),
             xreg: RefCell::new([0 as RegT; 32]),
             extentions: RefCell::new(HashMap::new()),
             basic_csr: RefCell::new(BasicCsr::new(xlen)),
-            xlen,
             bus: ProcessorBus::new(space),
         });
         let mmu = Mmu::new(&state);
