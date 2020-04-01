@@ -5,6 +5,8 @@ use terminus_global::*;
 use terminus_spaceport::space::Space;
 use std::sync::Arc;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use std::rc::Rc;
+use std::cell::{RefCell, Ref, RefMut};
 
 mod csr;
 
@@ -17,9 +19,7 @@ use mmu::*;
 mod bus;
 
 use bus::*;
-use std::rc::Rc;
-use std::cell::{RefCell, Ref, RefMut};
-use std::ops::DerefMut;
+
 
 
 #[cfg(test)]

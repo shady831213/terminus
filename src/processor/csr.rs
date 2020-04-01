@@ -1,9 +1,5 @@
-use terminus_macros::*;
-use terminus_global::*;
 use super::*;
-use terminus_global::RegT;
 use terminus_proc_macros::{define_csr, csr_map};
-use std::rc::Rc;
 
 csr_map! {
 pub BasicCsr(0x0, 0xfff) {

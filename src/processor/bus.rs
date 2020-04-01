@@ -1,4 +1,3 @@
-use terminus_global::*;
 use terminus_spaceport::space::Space;
 use terminus_spaceport::memory::region::{U32Access, U64Access, U16Access, U8Access, IOAccess, BytesAccess, Region};
 use terminus_spaceport::derive_io;

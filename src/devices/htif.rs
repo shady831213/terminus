@@ -3,7 +3,7 @@ use terminus_spaceport::{derive_io, EXIT_CTRL};
 use terminus_spaceport::devices::TERM;
 use terminus_spaceport::memory::region;
 use std::sync::Mutex;
-use std::io::{Write, Error, ErrorKind, Read};
+use std::io::{Write, ErrorKind, Read};
 use terminus_macros::*;
 use std::borrow::{BorrowMut, Borrow};
 
@@ -20,12 +20,12 @@ impl HTIFDesp {
     fn tohost_device(&self) -> u64 {
         (self.tohost) >> 56
     }
-    fn fromhost_cmd(&self) -> u64 {
-        ((self.fromhost) >> 48) & 0xff
-    }
-    fn fromhost_device(&self) -> u64 {
-        (self.fromhost) >> 56
-    }
+    // fn fromhost_cmd(&self) -> u64 {
+    //     ((self.fromhost) >> 48) & 0xff
+    // }
+    // fn fromhost_device(&self) -> u64 {
+    //     (self.fromhost) >> 56
+    // }
 }
 
 #[derive_io(Bytes, U32, U64)]
@@ -40,7 +40,7 @@ impl HTIF {
         if desp.tohost == 1 {
             EXIT_CTRL.exit("htif shutdown!").unwrap();
             Ok(())
-        } else if (desp.tohost_device() == 1 && desp.tohost_cmd() == 1) {
+        } else if desp.tohost_device() == 1 && desp.tohost_cmd() == 1 {
             let mut data = [0u8; 1];
             data[0] = desp.tohost as u8;
             let stdout = TERM.stdout();
@@ -48,7 +48,7 @@ impl HTIF {
             stdout.lock().flush().unwrap();
             desp.tohost = 0;
             Ok(())
-        } else if (desp.tohost_device() == 1 && desp.tohost_cmd() == 0) {
+        } else if desp.tohost_device() == 1 && desp.tohost_cmd() == 0 {
             desp.tohost = 0;
             Ok(())
         } else {
