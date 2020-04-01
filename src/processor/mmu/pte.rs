@@ -1,5 +1,8 @@
 use super::*;
-#[derive(IntoPrimitive, TryFromPrimitive, Debug)]
+use terminus_spaceport::memory::region::Region;
+use terminus_spaceport::memory::region;
+
+#[derive(IntoPrimitive, TryFromPrimitive, Debug, Eq, PartialEq)]
 #[repr(u8)]
 pub enum PteMode {
     Bare = 0,
@@ -341,12 +344,12 @@ pub enum Vaddr {
 }
 
 impl Vaddr {
-    pub fn new(mode: &PteMode, addr: RegT) -> Option<Vaddr> {
+    pub fn new(mode: &PteMode, addr: RegT) -> Vaddr {
         match mode {
-            PteMode::Sv32 => Some(Vaddr::Sv32(Sv32Vaddr(addr))),
-            PteMode::Sv39 => Some(Vaddr::Sv39(Sv39Vaddr(addr))),
-            PteMode::Sv48 => Some(Vaddr::Sv48(Sv48Vaddr(addr))),
-            _ => None
+            PteMode::Sv32 => Vaddr::Sv32(Sv32Vaddr(addr)),
+            PteMode::Sv39 => Vaddr::Sv39(Sv39Vaddr(addr)),
+            PteMode::Sv48 => Vaddr::Sv48(Sv48Vaddr(addr)),
+            _ => panic!(format!("unsupported PteMode {:?}", mode))
         }
     }
     // pt_export!(Vaddr, pub offset, RegT);
@@ -392,14 +395,34 @@ pub enum Pte {
 }
 
 impl Pte {
-    pub fn new(mode: &PteMode, content: RegT) -> Option<Pte> {
+    pub fn new(mode: &PteMode, value: RegT) -> Pte {
         match mode {
-            PteMode::Sv32 => Some(Pte::Sv32(Sv32Pte(content))),
-            PteMode::Sv39 => Some(Pte::Sv39(Sv39Pte(content))),
-            PteMode::Sv48 => Some(Pte::Sv48(Sv48Pte(content))),
-            _ => None
+            PteMode::Sv32 => Pte::Sv32(Sv32Pte(value)),
+            PteMode::Sv39 => Pte::Sv39(Sv39Pte(value)),
+            PteMode::Sv48 => Pte::Sv48(Sv48Pte(value)),
+            _ => panic!(format!("unsupported PteMode {:?}", mode))
         }
     }
+    pub fn load<T: U32Access + U64Access>(info: &PteInfo, memory: &T, addr: u64) -> region::Result<Pte> {
+        let value = match info.size {
+            4 => {
+                U32Access::read(memory, addr)? as RegT
+            }
+            8 => {
+                U64Access::read(memory, addr)? as RegT
+            }
+            _ => unreachable!()
+        };
+        Ok(Pte::new(&info.mode, value))
+    }
+
+    pub fn store<T: U32Access + U64Access>(&self, memory: &T, addr: u64) -> region::Result<()> {
+        match self {
+            Pte::Sv32(_) => U32Access::write(memory, addr, self.value() as u32),
+            _ => U64Access::write(memory, addr, self.value() as u64)
+        }
+    }
+
     // pt_export!(Pte, pub rsw, RegT);
     pt_export!(Pte, pub ppn, Option<RegT>, level:usize);
     pt_export!(Pte, pub ppn_all, RegT);
