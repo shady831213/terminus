@@ -105,10 +105,11 @@ impl Mmu {
             let mut a = ppn * info.page_size as RegT;
             let mut level = info.level - 1;
             let mut leaf_pte: Pte;
+            let mut pte_addr: u64;
             loop {
                 //step 2
-                let pte_addr = (a + vaddr.vpn(level).unwrap() * info.size as RegT) as u64;
-                if !self.check_pmp(pte_addr, info.size, opt, privilege) {
+                pte_addr = (a + vaddr.vpn(level).unwrap() * info.size as RegT) as u64;
+                if !self.check_pmp(pte_addr, info.size, MmuOpt::Load, Privilege::S) {
                     return match opt {
                         MmuOpt::Fetch => Err(Exception::FetchAccess(va as u64)),
                         MmuOpt::Load => Err(Exception::LoadAccess(va as u64)),
@@ -151,14 +152,6 @@ impl Mmu {
                 //step 4
                 if pte.attr().r() == 1 || pte.attr().x() == 1 {
                     leaf_pte = pte;
-                    //step 6
-                    if level > 0 && leaf_pte.ppn(level - 1).unwrap() != 0 {
-                        return match opt {
-                            MmuOpt::Fetch => Err(Exception::FetchPageFault(va as u64)),
-                            MmuOpt::Load => Err(Exception::LoadPageFault(va as u64)),
-                            MmuOpt::Store => Err(Exception::StorePageFault(va as u64))
-                        };
-                    }
                     break;
                 } else if level == 0 {
                     return match opt {
@@ -207,10 +200,62 @@ impl Mmu {
                     }
                 }
             }
-            //step 7
+            //step 6
+            if level > 0 && leaf_pte.ppn(level - 1).unwrap() != 0 {
+                return match opt {
+                    MmuOpt::Fetch => Err(Exception::FetchPageFault(va as u64)),
+                    MmuOpt::Load => Err(Exception::LoadPageFault(va as u64)),
+                    MmuOpt::Store => Err(Exception::StorePageFault(va as u64))
+                };
+            }
 
+            //step 7
+            if leaf_pte.attr().d() == 0 && opt == MmuOpt::Store || leaf_pte.attr().a() == 0 {
+                if self.p.config.enabel_dirty {
+                    let mut new_attr = leaf_pte.attr();
+                    new_attr.set_a(1);
+                    new_attr.set_d((opt == MmuOpt::Store) as u8);
+                    if !self.check_pmp(pte_addr, info.size, MmuOpt::Store, Privilege::S) {
+                        return match opt {
+                            MmuOpt::Fetch => Err(Exception::FetchAccess(va as u64)),
+                            MmuOpt::Load => Err(Exception::LoadAccess(va as u64)),
+                            MmuOpt::Store => Err(Exception::StoreAccess(va as u64))
+                        };
+                    }
+                    leaf_pte.set_attr(new_attr);
+                    match info.size {
+                        4 => {
+                            match U32Access::write(&self.p.bus, pte_addr, leaf_pte.value() as u32) {
+                                Ok(_) => {}
+                                Err(e) => return match opt {
+                                    MmuOpt::Fetch => Err(Exception::FetchAccess(va as u64)),
+                                    MmuOpt::Load => Err(Exception::LoadAccess(va as u64)),
+                                    MmuOpt::Store => Err(Exception::StoreAccess(va as u64))
+                                }
+                            }
+                        }
+                        8 => {
+                            match U64Access::write(&self.p.bus, pte_addr, leaf_pte.value() as u64) {
+                                Ok(_) => {}
+                                Err(e) => return match opt {
+                                    MmuOpt::Fetch => Err(Exception::FetchAccess(va as u64)),
+                                    MmuOpt::Load => Err(Exception::LoadAccess(va as u64)),
+                                    MmuOpt::Store => Err(Exception::StoreAccess(va as u64))
+                                }
+                            }
+                        }
+                        _ => unreachable!()
+                    }
+                } else {
+                    return match opt {
+                        MmuOpt::Fetch => Err(Exception::FetchPageFault(va as u64)),
+                        MmuOpt::Load => Err(Exception::LoadPageFault(va as u64)),
+                        MmuOpt::Store => Err(Exception::StorePageFault(va as u64))
+                    };
+                }
+            }
             //step 8
-            Ok(0)
+            Ok(Paddr::new(&vaddr, &leaf_pte, &info, level).value() as u64)
         } else {
             Ok(va as u64)
         }
@@ -379,14 +424,17 @@ impl Sv32Vaddr {
             _ => None
         }
     }
+    fn value(&self) -> RegT {
+        self.0
+    }
 }
 
 bitfield! {
 struct Sv32Paddr(RegT);
 impl Debug;
-ppn1,_:33, 22;
-ppn0,_:21, 12;
-offset,_:11,0;
+ppn1,set_ppn1:33, 22;
+ppn0,set_ppn0:21, 12;
+offset,set_offset:11,0;
 }
 
 impl Sv32Paddr {
@@ -397,6 +445,17 @@ impl Sv32Paddr {
             _ => None
         }
     }
+
+    fn set_ppn(&mut self, level: usize, ppn: RegT) {
+        match level {
+            0 => self.set_ppn0(ppn),
+            1 => self.set_ppn1(ppn),
+            _ => {}
+        }
+    }
+    fn value(&self) -> RegT {
+        self.0
+    }
 }
 
 bitfield! {
@@ -405,7 +464,7 @@ impl Debug;
 ppn1,_:31, 20;
 ppn0,_:19, 10;
 rsw,_:9,8;
-attr_raw,_:7,0;
+attr_raw,set_attr_raw:7,0;
 }
 
 impl Sv32Pte {
@@ -418,6 +477,9 @@ impl Sv32Pte {
     }
     fn ppn_all(&self) -> RegT {
         self.ppn1() << 10 | self.ppn0()
+    }
+    fn value(&self) -> RegT {
+        self.0
     }
 }
 
@@ -439,15 +501,18 @@ impl Sv39Vaddr {
             _ => None
         }
     }
+    fn value(&self) -> RegT {
+        self.0
+    }
 }
 
 bitfield! {
 struct Sv39Paddr(RegT);
 impl Debug;
-ppn2,_:55, 30;
-ppn1,_:29, 21;
-ppn0,_:20, 12;
-offset,_:11,0;
+ppn2,set_ppn2:55, 30;
+ppn1,set_ppn1:29, 21;
+ppn0,set_ppn0:20, 12;
+offset,set_offset:11,0;
 }
 
 impl Sv39Paddr {
@@ -459,6 +524,18 @@ impl Sv39Paddr {
             _ => None
         }
     }
+
+    fn set_ppn(&mut self, level: usize, ppn: RegT) {
+        match level {
+            0 => self.set_ppn0(ppn),
+            1 => self.set_ppn1(ppn),
+            2 => self.set_ppn2(ppn),
+            _ => {}
+        }
+    }
+    fn value(&self) -> RegT {
+        self.0
+    }
 }
 
 bitfield! {
@@ -468,7 +545,7 @@ ppn2,_:53, 28;
 ppn1,_:27, 19;
 ppn0,_:18, 10;
 rsw,_:9,8;
-attr_raw,_:7,0;
+attr_raw,set_attr_raw:7,0;
 }
 
 impl Sv39Pte {
@@ -482,6 +559,9 @@ impl Sv39Pte {
     }
     fn ppn_all(&self) -> RegT {
         self.ppn2() << 18 | self.ppn1() << 9 | self.ppn0()
+    }
+    fn value(&self) -> RegT {
+        self.0
     }
 }
 
@@ -505,16 +585,19 @@ impl Sv48Vaddr {
             _ => None
         }
     }
+    fn value(&self) -> RegT {
+        self.0
+    }
 }
 
 bitfield! {
 struct Sv48Paddr(RegT);
 impl Debug;
-ppn3,_:55, 39;
-ppn2,_:38, 30;
-ppn1,_:29, 21;
-ppn0,_:20, 12;
-offset,_:11,0;
+ppn3,set_ppn3:55, 39;
+ppn2,set_ppn2:38, 30;
+ppn1,set_ppn1:29, 21;
+ppn0,set_ppn0:20, 12;
+offset,set_offset:11,0;
 }
 
 impl Sv48Paddr {
@@ -527,6 +610,19 @@ impl Sv48Paddr {
             _ => None
         }
     }
+
+    fn set_ppn(&mut self, level: usize, ppn: RegT) {
+        match level {
+            0 => self.set_ppn0(ppn),
+            1 => self.set_ppn1(ppn),
+            2 => self.set_ppn2(ppn),
+            3 => self.set_ppn3(ppn),
+            _ => {}
+        }
+    }
+    fn value(&self) -> RegT {
+        self.0
+    }
 }
 
 bitfield! {
@@ -537,7 +633,7 @@ ppn2,_:36, 28;
 ppn1,_:27, 19;
 ppn0,_:18, 10;
 rsw,_:9,8;
-attr_raw,_:7,0;
+attr_raw,set_attr_raw:7,0;
 }
 
 impl Sv48Pte {
@@ -552,6 +648,9 @@ impl Sv48Pte {
     }
     fn ppn_all(&self) -> RegT {
         self.ppn3() << 27 | self.ppn2() << 18 | self.ppn1() << 9 | self.ppn0()
+    }
+    fn value(&self) -> RegT {
+        self.0
     }
 }
 
@@ -594,6 +693,7 @@ impl Vaddr {
     }
     pt_export!(Vaddr, offset, RegT);
     pt_export!(Vaddr, vpn, Option<RegT>, level:usize);
+    pt_export!(Vaddr, value, RegT);
 }
 
 enum Paddr {
@@ -603,16 +703,28 @@ enum Paddr {
 }
 
 impl Paddr {
-    fn new(mode: &PteMode, addr: RegT) -> Option<Paddr> {
-        match mode {
-            PteMode::Sv32 => Some(Paddr::Sv32(Sv32Paddr(addr))),
-            PteMode::Sv39 => Some(Paddr::Sv39(Sv39Paddr(addr))),
-            PteMode::Sv48 => Some(Paddr::Sv48(Sv48Paddr(addr))),
-            _ => None
+    fn new(vaddr: &Vaddr, pte: &Pte, info: &PteInfo, level: usize) -> Paddr {
+        let mut pa = match vaddr {
+            Vaddr::Sv32(addr) => Paddr::Sv32(Sv32Paddr(addr.value())),
+            Vaddr::Sv39(addr) => Paddr::Sv39(Sv39Paddr(addr.value())),
+            Vaddr::Sv48(addr) => Paddr::Sv48(Sv48Paddr(addr.value()))
+        };
+        for i in level..info.level {
+            pa.set_ppn(i, pte.ppn(i).unwrap())
         }
+        pa
     }
     pt_export!(Paddr, offset, RegT);
     pt_export!(Paddr, ppn, Option<RegT>, level:usize);
+    pt_export!(Paddr, value, RegT);
+
+    fn set_ppn(&mut self, level: usize, ppn: RegT) {
+        match self {
+            Paddr::Sv32(addr) => addr.set_ppn(level, ppn),
+            Paddr::Sv39(addr) => addr.set_ppn(level, ppn),
+            Paddr::Sv48(addr) => addr.set_ppn(level, ppn),
+        }
+    }
 }
 
 enum Pte {
@@ -634,8 +746,17 @@ impl Pte {
     pt_export!(Pte, ppn, Option<RegT>, level:usize);
     pt_export!(Pte, ppn_all, RegT);
     pt_export!(Pte, attr_raw, RegT);
+    pt_export!(Pte, value, RegT);
     fn attr(&self) -> PteAttr {
         (self.attr_raw() as u8).into()
+    }
+
+    fn set_attr(&mut self, attr: PteAttr) {
+        match self {
+            Pte::Sv32(addr) => addr.set_attr_raw(attr.0 as RegT),
+            Pte::Sv39(addr) => addr.set_attr_raw(attr.0 as RegT),
+            Pte::Sv48(addr) => addr.set_attr_raw(attr.0 as RegT),
+        }
     }
 }
 
