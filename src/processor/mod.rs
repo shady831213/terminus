@@ -59,6 +59,7 @@ pub struct ProcessorState {
     xreg: RefCell<[RegT; 32]>,
     extensions: HashMap<char, Extension>,
     pc: RefCell<RegT>,
+    next_pc: RefCell<RegT>,
     ir: RefCell<InsnT>,
     pub bus: ProcessorBus,
 }
@@ -85,7 +86,8 @@ impl ProcessorState {
             privilege: RefCell::new(Privilege::M),
             xreg: RefCell::new([0 as RegT; 32]),
             extensions: extensions_map,
-            pc: RefCell::new(start_address),
+            pc: RefCell::new(0),
+            next_pc: RefCell::new(start_address),
             ir: RefCell::new(0),
             bus: ProcessorBus::new(space),
         };
@@ -156,7 +158,7 @@ impl ProcessorState {
     }
 
     pub fn set_pc(&self, pc: RegT) {
-        *self.pc.borrow_mut() = pc
+        *self.next_pc.borrow_mut() = pc
     }
 
     pub fn xreg(&self, id: RegT) -> RegT {
@@ -185,7 +187,7 @@ impl Display for ProcessorState {
         writeln!(f, "{:?}", self.extensions.keys())?;
         writeln!(f, "")?;
         writeln!(f, "states:")?;
-        writeln!(f, "privilege = {:?};pc = {:#x}; ir = {:#x}", *self.privilege.borrow(), *self.pc.borrow(), *self.ir.borrow())?;
+        writeln!(f, "privilege = {:?};pc = {:#x}; ir = {:#x}; next_pc = {:#x};", *self.privilege.borrow(), *self.pc.borrow(), *self.ir.borrow(), *self.next_pc.borrow())?;
         writeln!(f, "")?;
         writeln!(f, "registers:")?;
         for (i, v) in self.xreg.borrow().iter().enumerate() {
@@ -228,7 +230,8 @@ impl Processor {
     }
 
     pub fn execute_one(&self) -> Result<(), Exception> {
-        let inst = self.fetcher.fetch(*self.state.pc.borrow(), self.mmu())?;
+        let inst = self.fetcher.fetch(*self.state.next_pc.borrow(), self.mmu())?;
+        *self.state.pc.borrow_mut() = *self.state.next_pc.borrow();
         *self.state.ir.borrow_mut() = inst.ir();
         inst.execute(self)
     }
