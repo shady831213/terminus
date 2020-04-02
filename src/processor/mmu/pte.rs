@@ -1,5 +1,4 @@
 use super::*;
-use terminus_spaceport::memory::region::Region;
 use terminus_spaceport::memory::region;
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug, Eq, PartialEq)]

@@ -6,7 +6,7 @@ use terminus_spaceport::space::Space;
 use std::sync::Arc;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::rc::Rc;
-use std::cell::{RefCell, Ref, RefMut};
+use std::cell::RefCell;
 use crate::extentions::i::csrs::*;
 
 mod mmu;
@@ -81,23 +81,25 @@ impl ProcessorState {
             bus: ProcessorBus::new(space),
         };
 
-        state.csrs::<ICsrs>('i').unwrap().mhartid_mut().set(hartid);
+        state.csrs::<ICsrs>().unwrap().mhartid_mut().set(hartid);
         Ok(state)
     }
 
 
-    fn csrs<T: 'static>(&self, ext: char) -> Option<Rc<T>> {
-        if let Some(extension) = self.extensions.get(&ext) {
+    fn csrs<T: 'static>(&self) -> Result<Rc<T>, String> {
+        if let Some(t) = self.extensions.values().find_map(|extension|{
             if let Some(csrs) = extension.csrs() {
                 match csrs.downcast::<T>() {
                     Ok(t) => Some(t),
-                    Err(_) => panic!(format!("can not find csrs {:?}", TypeId::of::<T>()))
+                    Err(_) => None
                 }
             } else {
                 None
             }
+        }) {
+            Ok(t)
         } else {
-            None
+            Err(format!("can not find csrs {:?}", TypeId::of::<T>()))
         }
     }
 
@@ -132,8 +134,12 @@ impl ProcessorState {
         }
     }
 
-    pub fn check_extension(&self, ext: char) -> bool {
-        self.extensions.contains_key(&ext)
+    pub fn check_extension(&self, ext: char) -> Result<(),Exception> {
+        if self.extensions.contains_key(&ext) {
+            Ok(())
+        } else {
+            Err(Exception::IllegalInsn(*self.ir.borrow()))
+        }
     }
 
     pub fn pc(&self) -> RegT {

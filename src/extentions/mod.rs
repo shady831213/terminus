@@ -1,5 +1,4 @@
 use crate::processor::ProcessorCfg;
-use crate::insn::Instruction;
 use terminus_global::*;
 
 pub mod a;
