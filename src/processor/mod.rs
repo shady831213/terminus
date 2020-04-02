@@ -50,18 +50,15 @@ pub struct ProcessorState {
     privilege: RefCell<Privilege>,
     xreg: RefCell<[RegT; 32]>,
     extentions: RefCell<HashMap<char, Extension>>,
-    basic_csr: RefCell<BasicCsr>,
+    basic_csr: BasicCsr,
     pc: RefCell<RegT>,
     ir: RefCell<InsnT>,
     pub bus: ProcessorBus,
 }
 
 impl ProcessorState {
-    pub fn csrs(&self) -> Ref<'_, BasicCsr> {
-        self.basic_csr.borrow()
-    }
-    pub fn csrs_mut(&self) -> RefMut<'_, BasicCsr> {
-        self.basic_csr.borrow_mut()
+    pub fn csrs(&self) -> &BasicCsr {
+        &self.basic_csr
     }
 
     fn csr_privilege_check(&self, id: RegT) -> Result<(), Exception> {
@@ -83,7 +80,7 @@ impl ProcessorState {
     pub fn set_csr(&self, id: RegT, value: RegT) -> Result<(), Exception> {
         let trip_id = id & 0xfff;
         self.csr_privilege_check(trip_id)?;
-        match self.csrs_mut().write(trip_id, value) {
+        match self.csrs().write(trip_id, value) {
             Some(_) => Ok(()),
             None => Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
@@ -148,12 +145,12 @@ impl Processor {
             privilege: RefCell::new(Privilege::M),
             xreg: RefCell::new([0 as RegT; 32]),
             extentions: RefCell::new(HashMap::new()),
-            basic_csr: RefCell::new(BasicCsr::new(xlen)),
+            basic_csr: BasicCsr::new(xlen),
             pc: RefCell::new(start_address),
             ir: RefCell::new(0),
             bus: ProcessorBus::new(space),
         });
-        state.csrs_mut().mhartid.set(hartid);
+        state.csrs().mhartid_mut().set(hartid);
         let mmu = Mmu::new(&state);
         let fetcher = Fetcher::new(&state);
         Processor {

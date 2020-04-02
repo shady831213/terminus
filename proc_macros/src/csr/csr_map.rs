@@ -119,22 +119,66 @@ impl<'a> Maps<'a> {
         }
     }
 
-    fn expand(&self, name: &Ident, vis: &Visibility) -> TokenStream {
+    fn expand(&self, name: &Ident, vis: &Visibility, locked: bool) -> TokenStream {
         let fields = quote_map_fold(self.maps.iter(), |csr_map| {
             let name = &csr_map.name;
             let ty = &csr_map.ty;
-            quote! {pub #name:#ty,}
+            if locked {
+                quote! {#name:std::sync::Mutex<#ty>,}
+            } else {
+                quote! {#name:std::cell::RefCell<#ty>,}
+            }
+        });
+        let fields_access = quote_map_fold(self.maps.iter(), |csr_map| {
+            let name = &csr_map.name;
+            let ty = &csr_map.ty;
+            let mut_name = format_ident!("{}_mut", name);
+            let immut_access = if locked {
+                quote! {
+                pub fn #name(&self) -> std::sync::MutexGuard<'_, #ty> {
+                    self.#name.lock().unwrap()
+                }
+                }
+            } else {
+                quote! {
+                pub fn #name(&self) -> std::cell::Ref<'_, #ty> {
+                    self.#name.borrow()
+                }
+                }
+            };
+            let mut_access = if locked {
+                quote! {
+                pub fn #mut_name(&self) -> std::sync::MutexGuard<'_, #ty> {
+                    self.#name.lock().unwrap()
+                }
+                }
+            } else {
+                quote! {
+                pub fn #mut_name(&self) -> std::cell::RefMut<'_, #ty> {
+                    self.#name.borrow_mut()
+                }
+                }
+            };
+            quote! {
+                #immut_access
+                #mut_access
+            }
         });
         let new_fn = quote_map_fold(self.maps.iter(), |csr_map| {
             let name = &csr_map.name;
             let ty = &csr_map.ty;
-            quote! {#name:#ty::new(xlen),}
+            if locked {
+                quote! {#name:std::sync::Mutex::new(#ty::new(xlen)),}
+            } else {
+                quote! {#name:std::cell::RefCell::new(#ty::new(xlen)),}
+            }
         });
         let write_matchs = quote_map_fold(self.maps.iter(), |csr_map| {
             let name = &csr_map.name;
             let addr = &csr_map.addr;
+            let mut_name = format_ident!("{}_mut", name);
             let block = if csr_map.privilege.writeable() {
-                quote! {Some(self.#name.set(value))}
+                quote! {Some(self.#mut_name().set(value))}
             } else {
                 quote! {Some(())}
             };
@@ -146,27 +190,33 @@ impl<'a> Maps<'a> {
             let name = &csr_map.name;
             let addr = &csr_map.addr;
             let block = if csr_map.privilege.readable() {
-                quote! {Some(self.#name.get())}
+                quote! {Some(self.#name().get())}
             } else {
                 quote! {Some(0)}
             };
             quote! { #addr => #block,}
         });
+        let struct_name = if locked {
+            format_ident!("Locked{}",name)
+        } else {
+            name.clone()
+        };
         quote! {
-            #vis struct #name {
+            #vis struct #struct_name {
                 pub xlen:XLen,
                 #fields
             }
 
-            impl #name {
-                pub fn new(xlen:XLen)->#name {
-                    #name{
+            impl #struct_name {
+                #fields_access
+                pub fn new(xlen:XLen)->#struct_name {
+                    #struct_name{
                     xlen,
                     #new_fn
                     }
                 }
 
-                pub fn write(&mut self, addr:RegT, value:RegT)->Option<()> {
+                pub fn write(&self, addr:RegT, value:RegT)->Option<()> {
                     match addr {
                         #write_matchs
                         _ => None
@@ -191,5 +241,10 @@ pub fn expand(input: TokenStream) -> TokenStream {
     for csr_map in maps.csrs.iter() {
         expand_call!(csr_maps.add(csr_map));
     };
-    csr_maps.expand(&maps.name, &maps.vis)
+    let unlocked =  csr_maps.expand(&maps.name, &maps.vis,false);
+    let locked = csr_maps.expand(&maps.name, &maps.vis,true);
+    quote! {
+        #unlocked
+        #locked
+    }
 }
