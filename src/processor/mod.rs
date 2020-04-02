@@ -8,6 +8,10 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::rc::Rc;
 use std::cell::RefCell;
 use crate::extentions::i::csrs::*;
+use crate::Exception;
+use std::fmt::{Display, Formatter};
+use crate::extentions::HasCsr;
+use std::any::TypeId;
 
 mod mmu;
 
@@ -20,10 +24,7 @@ use bus::*;
 mod fetcher;
 
 use fetcher::*;
-use crate::Exception;
-use std::fmt::{Display, Formatter};
-use crate::extentions::HasCsr;
-use std::any::TypeId;
+
 
 #[cfg(test)]
 mod test;
