@@ -1,12 +1,13 @@
 use terminus_global::*;
 use terminus_macros::*;
 use terminus_proc_macros::Instruction;
-use crate::insn::*;
 use crate::processor::Processor;
-use crate::execption::Exception;
-use crate::decode::*;
+use crate::processor::execption::Exception;
+use crate::processor::insn::*;
+use crate::processor::decode::*;
 use crate::linkme::*;
 use std::num::Wrapping;
+
 #[derive(Instruction)]
 #[format(J)]
 #[code("0b?????????????????????????1101111")]

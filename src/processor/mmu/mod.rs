@@ -1,16 +1,19 @@
-use super::*;
-use crate::Exception;
 use std::marker::PhantomData;
-use terminus_spaceport::memory::region::{U32Access, U64Access};
 use std::convert::TryFrom;
+use crate::processor::execption::Exception;
+use terminus_global::RegT;
+use std::rc::Rc;
+use crate::processor::{ProcessorState, Privilege};
+use crate::processor::extentions::i::csrs::*;
+use terminus_macros::*;
 
 mod pmp;
-
 use pmp::*;
 
 mod pte;
-
 use pte::*;
+
+
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum MmuOpt {
@@ -225,6 +228,14 @@ impl Mmu {
     }
 }
 
+#[cfg(test)]
+use terminus_global::XLen;
+#[cfg(test)]
+use crate::processor::{Processor, ProcessorCfg};
+#[cfg(test)]
+use terminus_spaceport::space::Space;
+#[cfg(test)]
+use std::sync::Arc;
 
 #[test]
 fn pmp_basic_test() {

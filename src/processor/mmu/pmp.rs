@@ -1,4 +1,10 @@
-use super::*;
+use terminus_global::{XLen, RegT};
+use crate::processor::mmu::Mmu;
+use std::marker::PhantomData;
+use std::ops::Deref;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use terminus_macros::*;
+use crate::processor::extentions::i::csrs::*;
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug)]
 #[repr(u8)]

@@ -1,9 +1,9 @@
-use terminus_spaceport::memory::region::{GHEAP, Region, BytesAccess};
+use terminus_spaceport::memory::region::{Region, BytesAccess};
 use terminus_spaceport::memory::MemInfo;
 use terminus_spaceport::space::{Space, SPACE_TABLE};
 use terminus_spaceport::space;
 use std::sync::Arc;
-use std::{fs, fmt};
+use std::fmt;
 use super::elf::ElfLoader;
 use std::ops::Deref;
 use super::devices::htif::HTIF;
@@ -89,6 +89,10 @@ impl Display for System {
     }
 }
 
+#[cfg(test)]
+use terminus_spaceport::memory::region::GHEAP;
+#[cfg(test)]
+use std::fs;
 #[test]
 fn machine_basic() {
     let m = System::new("m0");

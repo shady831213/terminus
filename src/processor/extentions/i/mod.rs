@@ -1,7 +1,7 @@
 use terminus_global::*;
 use std::rc::Rc;
 use std::any::Any;
-use crate::extentions::HasCsr;
+use crate::processor::extentions::HasCsr;
 
 mod insns;
 pub mod csrs;

@@ -1,18 +1,17 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
-
 mod simple_insn_map;
 mod tree_insn_map;
 
 use std::sync::Arc;
 
-use super::*;
-use super::insn::*;
-use super::execption::*;
 use terminus_global::InsnT;
+use crate::linkme::*;
 
 use simple_insn_map::*;
 use tree_insn_map::*;
+use crate::processor::Instruction;
+use crate::processor::execption::Exception;
 
 pub trait Decoder:Send+Sync {
     fn code(&self) -> InsnT;

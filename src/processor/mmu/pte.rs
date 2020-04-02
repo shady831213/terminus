@@ -1,5 +1,9 @@
-use super::*;
 use terminus_spaceport::memory::region;
+use terminus_global::{XLen, RegT};
+use std::convert::TryFrom;
+use terminus_spaceport::memory::region::{U32Access, U64Access};
+use crate::processor::extentions::i::csrs::*;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug, Eq, PartialEq)]
 #[repr(u8)]

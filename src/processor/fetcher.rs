@@ -1,9 +1,6 @@
 use super::*;
-use crate::insn::Instruction;
-use crate::Exception;
 use terminus_spaceport::memory::region::{U16Access, U32Access};
 use terminus_spaceport::memory::region;
-use crate::decode::*;
 
 pub struct Fetcher {
     p: Rc<ProcessorState>,
