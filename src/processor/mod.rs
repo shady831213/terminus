@@ -181,6 +181,10 @@ impl Display for ProcessorState {
         writeln!(f, "config:")?;
         writeln!(f, "{:#x?}", self.config)?;
         writeln!(f, "")?;
+        writeln!(f, "extensions:")?;
+        writeln!(f, "{:?}", self.extensions.keys())?;
+        writeln!(f, "")?;
+        writeln!(f, "states:")?;
         writeln!(f, "privilege = {:?};pc = {:#x}; ir = {:#x}", *self.privilege.borrow(), *self.pc.borrow(), *self.ir.borrow())?;
         writeln!(f, "")?;
         writeln!(f, "registers:")?;
