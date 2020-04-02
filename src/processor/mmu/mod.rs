@@ -4,7 +4,7 @@ use crate::processor::execption::Exception;
 use terminus_global::RegT;
 use std::rc::Rc;
 use crate::processor::{ProcessorState, Privilege};
-use crate::processor::extentions::i::csrs::*;
+use crate::processor::extensions::i::csrs::*;
 use terminus_macros::*;
 
 mod pmp;

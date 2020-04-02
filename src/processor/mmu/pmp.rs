@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use terminus_macros::*;
-use crate::processor::extentions::i::csrs::*;
+use crate::processor::extensions::i::csrs::*;
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug)]
 #[repr(u8)]

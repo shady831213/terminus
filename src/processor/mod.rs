@@ -19,9 +19,9 @@ pub use insn::*;
 pub mod execption;
 use execption::Exception;
 
-mod extentions;
-use extentions::*;
-use extentions::i::csrs::*;
+mod extensions;
+use extensions::*;
+use extensions::i::csrs::*;
 
 
 mod mmu;
