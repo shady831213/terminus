@@ -7,10 +7,7 @@ use std::sync::Arc;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::rc::Rc;
 use std::cell::{RefCell, Ref, RefMut};
-
-mod csr;
-
-use csr::*;
+use crate::extentions::i::csrs::*;
 
 mod mmu;
 
@@ -25,6 +22,8 @@ mod fetcher;
 use fetcher::*;
 use crate::Exception;
 use std::fmt::{Display, Formatter};
+use crate::extentions::HasCsr;
+use std::any::TypeId;
 
 #[cfg(test)]
 mod test;
@@ -49,16 +48,61 @@ pub struct ProcessorState {
     config: ProcessorCfg,
     privilege: RefCell<Privilege>,
     xreg: RefCell<[RegT; 32]>,
-    extentions: RefCell<HashMap<char, Extension>>,
-    basic_csr: BasicCsr,
+    extensions: HashMap<char, Extension>,
     pc: RefCell<RegT>,
     ir: RefCell<InsnT>,
     pub bus: ProcessorBus,
 }
 
 impl ProcessorState {
-    pub fn csrs(&self) -> &BasicCsr {
-        &self.basic_csr
+    fn new(config: ProcessorCfg, space: &Arc<Space>, extensions: Vec<char>) -> Result<ProcessorState, String> {
+        let hartid = config.hartid;
+        let start_address = config.start_address;
+        if config.xlen == XLen::X32 && start_address.leading_zeros() < 32 {
+            return Err(format!("invalid start addr {:#x} when xlen == X32!", start_address));
+        }
+        let mut extensions_map: HashMap<char, Extension> = HashMap::new();
+        let mut add_extension = |id: char| -> Result<(), String>  {
+            let ext = Extension::new(&config, id)?;
+            extensions_map.insert(id, ext);
+            Ok(())
+        };
+        add_extension('i')?;
+        for ext in extensions {
+            add_extension(ext)?
+        }
+        let state = ProcessorState {
+            config,
+            privilege: RefCell::new(Privilege::M),
+            xreg: RefCell::new([0 as RegT; 32]),
+            extensions: extensions_map,
+            pc: RefCell::new(start_address),
+            ir: RefCell::new(0),
+            bus: ProcessorBus::new(space),
+        };
+
+        state.csrs::<ICsrs>('i').unwrap().mhartid_mut().set(hartid);
+        Ok(state)
+    }
+
+
+    fn csrs<T: 'static>(&self, ext: char) -> Option<Rc<T>> {
+        if let Some(extension) = self.extensions.get(&ext) {
+            if let Some(csrs) = extension.csrs() {
+                match csrs.downcast::<T>() {
+                    Ok(t) => Some(t),
+                    Err(_) => panic!(format!("can not find csrs {:?}", TypeId::of::<T>()))
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn config(&self) -> &ProcessorCfg {
+        &self.config
     }
 
     fn csr_privilege_check(&self, id: RegT) -> Result<(), Exception> {
@@ -69,32 +113,37 @@ impl ProcessorState {
         }
         Ok(())
     }
+
     pub fn csr(&self, id: RegT) -> Result<RegT, Exception> {
         let trip_id = id & 0xfff;
         self.csr_privilege_check(trip_id)?;
-        match self.csrs().read(trip_id) {
+        match self.extensions.values().find_map(|e| { e.csr_read(trip_id) }) {
             Some(v) => Ok(v),
             None => Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
     }
+
     pub fn set_csr(&self, id: RegT, value: RegT) -> Result<(), Exception> {
         let trip_id = id & 0xfff;
         self.csr_privilege_check(trip_id)?;
-        match self.csrs().write(trip_id, value) {
+        match self.extensions.values().find_map(|e| { e.csr_write(trip_id, value) }) {
             Some(_) => Ok(()),
             None => Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
     }
 
     pub fn check_extension(&self, ext: char) -> bool {
-        self.extentions.borrow().contains_key(&ext)
+        self.extensions.contains_key(&ext)
     }
+
     pub fn pc(&self) -> RegT {
         *self.pc.borrow()
     }
+
     pub fn set_pc(&self, pc: RegT) {
         *self.pc.borrow_mut() = pc
     }
+
     pub fn xreg(&self, id: RegT) -> RegT {
         let trip_id = id & 0x1f;
         if trip_id == 0 {
@@ -103,6 +152,7 @@ impl ProcessorState {
             (*self.xreg.borrow())[trip_id as usize]
         }
     }
+
     pub fn set_xreg(&self, id: RegT, value: RegT) {
         let trip_id = id & 0x1f;
         if trip_id != 0 {
@@ -134,25 +184,15 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn new(config: ProcessorCfg, space: &Arc<Space>) -> Processor {
-        let ProcessorCfg { xlen, hartid, start_address, enabel_dirty } = config;
-        if xlen == XLen::X32 && start_address.leading_zeros() < 32 {
-            panic!(format!("invalid start addr {:#x} when xlen == X32!", start_address))
-        }
+    pub fn new(config: ProcessorCfg, space: &Arc<Space>, extensions: Vec<char>) -> Processor {
+        let state = match ProcessorState::new(config, space, extensions) {
+            Ok(state) => Rc::new(state),
+            Err(msg) => panic!(msg)
+        };
 
-        let state = Rc::new(ProcessorState {
-            config,
-            privilege: RefCell::new(Privilege::M),
-            xreg: RefCell::new([0 as RegT; 32]),
-            extentions: RefCell::new(HashMap::new()),
-            basic_csr: BasicCsr::new(xlen),
-            pc: RefCell::new(start_address),
-            ir: RefCell::new(0),
-            bus: ProcessorBus::new(space),
-        });
-        state.csrs().mhartid_mut().set(hartid);
         let mmu = Mmu::new(&state);
         let fetcher = Fetcher::new(&state);
+
         Processor {
             state,
             mmu,

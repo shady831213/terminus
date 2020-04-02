@@ -22,11 +22,10 @@ fn riscv_basic_test() {
         enabel_dirty: true,
     };
 
-    let p = Processor::new(processor_cfg, sys.mem_space());
+    let p = Processor::new(processor_cfg, sys.mem_space(), vec![]);
     p.execute_one().unwrap();
     p.execute_one().unwrap();
     println!("{:#x?}", p.execute_one());
     println!("{}", p.state().to_string())
-
 }
 

@@ -41,7 +41,7 @@ impl<'m> PmpCfgsIter<'m> {
             marker,
         }
     }
-    fn get_cfg(&self, csr: &BasicCsr) -> RegT {
+    fn get_cfg(&self, csr: &ICsrs) -> RegT {
         match csr.xlen {
             XLen::X32 => {
                 match (self.idx >> 2) & 0x3 {
@@ -63,12 +63,12 @@ impl<'m> PmpCfgsIter<'m> {
     }
 
     fn get_entry(&self) -> PmpCfgEntry {
-        let csr = self.mmu.p.csrs();
+        let csr = self.mmu.p.csrs::<ICsrs>('i').unwrap();
         let offset: u8 = match csr.xlen {
             XLen::X32 => self.idx.bit_range(1, 0),
             XLen::X64 => self.idx.bit_range(2, 0),
         };
-        let cfg:u8 = self.get_cfg(csr).bit_range(((offset as usize) << 3) + 7, (offset as usize) << 3);
+        let cfg:u8 = self.get_cfg(csr.deref()).bit_range(((offset as usize) << 3) + 7, (offset as usize) << 3);
         cfg.into()
     }
 }

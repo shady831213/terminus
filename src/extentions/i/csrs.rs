@@ -1,12 +1,8 @@
-use super::*;
+use terminus_global::*;
 use terminus_proc_macros::{define_csr, csr_map};
-use std::any::Any;
-use std::borrow::{Borrow, BorrowMut};
-use std::io::Write;
-use std::ops::{Deref, DerefMut};
-
+use terminus_macros::*;
 csr_map! {
-pub BasicCsr(0x0, 0xfff) {
+pub ICsrs(0x0, 0xfff) {
     satp(RW):Satp, 0x180;
     mstatus(RW):MStatus, 0x300;
     pmpcfg0(RW):PmpCfg, 0x3A0;
@@ -123,98 +119,6 @@ Satp {
 define_csr! {
 Mhartid{}
 }
-
-
-// csr_map! {
-// pub BasicCsr2(0x0, 0xfff) {
-//     satp(RW):Satp, 0x180;
-//     pmpaddr15(RW):PmpAddr, 0x3BF;
-//     mhartid(RO):Mhartid, 0xF14;
-// }
-// }
-//
-//
-// trait CsrMap {}
-//
-// impl CsrMap for ACsr {}
-//
-// impl CsrMap for BCsr {}
-//
-// struct ACsr {
-//     // inner: RefCell<BasicCsr>
-//     mstatus:RefCell<MStatus>
-// }
-//
-// impl ACsr {
-//     fn mstatus(&self) -> Ref<'_, MStatus> {
-//         self.mstatus.borrow()
-//     }
-//     fn mstatus_mut(&self) -> RefMut<'_, MStatus> {
-//         self.mstatus.borrow_mut()
-//     }
-// }
-//
-// struct Atype {
-//     csrs: Rc<ACsr>
-// }
-//
-// impl Atype {
-//     fn csrs(&self) -> Option<Rc<dyn Any>> {
-//         Some(self.csrs.clone() as Rc<dyn Any>)
-//     }
-// }
-//
-// struct BCsr {
-//     inner: RefCell<BasicCsr2>
-// }
-//
-//
-// struct Btype {
-//     csrs: Rc<BCsr>
-// }
-//
-// impl Btype {
-//     fn csrs(&self) -> Option<Rc<dyn Any>> {
-//         None
-//     }
-// }
-//
-// enum TestE {
-//     A(Atype),
-//     B(Btype),
-// }
-//
-//
-// struct Top {
-//     es: HashMap<String, TestE>
-// }
-//
-// impl Top {
-//     fn _csrs(&self, name: &str) -> Option<Rc<dyn Any>> {
-//         match self.es.get(name).unwrap() {
-//             TestE::A(ty) => ty.csrs(),
-//             TestE::B(ty) => ty.csrs()
-//         }
-//     }
-//     fn __csrs<T: 'static>(&self, name: &str) -> Option<Rc<T>> {
-//         self._csrs(name).map(|c|{c.downcast::<T>().unwrap()})
-//     }
-//
-// }
-//
-// #[test]
-// fn try_csr_maps() {
-//     let mut top = Top {
-//         es: HashMap::new()
-//     };
-//     top.es.insert("a".to_string(), TestE::A(Atype { csrs: Rc::new(ACsr { mstatus: RefCell::new(MStatus::new(XLen::X64)) }) }));
-//     top.es.insert("b".to_string(), TestE::B(Btype { csrs: Rc::new(BCsr { inner: RefCell::new(BasicCsr2::new(XLen::X64)) }) }));
-//     // let csrs:&BasicCsr = top._csrs("a").downcast_ref::<RefCell<BasicCsr>>().unwrap().borrow().deref();
-//     let csrs = top.__csrs::<ACsr>("a").unwrap();
-//     csrs.mstatus().get();
-//     csrs.mstatus_mut().set(0x5555);
-//     println!("{:#x}", csrs.mstatus().get());
-// }
 
 #[test]
 fn test_status() {
