@@ -68,7 +68,7 @@ impl ProcessorState {
         let cur_priv: u8 = (*self.privilege.borrow()).into();
         let csr_priv: u8 = id.bit_range(9, 8);
         if cur_priv < csr_priv {
-            return Err(Exception::CsrAccess);
+            return Err(Exception::IllegalInsn(*self.ir.borrow()));
         }
         Ok(())
     }
@@ -77,7 +77,7 @@ impl ProcessorState {
         self.csr_privilege_check(trip_id)?;
         match self.csrs().read(trip_id) {
             Some(v) => Ok(v),
-            None => Err(Exception::CsrAccess)
+            None => Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
     }
     pub fn set_csr(&self, id: RegT, value: RegT) -> Result<(), Exception> {
@@ -85,7 +85,7 @@ impl ProcessorState {
         self.csr_privilege_check(trip_id)?;
         match self.csrs_mut().write(trip_id, value) {
             Some(_) => Ok(()),
-            None => Err(Exception::CsrAccess)
+            None => Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
     }
 

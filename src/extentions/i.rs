@@ -34,20 +34,9 @@ struct CSRRW(InsnT);
 
 impl Execution for CSRRW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        let csr = match p.state().csr(self.imm() as RegT) {
-            Ok(csr) => csr,
-            Err(e) => match e {
-                Exception::CsrAccess => return Err(Exception::IllegalInsn(self.ir())),
-                _ => return Err(e)
-            }
-        };
+        let csr = p.state().csr(self.imm() as RegT)?;
         let rs = p.state().xreg(self.rs1() as RegT);
-        if let Err(e) = p.state().set_csr(self.imm() as RegT, rs) {
-            match e {
-                Exception::CsrAccess => return Err(Exception::IllegalInsn(self.ir())),
-                _ => return Err(e)
-            }
-        }
+        p.state().set_csr(self.imm() as RegT, rs)?;
         p.state().set_pc(p.state().pc() + 4);
         p.state().set_xreg(self.rd() as RegT, csr);
         Ok(())
@@ -62,20 +51,9 @@ struct CSRRS(InsnT);
 
 impl Execution for CSRRS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        let csr = match p.state().csr(self.imm() as RegT) {
-            Ok(csr) => csr,
-            Err(e) => match e {
-                Exception::CsrAccess => return Err(Exception::IllegalInsn(self.ir())),
-                _ => return Err(e)
-            }
-        };
+        let csr = p.state().csr(self.imm() as RegT)?;
         let rs = p.state().xreg(self.rs1() as RegT);
-        if let Err(e) = p.state().set_csr(self.imm() as RegT, rs | csr) {
-            match e {
-                Exception::CsrAccess => return Err(Exception::IllegalInsn(self.ir())),
-                _ => return Err(e)
-            }
-        }
+        p.state().set_csr(self.imm() as RegT, rs | csr)?;
         p.state().set_pc(p.state().pc() + 4);
         p.state().set_xreg(self.rd() as RegT, csr);
         Ok(())
@@ -90,20 +68,9 @@ struct CSRRC(InsnT);
 
 impl Execution for CSRRC {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        let csr = match p.state().csr(self.imm() as RegT) {
-            Ok(csr) => csr,
-            Err(e) => match e {
-                Exception::CsrAccess => return Err(Exception::IllegalInsn(self.ir())),
-                _ => return Err(e)
-            }
-        };
+        let csr = p.state().csr(self.imm() as RegT)?;
         let rs = p.state().xreg(self.rs1() as RegT);
-        if let Err(e) = p.state().set_csr(self.imm() as RegT, !rs & csr) {
-            match e {
-                Exception::CsrAccess => return Err(Exception::IllegalInsn(self.ir())),
-                _ => return Err(e)
-            }
-        }
+        p.state().set_csr(self.imm() as RegT, !rs & csr)?;
         p.state().set_pc(p.state().pc() + 4);
         p.state().set_xreg(self.rd() as RegT, csr);
         Ok(())
@@ -118,19 +85,8 @@ struct CSRRWI(InsnT);
 
 impl Execution for CSRRWI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        let csr = match p.state().csr(self.imm() as RegT) {
-            Ok(csr) => csr,
-            Err(e) => match e {
-                Exception::CsrAccess => return Err(Exception::IllegalInsn(self.ir())),
-                _ => return Err(e)
-            }
-        };
-        if let Err(e) = p.state().set_csr(self.imm() as RegT, self.rs1() as RegT) {
-            match e {
-                Exception::CsrAccess => return Err(Exception::IllegalInsn(self.ir())),
-                _ => return Err(e)
-            }
-        }
+        let csr = p.state().csr(self.imm() as RegT)?;
+        p.state().set_csr(self.imm() as RegT, self.rs1() as RegT)?;
         p.state().set_pc(p.state().pc() + 4);
         p.state().set_xreg(self.rd() as RegT, csr);
         Ok(())
@@ -145,19 +101,8 @@ struct CSRRSI(InsnT);
 
 impl Execution for CSRRSI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        let csr = match p.state().csr(self.imm() as RegT) {
-            Ok(csr) => csr,
-            Err(e) => match e {
-                Exception::CsrAccess => return Err(Exception::IllegalInsn(self.ir())),
-                _ => return Err(e)
-            }
-        };
-        if let Err(e) = p.state().set_csr(self.imm() as RegT, self.rs1() as RegT | csr) {
-            match e {
-                Exception::CsrAccess => return Err(Exception::IllegalInsn(self.ir())),
-                _ => return Err(e)
-            }
-        }
+        let csr = p.state().csr(self.imm() as RegT)?;
+        p.state().set_csr(self.imm() as RegT, self.rs1() as RegT | csr)?;
         p.state().set_pc(p.state().pc() + 4);
         p.state().set_xreg(self.rd() as RegT, csr);
         Ok(())
@@ -172,19 +117,8 @@ struct CSRRCI(InsnT);
 
 impl Execution for CSRRCI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        let csr = match p.state().csr(self.imm() as RegT) {
-            Ok(csr) => csr,
-            Err(e) => match e {
-                Exception::CsrAccess => return Err(Exception::IllegalInsn(self.ir())),
-                _ => return Err(e)
-            }
-        };
-        if let Err(e) = p.state().set_csr(self.imm() as RegT, !(self.rs1() as RegT) & csr) {
-            match e {
-                Exception::CsrAccess => return Err(Exception::IllegalInsn(self.ir())),
-                _ => return Err(e)
-            }
-        }
+        let csr = p.state().csr(self.imm() as RegT)?;
+        p.state().set_csr(self.imm() as RegT, !(self.rs1() as RegT) & csr)?;
         p.state().set_pc(p.state().pc() + 4);
         p.state().set_xreg(self.rd() as RegT, csr);
         Ok(())

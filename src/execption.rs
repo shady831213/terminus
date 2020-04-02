@@ -11,5 +11,4 @@ pub enum Exception {
     FetchPageFault(u64),
     LoadPageFault(u64),
     StorePageFault(u64),
-    CsrAccess,
 }
