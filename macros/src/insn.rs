@@ -27,6 +27,9 @@ macro_rules! insn_format {
                 rs1,_:19, 15;
                 imm,_:31, 20;
              }
+             fn imm_len(&self)-> usize {
+                12
+             }
              fn ir(&self)->InsnT {
                 self._ir()
              }
@@ -49,6 +52,9 @@ macro_rules! insn_format {
              }
             fn imm(&self)->InsnT {
                 self._imm1() << 5 | self._imm2()
+            }
+            fn imm_len(&self)-> usize {
+                12
             }
             fn ir(&self)->InsnT {
                 self._ir()
@@ -75,18 +81,32 @@ macro_rules! insn_format {
             fn imm(&self)->InsnT {
                 self._imm1() << 12 |  self._imm2() << 11 | self._imm3() << 5 | self._imm4() << 1
             }
+            fn imm_len(&self)-> usize {
+                13
+            }
             fn ir(&self)->InsnT {
                self._ir()
             }
         }
     };
     ($name:ident, U) => {
+        impl $name {
+             bitfield_fields!{
+                InsnT;
+                _imm, _:31,12;
+             }
+        }
         impl Format for $name {
              bitfield_fields!{
                 InsnT;
                 op,_:6,0;
                 rd,_:11, 7;
-                imm,_:31,12;
+             }
+             fn imm(&self)->InsnT {
+                self._imm() << 12
+             }
+             fn imm_len(&self)-> usize {
+                32
              }
              fn ir(&self)->InsnT {
                 self._ir()
@@ -111,6 +131,9 @@ macro_rules! insn_format {
              }
             fn imm(&self)->InsnT {
                  self._imm1() << 20 | self._imm2()  << 12 | self._imm3()  << 11 | self._imm4()  << 1
+            }
+            fn imm_len(&self)-> usize {
+                21
             }
             fn ir(&self)->InsnT {
                 self._ir()

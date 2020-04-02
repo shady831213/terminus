@@ -23,6 +23,9 @@ pub trait Format {
     fn op(&self) -> InsnT {
         0
     }
+    fn imm_len(&self) -> usize {
+        0
+    }
 }
 
 pub trait Execution {

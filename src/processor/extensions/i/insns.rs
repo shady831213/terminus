@@ -8,6 +8,22 @@ use crate::processor::decode::*;
 use crate::linkme::*;
 use std::num::Wrapping;
 
+// #[derive(Instruction)]
+// #[format(B)]
+// #[code("0b?????????????????001?????1100011")]
+// #[derive(Debug)]
+// struct BNE(InsnT);
+//
+// impl Execution for BNE {
+//     fn execute(&self, p: &Processor) -> Result<(), Exception> {
+//         p.state().set_xreg(self.rd() as RegT, p.state().pc() + 4);
+//         let offset: Wrapping<RegT> = Wrapping(sext(self.imm() as RegT, 20));
+//         let pc: Wrapping<RegT> = Wrapping(p.state().pc());
+//         p.state().set_pc((offset + pc).0);
+//         Ok(())
+//     }
+// }
+
 #[derive(Instruction)]
 #[format(J)]
 #[code("0b?????????????????????????1101111")]
@@ -16,13 +32,16 @@ struct JAL(InsnT);
 
 impl Execution for JAL {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        p.state().set_xreg(self.rd() as RegT, p.state().pc() + 4);
-        let offset: Wrapping<RegT> = Wrapping(sext(self.imm() as RegT, 20));
+        let offset: Wrapping<RegT> = Wrapping(sext(self.imm() as RegT, self.imm_len()));
         let pc: Wrapping<RegT> = Wrapping(p.state().pc());
         p.state().set_pc((offset + pc).0);
+        p.state().set_xreg(self.rd() as RegT, p.state().pc() + 4);
         Ok(())
     }
 }
+
+
+
 
 #[derive(Instruction)]
 #[format(I)]
