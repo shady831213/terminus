@@ -21,6 +21,13 @@ impl XLen {
             XLen::X64 => 64
         }
     }
+
+    pub fn mask(&self) -> RegT {
+        match self {
+            XLen::X32 => ((1 as RegT) << (self.len() as RegT)) - 1,
+            XLen::X64 => -1i64 as RegT
+        }
+    }
 }
 
 pub fn sext(value: RegT, len: usize) -> RegT {

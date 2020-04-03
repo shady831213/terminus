@@ -153,6 +153,14 @@ impl ProcessorState {
         }
     }
 
+    pub fn check_xlen(&self, xlen: XLen) -> Result<(),Exception> {
+        if xlen == self.config().xlen {
+            Ok(())
+        } else {
+            Err(Exception::IllegalInsn(*self.ir.borrow()))
+        }
+    }
+
     pub fn pc(&self) -> RegT {
         *self.pc.borrow()
     }
