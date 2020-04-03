@@ -194,6 +194,11 @@ impl ProcessorState {
             (*self.xreg.borrow_mut())[trip_id as usize] = value
         }
     }
+
+    //fixme
+    pub fn trace(&self) -> String {
+        format!("privilege = {:?};pc = {:#x}; ir = {:#x}; next_pc = {:#x};", *self.privilege.borrow(), *self.pc.borrow(), *self.ir.borrow(), *self.next_pc.borrow())
+    }
 }
 
 impl Display for ProcessorState {
@@ -205,7 +210,7 @@ impl Display for ProcessorState {
         writeln!(f, "{:?}", self.extensions.keys())?;
         writeln!(f, "")?;
         writeln!(f, "states:")?;
-        writeln!(f, "privilege = {:?};pc = {:#x}; ir = {:#x}; next_pc = {:#x};", *self.privilege.borrow(), *self.pc.borrow(), *self.ir.borrow(), *self.next_pc.borrow())?;
+        writeln!(f, "{}", self.trace())?;
         writeln!(f, "")?;
         writeln!(f, "registers:")?;
         for (i, v) in self.xreg.borrow().iter().enumerate() {

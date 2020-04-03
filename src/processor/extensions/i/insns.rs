@@ -896,9 +896,9 @@ impl Execution for FENCE {
 #[format(I)]
 #[code("0b?????????????????001?????0001111")]
 #[derive(Debug)]
-struct FENCE_I(InsnT);
+struct FENCEI(InsnT);
 
-impl Execution for FENCE_I {
+impl Execution for FENCEI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         //fixme:no cache in fetcher, load_store and mmu for now
         p.state().set_pc(p.state().pc() + 4);
@@ -907,12 +907,16 @@ impl Execution for FENCE_I {
 }
 
 trait CsrAccess: InstructionImp {
-    fn csr_access<F: Fn(RegT) -> RegT>(&self, p: &Processor, csr_value: F, valid: bool) -> Result<(), Exception> {
-        if valid {
-            let csr = p.state().csr(self.imm() as RegT)?;
+    fn csr_access<F: Fn(RegT) -> RegT>(&self, p: &Processor, csr_value: F, read_csr: bool, write_csr: bool) -> Result<(), Exception> {
+        let csr = if read_csr {
+            p.state().csr(self.imm() as RegT)?
+        } else {
+            0
+        };
+        if write_csr {
             p.state().set_csr(self.imm() as RegT, csr_value(csr))?;
-            p.state().set_xreg(self.rd() as RegT, csr);
         }
+        p.state().set_xreg(self.rd() as RegT, csr);
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -928,7 +932,7 @@ impl CsrAccess for CSRRW {}
 
 impl Execution for CSRRW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        self.csr_access(p, |_| { p.state().xreg(self.rs1() as RegT) }, self.rd() != 0)
+        self.csr_access(p, |_| { p.state().xreg(self.rs1() as RegT) }, self.rd() != 0, true)
     }
 }
 
@@ -942,7 +946,7 @@ impl CsrAccess for CSRRS {}
 
 impl Execution for CSRRS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        self.csr_access(p, |csr| { p.state().xreg(self.rs1() as RegT) | csr }, self.rs1() != 0)
+        self.csr_access(p, |csr| { p.state().xreg(self.rs1() as RegT) | csr }, true, self.rs1() != 0)
     }
 }
 
@@ -956,7 +960,7 @@ impl CsrAccess for CSRRC {}
 
 impl Execution for CSRRC {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        self.csr_access(p, |csr| { !p.state().xreg(self.rs1() as RegT) & csr }, self.rs1() != 0)
+        self.csr_access(p, |csr| { !p.state().xreg(self.rs1() as RegT) & csr }, true, self.rs1() != 0)
     }
 }
 
@@ -970,7 +974,7 @@ impl CsrAccess for CSRRWI {}
 
 impl Execution for CSRRWI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        self.csr_access(p, |_| { self.rs1() as RegT }, self.rs1() != 0)
+        self.csr_access(p, |_| { self.rs1() as RegT }, self.rd() != 0, true)
     }
 }
 
@@ -984,7 +988,7 @@ impl CsrAccess for CSRRSI {}
 
 impl Execution for CSRRSI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        self.csr_access(p, |csr| { self.rs1() as RegT | csr }, self.rs1() != 0)
+        self.csr_access(p, |csr| { self.rs1() as RegT | csr }, true, self.rs1() != 0)
     }
 }
 
@@ -998,6 +1002,6 @@ impl CsrAccess for CSRRCI {}
 
 impl Execution for CSRRCI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        self.csr_access(p, |csr| { !self.rs1() as RegT & csr }, self.rs1() != 0)
+        self.csr_access(p, |csr| { !self.rs1() as RegT & csr }, true, self.rs1() != 0)
     }
 }

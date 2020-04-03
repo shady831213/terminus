@@ -4,6 +4,8 @@ use terminus_global::XLen;
 use terminus_spaceport::memory::region::GHEAP;
 use std::fs;
 use terminus::elf::ElfLoader;
+use terminus_spaceport::EXIT_CTRL;
+use terminus_spaceport::devices::term_exit;
 
 #[test]
 fn riscv_basic_test() {
@@ -23,9 +25,17 @@ fn riscv_basic_test() {
     };
 
     let p = Processor::new(processor_cfg, sys.mem_space(), vec![]);
-    p.execute_one().unwrap();
-    p.execute_one().unwrap();
-    println!("{:#x?}", p.execute_one());
+    // loop {
+    //     if let Ok(msg) = EXIT_CTRL.poll() {
+    //         println!("{}", msg);
+    //         break
+    //     }
+    //     p.execute_one().unwrap();
+    // }
+    for _ in 0..10 {
+        p.execute_one().unwrap();
+        println!("{}", p.state().trace());
+    }
     println!("{}", p.state().to_string())
 }
 
