@@ -49,6 +49,14 @@ mod test;
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
+pub enum PrivilegeLevel {
+    M = 1,
+    MU = 2,
+    MSU = 3,
+}
+
+#[derive(IntoPrimitive, TryFromPrimitive, Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
 pub enum Privilege {
     U = 0,
     S = 1,
@@ -60,6 +68,7 @@ pub struct ProcessorCfg {
     pub xlen: XLen,
     pub hartid: RegT,
     pub start_address: u64,
+    pub privilege_level: PrivilegeLevel,
     pub enabel_dirty: bool,
 }
 
@@ -137,11 +146,39 @@ impl ProcessorState {
         Ok(())
     }
 
+    fn csr_handle_config(&self, id: RegT, value: RegT) -> RegT {
+        if id == 0x300 {
+            let mut mstatus = value;
+            match self.config().privilege_level {
+                PrivilegeLevel::MSU => {}
+                PrivilegeLevel::MU => {
+                    //mpp field
+                    mstatus.set_bit_range(12, 11, 1);
+                    //spp field
+                    mstatus.set_bit_range(8, 8, 0);
+                    //tvm field
+                    mstatus.set_bit_range(20, 20, 0);
+                }
+                PrivilegeLevel::M => {
+                    //mpp field
+                    mstatus.set_bit_range(12, 11, 0);
+                    //spp field
+                    mstatus.set_bit_range(8, 8, 0);
+                    //tvm field
+                    mstatus.set_bit_range(20, 20, 0);
+                }
+            };
+            mstatus
+        } else {
+            value
+        }
+    }
+
     pub fn csr(&self, id: RegT) -> Result<RegT, Exception> {
         let trip_id = id & 0xfff;
         self.csr_privilege_check(trip_id)?;
         match self.extensions.values().find_map(|e| { e.csr_read(trip_id) }) {
-            Some(v) => Ok(v),
+            Some(v) => Ok(self.csr_handle_config(trip_id, v)),
             None => Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
     }
@@ -149,7 +186,7 @@ impl ProcessorState {
     pub fn set_csr(&self, id: RegT, value: RegT) -> Result<(), Exception> {
         let trip_id = id & 0xfff;
         self.csr_privilege_check(trip_id)?;
-        match self.extensions.values().find_map(|e| { e.csr_write(trip_id, value) }) {
+        match self.extensions.values().find_map(|e| { e.csr_write(trip_id, self.csr_handle_config(trip_id, value)) }) {
             Some(_) => Ok(()),
             None => Err(Exception::IllegalInsn(*self.ir.borrow()))
         }

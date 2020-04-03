@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 use crate::processor::execption::Exception;
 use terminus_global::RegT;
 use std::rc::Rc;
-use crate::processor::{ProcessorState, Privilege};
+use crate::processor::{ProcessorState, Privilege, PrivilegeLevel};
 use crate::processor::extensions::i::csrs::*;
 use terminus_macros::*;
 
@@ -244,6 +244,7 @@ fn pmp_basic_test() {
         xlen: XLen::X32,
         hartid: 0,
         start_address: 0,
+        privilege_level: PrivilegeLevel::MSU,
         enabel_dirty: true,
     }, &space, vec![],
     );

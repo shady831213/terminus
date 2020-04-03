@@ -1,4 +1,4 @@
-use terminus::processor::{Processor, ProcessorCfg};
+use terminus::processor::{Processor, ProcessorCfg, PrivilegeLevel};
 use terminus::system::System;
 use terminus_global::XLen;
 use terminus_spaceport::memory::region::GHEAP;
@@ -21,6 +21,7 @@ fn riscv_basic_test() {
         xlen: XLen::X64,
         hartid: 0,
         start_address: elf.entry_point(),
+        privilege_level: PrivilegeLevel::MSU,
         enabel_dirty: true,
     };
 
