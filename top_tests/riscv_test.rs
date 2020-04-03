@@ -26,20 +26,16 @@ fn riscv_basic_test() {
     };
 
     let p = Processor::new(processor_cfg, sys.mem_space(), vec![]);
-    // loop {
-    //     if let Ok(msg) = EXIT_CTRL.poll() {
-    //         println!("{}", msg);
-    //         break
-    //     }
-    //     p.execute_one().unwrap();
-    // }
-    for _ in 0..100 {
-        if p.state().pc() == 0x8000060c {
+    loop {
+        if let Ok(msg) = EXIT_CTRL.poll() {
+            println!("{}", msg);
             break
         }
         p.step_one();
         println!("{}", p.state().trace());
+
     }
-    println!("{}", p.state().to_string())
+    println!("{}", p.state().to_string());
+    term_exit()
 }
 

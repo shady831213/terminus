@@ -70,13 +70,21 @@ impl HTIF {
 }
 
 impl BytesAccess for HTIF {
-    fn write(&self, _: u64, _: &[u8]) -> region::Result<()> {Ok(())}
+    fn write(&self, _: u64, _: &[u8]) -> region::Result<()> { Ok(()) }
 }
 
 impl U32Access for HTIF {
     fn write(&self, addr: u64, data: u32) -> region::Result<()> {
+        println!("get htif write! to {:#x}", addr);
         match addr {
-            0x0 => Ok(self.0.lock().unwrap().tohost.set_bit_range(31, 0, data)),
+            0x0 => {
+                let mut desp = self.0.lock().unwrap();
+                desp.borrow_mut().tohost.set_bit_range(31, 0, data);
+                if desp.borrow().tohost == 1 {
+                    EXIT_CTRL.exit("htif shutdown!").unwrap();
+                }
+                Ok(())
+            }
             0x4 => {
                 let mut desp = self.0.lock().unwrap();
                 desp.borrow_mut().tohost.set_bit_range(63, 32, data);

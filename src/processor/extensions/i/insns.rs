@@ -171,7 +171,9 @@ struct AUIPC(InsnT);
 
 impl Execution for AUIPC {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        p.state.set_xreg(self.rd() as RegT, sext(p.state().pc() + self.imm() as RegT, 33) & p.state().config().xlen.mask());
+        let pc: Wrapping<RegT> = Wrapping(p.state().pc());
+        let offset: Wrapping<RegT> = Wrapping(sext(self.imm() as RegT, self.imm_len()));
+        p.state.set_xreg(self.rd() as RegT, (pc + offset).0 & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -202,9 +204,9 @@ struct ADDIW(InsnT);
 impl Execution for ADDIW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT).bit_range(31, 0));
-        let rs2: Wrapping<RegT> = Wrapping(sext(self.imm() as RegT, self.imm_len()).bit_range(31, 0));
-        p.state().set_xreg(self.rd() as RegT, sext((rs1 + rs2).0, 33) & p.state().config().xlen.mask());
+        let rs1: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs1() as RegT), 32));
+        let rs2: Wrapping<RegT> = Wrapping(sext(self.imm() as RegT, self.imm_len()));
+        p.state().set_xreg(self.rd() as RegT, sext((rs1 + rs2).0, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -433,9 +435,9 @@ struct ADDW(InsnT);
 impl Execution for ADDW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT).bit_range(31, 0));
-        let rs2: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2() as RegT).bit_range(31, 0));
-        p.state().set_xreg(self.rd() as RegT, sext((rs1 + rs2).0, 33) & p.state().config().xlen.mask());
+        let rs1: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs1() as RegT), 32));
+        let rs2: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs2() as RegT), 32));
+        p.state().set_xreg(self.rd() as RegT, sext((rs1 + rs2).0, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -466,9 +468,9 @@ struct SUBW(InsnT);
 impl Execution for SUBW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT).bit_range(31, 0));
-        let rs2: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2() as RegT).bit_range(31, 0));
-        p.state().set_xreg(self.rd() as RegT, sext((rs1 + rs2).0, 33) & p.state().config().xlen.mask());
+        let rs1: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs1() as RegT), 32));
+        let rs2: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs2() as RegT), 32));
+        p.state().set_xreg(self.rd() as RegT, sext((rs1 - rs2).0, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -798,7 +800,7 @@ trait Store: InstructionImp {
     fn offset(&self) -> Wrapping<RegT> {
         let high: RegT = self.imm().bit_range(11, 5);
         let low = self.rd() as RegT;
-        Wrapping(high << 5 | low)
+        Wrapping(sext(high << 5 | low, self.imm_len()))
     }
     fn src(&self) -> RegT {
         self.imm().bit_range(4, 0)
@@ -1035,7 +1037,7 @@ impl Execution for SRET {
         let spie = csrs.mstatus().spie();
         csrs.mstatus_mut().set_sie(spie);
         csrs.mstatus_mut().set_spie(1);
-        let u_value:u8 = Privilege::U.into();
+        let u_value: u8 = Privilege::U.into();
         csrs.mstatus_mut().set_spp(u_value as RegT);
         p.state().set_privilege(Privilege::try_from(spp as u8).unwrap());
         p.state().set_pc(csrs.sepc().get());
@@ -1056,7 +1058,7 @@ impl Execution for MRET {
         let mpie = csrs.mstatus().mpie();
         csrs.mstatus_mut().set_mie(mpie);
         csrs.mstatus_mut().set_mpie(1);
-        let u_value:u8 = Privilege::U.into();
+        let u_value: u8 = Privilege::U.into();
         csrs.mstatus_mut().set_mpp(u_value as RegT);
         p.state().set_privilege(Privilege::try_from(mpp as u8).unwrap());
         p.state().set_pc(csrs.mepc().get());
