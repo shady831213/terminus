@@ -314,7 +314,9 @@ impl Processor {
         inst.execute(self)
     }
 
-    fn handle_exception(&self, expt: Exception) {}
+    fn handle_exception(&self, expt: Exception) {
+
+    }
 
     pub fn step_one(&self) {
         match self.execute_one() {
