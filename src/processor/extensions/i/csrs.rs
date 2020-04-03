@@ -6,12 +6,14 @@ pub ICsrs(0x0, 0xfff) {
     ustatus(RW):UStatus,0x000;
     uie(RW):Uie, 0x004;
     utvec(RW):Tvec, 0x005;
+    uepc(RW):Epc, 0x041;
     uip(RW):Uip, 0x044;
     sstatus(RW):SStatus,0x100;
     sedeleg(RW):Deleg, 0x102;
     sideleg(RW):Deleg, 0x103;
     sie(RW):Sie, 0x104;
     stvec(RW):Tvec, 0x105;
+    sepc(RW):Epc, 0x141;
     sip(RW):Sip, 0x144;
     satp(RW):Satp, 0x180;
     mstatus(RW):MStatus, 0x300;
@@ -19,6 +21,7 @@ pub ICsrs(0x0, 0xfff) {
     mideleg(RW):Deleg, 0x303;
     mie(RW):Mie, 0x304;
     mtvec(RW):Tvec, 0x305;
+    mepc(RW):Epc, 0x341;
     mip(RW):Mip, 0x344;
     pmpcfg0(RW):PmpCfg, 0x3A0;
     pmpcfg1(RW):PmpCfg, 0x3A1;
@@ -272,6 +275,10 @@ Mie {
         meie(RO):11,11;
     }
 }
+}
+
+define_csr! {
+Epc {}
 }
 
 
