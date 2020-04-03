@@ -11,28 +11,38 @@ use std::any::TypeId;
 
 
 mod decode;
+
 pub use decode::{Decoder, InsnMap, GDECODER, GlobalInsnMap, REGISTERY_INSN};
 
 mod insn;
+
 pub use insn::*;
 
 pub mod execption;
+
 use execption::Exception;
 
 mod extensions;
+
 use extensions::*;
 use extensions::i::csrs::*;
 
 
 mod mmu;
+
 use mmu::*;
 
 mod bus;
+
 use bus::*;
 
 mod fetcher;
+
 use fetcher::*;
 
+mod load_store;
+
+use load_store::*;
 
 #[cfg(test)]
 mod test;
@@ -98,7 +108,7 @@ impl ProcessorState {
 
 
     fn csrs<T: 'static>(&self) -> Result<Rc<T>, String> {
-        if let Some(t) = self.extensions.values().find_map(|extension|{
+        if let Some(t) = self.extensions.values().find_map(|extension| {
             if let Some(csrs) = extension.csrs() {
                 match csrs.downcast::<T>() {
                     Ok(t) => Some(t),
@@ -145,7 +155,7 @@ impl ProcessorState {
         }
     }
 
-    pub fn check_extension(&self, ext: char) -> Result<(),Exception> {
+    pub fn check_extension(&self, ext: char) -> Result<(), Exception> {
         if self.extensions.contains_key(&ext) {
             Ok(())
         } else {
@@ -153,7 +163,7 @@ impl ProcessorState {
         }
     }
 
-    pub fn check_xlen(&self, xlen: XLen) -> Result<(),Exception> {
+    pub fn check_xlen(&self, xlen: XLen) -> Result<(), Exception> {
         if xlen == self.config().xlen {
             Ok(())
         } else {
@@ -210,6 +220,7 @@ pub struct Processor {
     state: Rc<ProcessorState>,
     mmu: Mmu,
     fetcher: Fetcher,
+    load_store: LoadStore,
 }
 
 impl Processor {
@@ -221,17 +232,24 @@ impl Processor {
 
         let mmu = Mmu::new(&state);
         let fetcher = Fetcher::new(&state);
+        let load_store = LoadStore::new(&state);
 
         Processor {
             state,
             mmu,
             fetcher,
+            load_store,
         }
     }
 
     pub fn mmu(&self) -> &Mmu {
         &self.mmu
     }
+
+    pub fn load_store(&self) -> &LoadStore {
+        &self.load_store
+    }
+
 
     pub fn state(&self) -> &ProcessorState {
         self.state.deref()
