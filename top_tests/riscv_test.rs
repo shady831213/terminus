@@ -33,11 +33,11 @@ fn riscv_basic_test() {
     //     }
     //     p.execute_one().unwrap();
     // }
-    for _ in 0..40 {
-        // if p.state().pc() == 0x800000cc {
-        //     break
-        // }
-        p.step_one().unwrap();
+    for _ in 0..100 {
+        if p.state().pc() == 0x8000060c {
+            break
+        }
+        p.step_one();
         println!("{}", p.state().trace());
     }
     println!("{}", p.state().to_string())

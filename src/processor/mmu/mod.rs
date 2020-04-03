@@ -64,7 +64,7 @@ impl Mmu {
     }
 
     fn get_pmpaddr(&self, idx: u8) -> RegT {
-        self.p.csr(0x3b0 + idx as RegT).unwrap()
+        self.p.csrs::<ICsrs>().unwrap().read(0x3b0 + idx as RegT).unwrap()
     }
 
     fn match_pmpcfg_entry(&self, addr: u64, len: usize) -> Option<PmpCfgEntry> {

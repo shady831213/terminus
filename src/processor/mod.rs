@@ -400,13 +400,10 @@ impl Processor {
         }
     }
 
-    //fixme:should remove return
-    pub fn step_one(&self) -> Result<(), Trap>{
+    pub fn step_one(&self) {
         if let Err(trap) = self.execute_one() {
-            self.handle_trap(trap.clone());
-            return Err(trap)
+            self.handle_trap(trap);
         }
-        Ok(())
     }
 
 }
