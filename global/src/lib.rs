@@ -41,7 +41,7 @@ pub fn sext(value: RegT, len: usize) -> RegT {
     if sign == 0 {
         value & mask
     } else {
-        let high = ((1 as RegT) << (bit_len as RegT - len as RegT) - 1 as RegT) << (len as RegT);
+        let high = (((1 as RegT) << (bit_len as RegT - len as RegT)) - 1 as RegT) << (len as RegT);
         value & mask | high
     }
 }

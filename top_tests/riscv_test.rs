@@ -32,7 +32,10 @@ fn riscv_basic_test() {
     //     }
     //     p.execute_one().unwrap();
     // }
-    for _ in 0..10 {
+    for _ in 0..30 {
+        // if p.state().pc() == 0x800000a8 {
+        //     break
+        // }
         p.execute_one().unwrap();
         println!("{}", p.state().trace());
     }

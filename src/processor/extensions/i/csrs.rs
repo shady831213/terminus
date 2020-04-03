@@ -3,11 +3,23 @@ use terminus_proc_macros::{define_csr, csr_map};
 use terminus_macros::*;
 csr_map! {
 pub ICsrs(0x0, 0xfff) {
+    ustatus(RW):UStatus,0x000;
+    uie(RW):Uie, 0x004;
     utvec(RW):Tvec, 0x005;
+    uip(RW):Uip, 0x044;
+    sstatus(RW):SStatus,0x100;
+    sedeleg(RW):Deleg, 0x102;
+    sideleg(RW):Deleg, 0x103;
+    sie(RW):Sie, 0x104;
     stvec(RW):Tvec, 0x105;
+    sip(RW):Sip, 0x144;
     satp(RW):Satp, 0x180;
     mstatus(RW):MStatus, 0x300;
+    medeleg(RW):Deleg, 0x302;
+    mideleg(RW):Deleg, 0x303;
+    mie(RW):Mie, 0x304;
     mtvec(RW):Tvec, 0x305;
+    mip(RW):Mip, 0x344;
     pmpcfg0(RW):PmpCfg, 0x3A0;
     pmpcfg1(RW):PmpCfg, 0x3A1;
     pmpcfg2(RW):PmpCfg, 0x3A2;
@@ -29,6 +41,49 @@ pub ICsrs(0x0, 0xfff) {
     pmpaddr14(RW):PmpAddr, 0x3BE;
     pmpaddr15(RW):PmpAddr, 0x3BF;
     mhartid(RO):Mhartid, 0xF14;
+}
+}
+
+define_csr! {
+UStatus {
+    fields {
+         uie(RW): 0, 0;
+         upie(RW): 4, 4;
+         fs(RW): 14, 13;
+         xs(RW): 16, 15;
+         sum(RW): 18, 18;
+         mxr(RW): 19, 19;
+    },
+    fields32 {
+         sd(RW): 31, 31;
+    },
+    fields64 {
+         uxl(RW): 33, 32;
+         sd(RW): 63, 63;
+    },
+}
+}
+
+define_csr! {
+SStatus {
+    fields {
+         uie(RW): 0, 0;
+         sie(RW): 1, 1;
+         upie(RW): 4, 4;
+         spie(RW): 5, 5;
+         spp(RW): 8, 8;
+         fs(RW): 14, 13;
+         xs(RW): 16, 15;
+         sum(RW): 18, 18;
+         mxr(RW): 19, 19;
+    },
+    fields32 {
+         sd(RW): 31, 31;
+    },
+    fields64 {
+         uxl(RW): 33, 32;
+         sd(RW): 63, 63;
+    },
 }
 }
 
@@ -136,6 +191,89 @@ Tvec {
     }
 }
 }
+
+define_csr! {
+Deleg{}
+}
+
+define_csr! {
+Uip {
+    fields{
+        usip(RW):0,0;
+        utip(RW):4,4;
+        ueip(RW):8,8;
+    }
+}
+}
+
+define_csr! {
+Uie {
+    fields{
+        usie(RW):0,0;
+        utie(RW):4,4;
+        ueie(RW):8,8;
+    }
+}
+}
+
+define_csr! {
+Sip {
+    fields{
+        usip(RW):0,0;
+        ssip(RW):1,1;
+        utip(RW):4,4;
+        stip(RW):5,5;
+        ueip(RW):8,8;
+        seip(RW):9,9;
+    }
+}
+}
+
+define_csr! {
+Sie {
+    fields{
+        usie(RW):0,0;
+        ssie(RW):1,1;
+        utie(RW):4,4;
+        stie(RW):5,5;
+        ueie(RW):8,8;
+        seie(RW):9,9;
+    }
+}
+}
+
+define_csr! {
+Mip {
+    fields{
+        usip(RW):0,0;
+        ssip(RW):1,1;
+        msip(RO):3,3;
+        utip(RW):4,4;
+        stip(RW):5,5;
+        mtip(RO):7,7;
+        ueip(RW):8,8;
+        seip(RW):9,9;
+        meip(RO):11,11;
+    }
+}
+}
+
+define_csr! {
+Mie {
+    fields{
+        usie(RW):0,0;
+        ssie(RW):1,1;
+        msie(RO):3,3;
+        utie(RW):4,4;
+        stie(RW):5,5;
+        mtie(RO):7,7;
+        ueie(RW):8,8;
+        seie(RW):9,9;
+        meie(RO):11,11;
+    }
+}
+}
+
 
 #[test]
 fn test_status() {
