@@ -4,11 +4,11 @@ use terminus_macros::*;
 csr_map! {
 pub ICsrs(0x0, 0xfff) {
     sstatus(RW):SStatus,0x100;
-    sedeleg(RW):Deleg, 0x102;
-    sideleg(RW):Deleg, 0x103;
     sie(RW):Sie, 0x104;
     stvec(RW):Tvec, 0x105;
     sepc(RW):Epc, 0x141;
+    scause(RW):Cause, 0x142;
+    stval(RW):Tval, 0x143;
     sip(RW):Sip, 0x144;
     satp(RW):Satp, 0x180;
     mstatus(RW):MStatus, 0x300;
@@ -17,6 +17,8 @@ pub ICsrs(0x0, 0xfff) {
     mie(RW):Mie, 0x304;
     mtvec(RW):Tvec, 0x305;
     mepc(RW):Epc, 0x341;
+    mcause(RW):Cause, 0x342;
+    mtval(RW):Tval, 0x343;
     mip(RW):Mip, 0x344;
     pmpcfg0(RW):PmpCfg, 0x3A0;
     pmpcfg1(RW):PmpCfg, 0x3A1;
@@ -159,7 +161,7 @@ Mhartid{}
 define_csr! {
 Tvec {
     fields{
-        mode(RW):1,0;
+        mode(RW):0,0;
     },
     fields32{
         base(RW):31, 2;
@@ -236,6 +238,23 @@ define_csr! {
 Epc {}
 }
 
+define_csr! {
+Cause {
+    fields {
+       code(RW):3,0;
+    },
+    fields32{
+        int(RW):31,31;
+    },
+    fields64{
+        int(RW):63,63;
+    }
+}
+}
+
+define_csr! {
+Tval {}
+}
 
 #[test]
 fn test_status() {

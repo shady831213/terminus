@@ -11,7 +11,7 @@ use crate::linkme::*;
 use simple_insn_map::*;
 use tree_insn_map::*;
 use crate::processor::Instruction;
-use crate::processor::execption::Exception;
+use crate::processor::trap::Exception;
 
 pub trait Decoder:Send+Sync {
     fn code(&self) -> InsnT;

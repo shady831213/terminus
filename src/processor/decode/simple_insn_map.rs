@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use super::{InsnMap, Instruction, Decoder};
 use terminus_global::*;
-use crate::processor::execption::Exception;
+use crate::processor::trap::Exception;
 
 pub struct SimpleInsnMap(HashMap<InsnT, Box<dyn Decoder>>);
 

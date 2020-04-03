@@ -4,7 +4,7 @@ use crate::processor::{ProcessorState, Instruction};
 use std::rc::Rc;
 use terminus_global::{RegT, InsnT};
 use crate::processor::mmu::{Mmu, MmuOpt};
-use crate::processor::execption::Exception;
+use crate::processor::trap::Exception;
 use crate::processor::decode::*;
 
 pub struct Fetcher {

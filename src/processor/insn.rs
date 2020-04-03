@@ -1,7 +1,7 @@
 use std::ops::Deref;
 use crate::processor::Processor;
 use terminus_global::*;
-use crate::processor::execption::Exception;
+use crate::processor::trap::Exception;
 
 pub trait Format {
     fn ir(&self) -> InsnT;

@@ -1,6 +1,6 @@
 use super::{InsnMap, Instruction, Decoder};
 use terminus_global::{InsnT, insn_len};
-use crate::processor::execption::Exception;
+use crate::processor::trap::Exception;
 
 struct TreeNode<T> {
     left: Option<*mut TreeNode<T>>,

@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 use std::convert::TryFrom;
-use crate::processor::execption::Exception;
+use crate::processor::trap::Exception;
 use terminus_global::RegT;
 use std::rc::Rc;
-use crate::processor::{ProcessorState, Privilege, PrivilegeLevel};
+use crate::processor::{ProcessorState, Privilege};
 use crate::processor::extensions::i::csrs::*;
 use terminus_macros::*;
 
@@ -231,7 +231,7 @@ impl Mmu {
 #[cfg(test)]
 use terminus_global::XLen;
 #[cfg(test)]
-use crate::processor::{Processor, ProcessorCfg};
+use crate::processor::{Processor, ProcessorCfg, PrivilegeLevel};
 #[cfg(test)]
 use terminus_spaceport::space::Space;
 #[cfg(test)]

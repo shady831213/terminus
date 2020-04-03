@@ -18,9 +18,9 @@ mod insn;
 
 pub use insn::*;
 
-pub mod execption;
+pub mod trap;
 
-use execption::Exception;
+use trap::{Exception, Trap, Interrupt};
 
 mod extensions;
 
@@ -208,15 +208,40 @@ impl ProcessorState {
         }
     }
 
-    pub fn check_privilege_level(&self, privilege_level: PrivilegeLevel) -> Result<(), Exception> {
-        let config:u8 = self.config().privilege_level.into();
-        let check:u8 = privilege_level.into();
-        if config < check {
-            Err(Exception::IllegalInsn(*self.ir.borrow()))
-        } else {
-            Ok(())
+    pub fn check_privilege_level(&self, privilege: Privilege) -> Result<(), Exception> {
+        match self.config().privilege_level {
+            PrivilegeLevel::M => if privilege != Privilege::M {
+                return Err(Exception::IllegalInsn(*self.ir.borrow()));
+            },
+            PrivilegeLevel::MU => if privilege == Privilege::S {
+                return Err(Exception::IllegalInsn(*self.ir.borrow()));
+            }
+            PrivilegeLevel::MSU => {}
+        }
+        Ok(())
+    }
+
+    pub fn privilege(&self) -> Privilege {
+        self.privilege.borrow().clone()
+    }
+
+    pub fn set_privilege(&self, privilege: Privilege) -> Privilege {
+        match self.config().privilege_level {
+            PrivilegeLevel::M => Privilege::M,
+            PrivilegeLevel::MU => if privilege != Privilege::M {
+                *self.privilege.borrow_mut() = Privilege::U;
+                Privilege::U
+            } else {
+                *self.privilege.borrow_mut() = Privilege::M;
+                Privilege::M
+            }
+            PrivilegeLevel::MSU => {
+                *self.privilege.borrow_mut() = privilege;
+                privilege
+            }
         }
     }
+
 
     pub fn pc(&self) -> RegT {
         *self.pc.borrow()
@@ -307,21 +332,81 @@ impl Processor {
         self.state.deref()
     }
 
-    pub fn execute_one(&self) -> Result<(), Exception> {
+    fn one_insn(&self) -> Result<(), Exception> {
         let inst = self.fetcher.fetch(*self.state.next_pc.borrow(), self.mmu())?;
         *self.state.pc.borrow_mut() = *self.state.next_pc.borrow();
         *self.state.ir.borrow_mut() = inst.ir();
         inst.execute(self)
     }
 
-    fn handle_exception(&self, expt: Exception) {
-
+    fn take_interrupt(&self) -> Result<(), Trap> {
+        Ok(())
     }
 
-    pub fn step_one(&self) {
-        match self.execute_one() {
-            Ok(_) => {}
-            Err(e) => self.handle_exception(e)
+
+    fn execute_one(&self) -> Result<(), Trap> {
+        self.take_interrupt()?;
+        match self.one_insn() {
+            Ok(_) => Ok(()),
+            Err(e) => Err(Trap::Exception(e))
         }
     }
+
+    fn handle_trap(&self, trap: Trap) {
+        let csrs = self.state().csrs::<ICsrs>().unwrap();
+        let (int_flag, deleg, code, tval) = match trap {
+            Trap::Exception(e) => (0 as RegT, csrs.medeleg().get(), e.code(), e.tval()),
+            Trap::Interrupt(i) => (1 as RegT, csrs.mideleg().get(), i.code(), i.tval()),
+        };
+        //deleg to s-mode
+        if self.state().privilege() != Privilege::M && (deleg >> code) & 1 == 1 {
+            let tvec = csrs.stvec();
+            let offset = if tvec.mode() == 1 && int_flag == 1 {
+                code << 2
+            } else {
+                0
+            };
+            self.state().set_pc(tvec.base() << 2 + offset);
+            csrs.scause_mut().set_code(code);
+            csrs.scause_mut().set_int(int_flag);
+            csrs.sepc_mut().set(self.state().pc());
+            csrs.stval_mut().set(tval);
+
+            let sie = csrs.mstatus().sie();
+            csrs.mstatus_mut().set_spie(sie);
+            let priv_value: u8 = self.state().privilege().into();
+            csrs.mstatus_mut().set_spp(priv_value as RegT);
+            csrs.mstatus_mut().set_sie(0);
+            self.state().set_privilege(Privilege::S);
+        } else {
+            let tvec = csrs.mtvec();
+            let offset = if tvec.mode() == 1 && int_flag == 1 {
+                code << 2
+            } else {
+                0
+            };
+            self.state().set_pc(tvec.base() << 2 + offset);
+            csrs.mcause_mut().set_code(code);
+            csrs.mcause_mut().set_int(int_flag);
+            csrs.mepc_mut().set(self.state().pc());
+            csrs.mtval_mut().set(tval);
+
+            let mie = csrs.mstatus().mie();
+            csrs.mstatus_mut().set_mpie(mie);
+            let priv_value: u8 = self.state().privilege().into();
+            csrs.mstatus_mut().set_mpp(priv_value as RegT);
+            csrs.mstatus_mut().set_mie(0);
+            self.state().set_privilege(Privilege::M);
+        }
+    }
+
+    //fixme:should remove return
+    pub fn step_one(&self) -> Result<(), Trap>{
+        if let Err(trap) = self.execute_one() {
+            self.handle_trap(trap.clone());
+            return Err(trap)
+        }
+        Ok(())
+    }
+
 }

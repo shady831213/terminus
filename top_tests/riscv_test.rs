@@ -37,7 +37,7 @@ fn riscv_basic_test() {
         // if p.state().pc() == 0x800000cc {
         //     break
         // }
-        p.execute_one().unwrap();
+        p.step_one().unwrap();
         println!("{}", p.state().trace());
     }
     println!("{}", p.state().to_string())

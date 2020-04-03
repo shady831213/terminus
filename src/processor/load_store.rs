@@ -4,7 +4,7 @@ use crate::processor::ProcessorState;
 use std::rc::Rc;
 use terminus_global::RegT;
 use crate::processor::mmu::{Mmu, MmuOpt};
-use crate::processor::execption::Exception;
+use crate::processor::trap::Exception;
 
 pub struct LoadStore {
     p: Rc<ProcessorState>,
