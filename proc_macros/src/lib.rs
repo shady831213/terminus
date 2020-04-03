@@ -123,6 +123,15 @@ use syn::parse_macro_input;
 /// }
 /// fn main() {
 ///     let mut test = Test::new(XLen::X64);
+///     test.set_field1_transform(|value|{
+///         if value == 1 {
+///             3
+///         } else {
+///             value
+///         }
+///     });
+///     test.set_field1(0x1);
+///     assert_eq!(test.field1(), 0x3);
 ///     test.set_field3(0xff);
 ///     assert_eq!(test.field3(), 0x1);
 ///     test.set_field2(3);
