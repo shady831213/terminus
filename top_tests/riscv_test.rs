@@ -32,8 +32,8 @@ fn riscv_basic_test() {
     //     }
     //     p.execute_one().unwrap();
     // }
-    for _ in 0..30 {
-        // if p.state().pc() == 0x800000a8 {
+    for _ in 0..40 {
+        // if p.state().pc() == 0x800000cc {
         //     break
         // }
         p.execute_one().unwrap();

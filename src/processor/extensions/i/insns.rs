@@ -155,7 +155,7 @@ struct LUI(InsnT);
 
 impl Execution for LUI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        p.state.set_xreg(self.rd() as RegT, self.imm() as RegT);
+        p.state.set_xreg(self.rd() as RegT, sext(self.imm() as RegT, self.imm_len()) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -169,7 +169,7 @@ struct AUIPC(InsnT);
 
 impl Execution for AUIPC {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        p.state.set_xreg(self.rd() as RegT, p.state().pc() + self.imm() as RegT);
+        p.state.set_xreg(self.rd() as RegT, sext(p.state().pc() + self.imm() as RegT, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -202,8 +202,7 @@ impl Execution for ADDIW {
         p.state().check_xlen(XLen::X64)?;
         let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT).bit_range(31, 0));
         let rs2: Wrapping<RegT> = Wrapping(sext(self.imm() as RegT, self.imm_len()).bit_range(31, 0));
-        let low: RegT = (rs1 + rs2).0.bit_range(31, 0);
-        p.state().set_xreg(self.rd() as RegT, sext(low, 32));
+        p.state().set_xreg(self.rd() as RegT, sext((rs1 + rs2).0, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -434,8 +433,7 @@ impl Execution for ADDW {
         p.state().check_xlen(XLen::X64)?;
         let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT).bit_range(31, 0));
         let rs2: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2() as RegT).bit_range(31, 0));
-        let low: RegT = (rs1 + rs2).0.bit_range(31, 0);
-        p.state().set_xreg(self.rd() as RegT, sext(low, 32));
+        p.state().set_xreg(self.rd() as RegT, sext((rs1 + rs2).0, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -468,8 +466,7 @@ impl Execution for SUBW {
         p.state().check_xlen(XLen::X64)?;
         let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT).bit_range(31, 0));
         let rs2: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2() as RegT).bit_range(31, 0));
-        let low: RegT = (rs1 - rs2).0.bit_range(31, 0);
-        p.state().set_xreg(self.rd() as RegT, sext(low, 32));
+        p.state().set_xreg(self.rd() as RegT, sext((rs1 + rs2).0, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
