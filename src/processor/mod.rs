@@ -208,6 +208,16 @@ impl ProcessorState {
         }
     }
 
+    pub fn check_privilege_level(&self, privilege_level: PrivilegeLevel) -> Result<(), Exception> {
+        let config:u8 = self.config().privilege_level.into();
+        let check:u8 = privilege_level.into();
+        if config < check {
+            Err(Exception::IllegalInsn(*self.ir.borrow()))
+        } else {
+            Ok(())
+        }
+    }
+
     pub fn pc(&self) -> RegT {
         *self.pc.borrow()
     }
