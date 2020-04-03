@@ -3,8 +3,11 @@ use terminus_proc_macros::{define_csr, csr_map};
 use terminus_macros::*;
 csr_map! {
 pub ICsrs(0x0, 0xfff) {
+    utvec(RW):Tvec, 0x005;
+    stvec(RW):Tvec, 0x105;
     satp(RW):Satp, 0x180;
     mstatus(RW):MStatus, 0x300;
+    mtvec(RW):Tvec, 0x305;
     pmpcfg0(RW):PmpCfg, 0x3A0;
     pmpcfg1(RW):PmpCfg, 0x3A1;
     pmpcfg2(RW):PmpCfg, 0x3A2;
@@ -118,6 +121,20 @@ Satp {
 
 define_csr! {
 Mhartid{}
+}
+
+define_csr! {
+Tvec {
+    fields{
+        mode(RW):1,0;
+    },
+    fields32{
+        base(RW):31, 2;
+    },
+    fields64{
+        base(RW):63, 2;
+    }
+}
 }
 
 #[test]
