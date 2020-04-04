@@ -188,8 +188,7 @@ impl<'a> Fields<'a> {
         format_ident!("{}{}", self.name.to_string(),self.size)
     }
 
-    fn struct_expand(&self, trait_name: &Ident) -> TokenStream {
-        let top_name = &self.name;
+    fn struct_expand(&self, trait_name: &Ident, transforms_name: &Ident) -> TokenStream {
         let fields = quote_map_fold(self.fields.iter(), |field| {
             let (setter, getter) = (field.setter_name(), field.getter_name());
             let (msb, lsb) = (&field.msb, &field.lsb);
@@ -203,16 +202,16 @@ impl<'a> Fields<'a> {
             let (setter_with_trans, getter_with_trans) = (format_ident!("{}_with_trans", field.setter_name()), format_ident!("{}_with_trans",field.getter_name()));
             let (setter_transform, getter_transform) = (format_ident!("{}_transform", field.setter_name()), format_ident!("{}_transform",field.getter_name()));
             quote! {
-                fn #getter_with_trans(&self, top:&#top_name) -> RegT {
+                fn #getter_with_trans(&self, t:&#transforms_name) -> RegT {
                     let value = self.#getter();
-                    if let Some(ref f) = top.#getter_transform {
+                    if let Some(ref f) = t.#getter_transform {
                         (*f)(value)
                     } else {
                         value
                     }
                 }
-                fn #setter_with_trans(&mut self, value:RegT, top:&#top_name) {
-                    let v = if let Some(ref f) = top.#setter_transform {
+                fn #setter_with_trans(&mut self, value:RegT, t:&#transforms_name) {
+                    let v = if let Some(ref f) = t.#setter_transform {
                         (*f)(value)
                     } else {
                         value
@@ -226,7 +225,7 @@ impl<'a> Fields<'a> {
             let lsb = &field.lsb;
             let setter_with_trans = format_ident!("{}_with_trans", field.setter_name());
             quote! {
-                self.#setter_with_trans(value >> (#lsb as RegT), top);
+                self.#setter_with_trans(value >> (#lsb as RegT), t);
             }
         });
         let get = self.fields.iter()
@@ -235,7 +234,7 @@ impl<'a> Fields<'a> {
                 let lsb = &field.lsb;
                 let getter_with_trans = format_ident!("{}_with_trans", field.getter_name());
                 quote! {
-                    (self.#getter_with_trans(top) << (#lsb as RegT))
+                    (self.#getter_with_trans(t) << (#lsb as RegT))
                 }
             })
             .fold(quote! {(0 as RegT)}, |acc, q| {
@@ -250,10 +249,10 @@ impl<'a> Fields<'a> {
             struct #struct_name(#size);
             bitfield_bitrange! {struct #struct_name(#size)}
             impl #struct_name {
-                fn get(&self, top:&#top_name) -> RegT {
+                fn get(&self, t:&#transforms_name) -> RegT {
                    #get
                 }
-                fn set(&mut self, value:RegT, top:&#top_name) {
+                fn set(&mut self, value:RegT, t:&#transforms_name) {
                     #set
                 }
                 bitfield_fields! {
@@ -286,16 +285,21 @@ impl<'a> FieldSet<'a> {
         format_ident!("{}Trait", self.name.to_string())
     }
 
+
+    fn transforms_name(&self) -> Ident {
+        format_ident!("{}Transforms", self.name.to_string())
+    }
+
     fn trait_expand(&self) -> TokenStream {
-        let top_name = &self.name;
+        let transforms_name = self.transforms_name();
         let fns = quote_map_fold(self.field_names.values(), |field| {
             let (setter, getter) = (field.setter_name(), field.getter_name());
             let (setter_with_trans, getter_with_trans) = (format_ident!("{}_with_trans", field.setter_name()), format_ident!("{}_with_trans",field.getter_name()));
             let getter_msg = format!("{} not implement {} in current xlen setting!", self.name.to_string(), getter.to_string());
             let setter_msg = format!("{} not implement {} in current xlen setting!", self.name.to_string(), setter.to_string());
             quote! {
-                fn #getter_with_trans(&self, top:&#top_name) -> RegT { panic!(#getter_msg)}
-                fn #setter_with_trans(&mut self, value:RegT, top:&#top_name) { panic!(#setter_msg)}
+                fn #getter_with_trans(&self, t:&#transforms_name) -> RegT { panic!(#getter_msg)}
+                fn #setter_with_trans(&mut self, value:RegT, t:&#transforms_name) { panic!(#setter_msg)}
             }
         });
         let trait_name = self.trait_name();
@@ -306,17 +310,8 @@ impl<'a> FieldSet<'a> {
         }
     }
 
-    fn top_expand(&self, struct32_name: &Ident, struct64_name: &Ident) -> TokenStream {
-        let union_name = format_ident!("{}Union", self.name.to_string());
-        let union_target = quote! {
-            union #union_name {
-                x32: #struct32_name,
-                x64: #struct64_name,
-            }
-        };
-
-        let top_name = &self.name;
-
+    fn transforms_expand(&self) -> TokenStream {
+        let transforms_name = self.transforms_name();
         let transforms = quote_map_fold(self.field_names.values(), |field| {
             let (setter_transform, getter_transform) = (format_ident!("{}_transform", field.setter_name()), format_ident!("{}_transform",field.getter_name()));
             quote! {
@@ -344,6 +339,44 @@ impl<'a> FieldSet<'a> {
                 }
             }
         });
+        quote! {
+            struct #transforms_name {
+                #transforms
+            }
+
+            impl #transforms_name {
+                fn new() -> #transforms_name {
+                    #transforms_name{
+                        #transform_inits
+                    }
+                }
+                #transform_fns
+            }
+        }
+    }
+
+    fn top_expand(&self, struct32_name: &Ident, struct64_name: &Ident) -> TokenStream {
+        let union_name = format_ident!("{}Union", self.name.to_string());
+        let union_target = quote! {
+            union #union_name {
+                x32: #struct32_name,
+                x64: #struct64_name,
+            }
+        };
+
+        let top_name = &self.name;
+        let transforms_name = self.transforms_name();
+        let transform_fns = quote_map_fold(self.field_names.values(), |field| {
+            let (setter_transform, getter_transform) = (format_ident!("{}_transform", field.setter_name()), format_ident!("{}_transform",field.getter_name()));
+            quote! {
+                pub fn #setter_transform<F:Fn(RegT)->RegT +'static>(&mut self, f:F) {
+                    self.transforms.#setter_transform(f)
+                }
+                pub fn #getter_transform<F:Fn(RegT)->RegT +'static>(&mut self, f:F) {
+                    self.transforms.#getter_transform(f)
+                }
+            }
+        });
 
         let fns = quote_map_fold(self.field_names.values(), |field| {
             let (setter, getter) = (field.setter_name(), field.getter_name());
@@ -351,14 +384,14 @@ impl<'a> FieldSet<'a> {
             quote! {
                 pub fn #getter(&self) -> RegT {
                     match self.xlen {
-                        XLen::X64 => unsafe { self.csr.borrow().x64.#getter_with_trans(self) },
-                        XLen::X32 => unsafe { self.csr.borrow().x32.#getter_with_trans(self) }
+                        XLen::X64 => unsafe { self.csr.x64.#getter_with_trans(&self.transforms) },
+                        XLen::X32 => unsafe { self.csr.x32.#getter_with_trans(&self.transforms) }
                     }
                 }
-                pub fn #setter(&self, value:RegT) {
+                pub fn #setter(&mut self, value:RegT) {
                     match self.xlen {
-                        XLen::X64 => unsafe { self.csr.borrow_mut().x64.#setter_with_trans(value, self) },
-                        XLen::X32 => unsafe { self.csr.borrow_mut().x32.#setter_with_trans(value, self) }
+                        XLen::X64 => unsafe { self.csr.x64.#setter_with_trans(value, &self.transforms) },
+                        XLen::X32 => unsafe { self.csr.x32.#setter_with_trans(value, &self.transforms) }
                     }
                 }
             }
@@ -367,29 +400,29 @@ impl<'a> FieldSet<'a> {
             #union_target
             pub struct #top_name {
                 pub xlen:XLen,
-                csr:std::cell::RefCell<#union_name>,
-                #transforms
+                csr:#union_name,
+                transforms:#transforms_name
             }
 
             impl #top_name {
                 pub fn new(xlen:XLen) -> #top_name {
                     #top_name{
                         xlen,
-                        csr:std::cell::RefCell::new(#union_name{x64:{#struct64_name(0)}}),
-                        #transform_inits
+                        csr:#union_name{x64:{#struct64_name(0)}},
+                        transforms:#transforms_name::new()
                     }
                 }
                 #transform_fns
                 pub fn get(&self) -> RegT {
                     match self.xlen {
-                        XLen::X64 => unsafe { self.csr.borrow().x64.get(self) },
-                        XLen::X32 => unsafe { self.csr.borrow().x32.get(self) }
+                        XLen::X64 => unsafe { self.csr.x64.get(&self.transforms) },
+                        XLen::X32 => unsafe { self.csr.x32.get(&self.transforms) }
                     }
                 }
-                pub fn set(&self, value:RegT) {
+                pub fn set(&mut self, value:RegT) {
                     match self.xlen {
-                        XLen::X64 => unsafe { self.csr.borrow_mut().x64.set(value, self) },
-                        XLen::X32 => unsafe { self.csr.borrow_mut().x32.set(value, self) }
+                        XLen::X64 => unsafe { self.csr.x64.set(value, &self.transforms) },
+                        XLen::X32 => unsafe { self.csr.x32.set(value, &self.transforms) }
                     }
                 }
                 #fns
@@ -463,12 +496,15 @@ pub fn expand(input: TokenStream) -> TokenStream {
 
     let trait_name = field_set.trait_name();
     let trait_target = field_set.trait_expand();
-    let struct32_target = field32s.struct_expand(&trait_name);
-    let struct64_target = field64s.struct_expand(&trait_name);
+    let transforms_name = field_set.transforms_name();
+    let transforms_target = field_set.transforms_expand();
+    let struct32_target = field32s.struct_expand(&trait_name, &transforms_name);
+    let struct64_target = field64s.struct_expand(&trait_name, &transforms_name);
     let top_target = field_set.top_expand(&field32s.struct_name(), &field64s.struct_name());
 
     quote! {
         #trait_target
+        #transforms_target
         #struct32_target
         #struct64_target
         #top_target
