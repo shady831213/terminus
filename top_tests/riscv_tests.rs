@@ -5,9 +5,11 @@ use terminus_spaceport::memory::region::{GHEAP, U64Access};
 use terminus_spaceport::devices::term_exit;
 use std::ops::Deref;
 use std::path::Path;
+use terminus_spaceport::EXIT_CTRL;
 
-fn riscv_test(xlen: XLen, name: &str) {
-    let sys = System::new("m0", Path::new("top_tests/elf").join(Path::new(name)).to_str().expect(&format!("{} not existed!", name)));
+fn riscv_test(xlen: XLen, name: &str, debug: bool) -> bool {
+    EXIT_CTRL.reset();
+    let sys = System::new(name, Path::new("top_tests/elf").join(Path::new(name)).to_str().expect(&format!("{} not existed!", name)));
     sys.register_memory("main_memory", 0x80000000, &GHEAP.alloc(0x10000000, 1).expect("main_memory alloc fail!"));
     sys.register_memory("rom", 0x20000000, &GHEAP.alloc(0x10000000, 1).expect("rom alloc fail!"));
     sys.load_elf();
@@ -28,28 +30,38 @@ fn riscv_test(xlen: XLen, name: &str) {
     loop {
         let resp = sys.sim_controller().send_cmd(0, SimCmd::RunOne);
         if let Ok(SimResp::Exited(msg, resp)) = resp {
-            println!("{}:", msg);
-            println!("{}", resp.to_string());
+            if debug {
+                println!("{}:", msg);
+                println!("{}", resp.to_string());
+            }
             break;
         } else if let Ok(SimResp::Resp(resp)) = resp {
-            println!("{}", resp.trace());
+            if debug {
+                println!("{}", resp.trace());
+            }
         }
     }
     p0.join().unwrap();
 
-    term_exit();
     let htif = sys.mem_space().get_region("htif").unwrap();
-    assert_eq!(U64Access::read(htif.deref(),htif.info.base).unwrap(), 0x1);
+    U64Access::read(htif.deref(), htif.info.base).unwrap() == 0x1
 }
 
-#[test]
-fn rv64ui_p_add() {
-    riscv_test(XLen::X64, "rv64ui-p-add")
-}
-
-#[test]
-fn rv32ui_p_add() {
-    riscv_test(XLen::X32, "rv32ui-p-add")
+fn main() {
+    let args: Vec<_> = std::env::args().collect();
+    let debug = args.len() == 2 && args[1] == "-d".to_string();
+    macro_rules! riscv_test {
+        ($xlen:expr, $name:expr) => {
+            if !riscv_test($xlen, $name, debug) {
+                term_exit();
+                assert!(false,format!("{} fail!",$name))
+            }
+            println!("{}", format!("{} pass!",$name));
+        };
+    }
+    riscv_test!(XLen::X64, "rv64ui-p-add");
+    riscv_test!(XLen::X32, "rv32ui-p-add");
+    term_exit()
 }
 
 
