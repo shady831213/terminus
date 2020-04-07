@@ -37,7 +37,7 @@ impl HTIF {
     }
 
     fn handle_cmd(desp: &mut HTIFDesp) -> region::Result<()> {
-        if desp.tohost & 0x1 == 1 && desp.tohost_device() == 0 && desp.tohost_cmd() == 0{
+        if desp.tohost & 0x1 == 1 && desp.tohost_device() == 0 && desp.tohost_cmd() == 0 {
             EXIT_CTRL.exit("htif shutdown!").unwrap();
             Ok(())
         } else if desp.tohost_device() == 1 && desp.tohost_cmd() == 1 {
@@ -96,12 +96,17 @@ impl U32Access for HTIF {
     }
 
     fn read(&self, addr: u64) -> region::Result<u32> {
-        self.fromhost_poll();
         match addr {
             0x0 => Ok(self.0.lock().unwrap().tohost.bit_range(31, 0)),
             0x4 => Ok(self.0.lock().unwrap().tohost.bit_range(63, 32)),
-            0x8 => Ok(self.0.lock().unwrap().fromhost.bit_range(31, 0)),
-            0xc => Ok(self.0.lock().unwrap().fromhost.bit_range(63, 32)),
+            0x8 => {
+                self.fromhost_poll();
+                Ok(self.0.lock().unwrap().fromhost.bit_range(31, 0))
+            }
+            0xc => {
+                self.fromhost_poll();
+                Ok(self.0.lock().unwrap().fromhost.bit_range(63, 32))
+            }
             _ => Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
         }
     }
@@ -122,10 +127,12 @@ impl U64Access for HTIF {
     }
 
     fn read(&self, addr: u64) -> region::Result<u64> {
-        self.fromhost_poll();
         match addr {
             0x0 => Ok(self.0.lock().unwrap().tohost),
-            0x8 => Ok(self.0.lock().unwrap().fromhost),
+            0x8 => {
+                self.fromhost_poll();
+                Ok(self.0.lock().unwrap().fromhost)
+            }
             _ => Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
         }
     }
