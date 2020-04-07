@@ -14,6 +14,7 @@ use terminus_global::RegT;
 use std::sync::mpsc::{Sender, Receiver, channel, SendError, RecvError, TryRecvError};
 use crate::processor::{ProcessorCfg, Processor, ProcessorStateSnapShot};
 use std::thread::JoinHandle;
+use std::cmp::min;
 
 #[derive_io(U8, U16, U32, U64)]
 pub struct Bus {
@@ -257,16 +258,22 @@ impl System {
 
     pub fn load_elf(&self) {
         self.elf.load(|addr, data| {
-            let region = self.mem_space.get_region_by_addr(addr).unwrap();
-            if addr + data.len() as u64 > region.info.base + region.info.size {
-                Err(format!("not enough memory!"))
-            } else {
-                if let Err(e) = BytesAccess::write(region.deref(), addr, data) {
-                    Err(format!("{:?}", e))
+            let mut base = addr;
+            let mut rest = data;
+            while !rest.is_empty() {
+                if let Ok(ref region) = self.mem_space.get_region_by_addr(base) {
+                    let len = min((region.info.base + region.info.size - base)  as usize, rest.len());
+                    let (head, tails) = rest.split_at(len);
+                    if let Err(e) = BytesAccess::write(region.deref(), base, head) {
+                        return Err(format!("{:?}", e));
+                    }
+                    base = region.info.base + region.info.size;
+                    rest = tails;
                 } else {
-                    Ok(())
+                    return Err(format!("not enough memory!"));
                 }
             }
+            Ok(())
         }).expect(&format!("{} load elf fail!", self.name));
     }
 }
