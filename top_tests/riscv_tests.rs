@@ -86,6 +86,11 @@ fn main() {
     riscv_test!(XLen::X64, "rv64ui-p-addi");
     riscv_test!(XLen::X64, "rv64ui-p-addiw");
     riscv_test!(XLen::X64, "rv64ui-p-addw");
+    riscv_test!(XLen::X64, "rv64ui-p-and");
+    riscv_test!(XLen::X64, "rv64ui-p-andi");
+    riscv_test!(XLen::X64, "rv64ui-p-auipc");
+    riscv_test!(XLen::X64, "rv64ui-p-beq");
+    riscv_test!(XLen::X64, "rv64ui-p-bge");
     riscv_test!(XLen::X32, "rv32ui-p-add");
     term_exit()
 }

@@ -78,7 +78,7 @@ impl Branch for BGE {}
 
 impl Execution for BGE {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        self.branch(p, |rs1, rs2| { (sext(rs1, p.state.config().xlen.len()) as SRegT) > (sext(rs2, p.state.config().xlen.len()) as SRegT) })
+        self.branch(p, |rs1, rs2| { (sext(rs1, p.state.config().xlen.len()) as SRegT) >= (sext(rs2, p.state.config().xlen.len()) as SRegT) })
     }
 }
 
@@ -106,7 +106,7 @@ impl Branch for BGEU {}
 
 impl Execution for BGEU {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        self.branch(p, |rs1, rs2| { rs1 > rs2 })
+        self.branch(p, |rs1, rs2| { rs1 >= rs2 })
     }
 }
 
