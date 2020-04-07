@@ -427,7 +427,7 @@ impl Execution for ADD {
 }
 
 #[derive(Instruction)]
-#[format(I)]
+#[format(R)]
 #[code("0b0000000??????????000?????0111011")]
 #[derive(Debug)]
 struct ADDW(InsnT);

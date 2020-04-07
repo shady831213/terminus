@@ -79,7 +79,7 @@ impl U32Access for HTIF {
             0x0 => {
                 let mut desp = self.0.lock().unwrap();
                 desp.borrow_mut().tohost.set_bit_range(31, 0, data);
-                if desp.borrow().tohost == 1 {
+                if desp.borrow().tohost & 0x1 == 1 && desp.tohost_device() == 0 && desp.tohost_cmd() == 0 {
                     EXIT_CTRL.exit("htif shutdown!").unwrap();
                 }
                 Ok(())

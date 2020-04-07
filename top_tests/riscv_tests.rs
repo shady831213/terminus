@@ -83,6 +83,9 @@ fn main() {
     }
 
     riscv_test!(XLen::X64, "rv64ui-p-add");
+    riscv_test!(XLen::X64, "rv64ui-p-addi");
+    riscv_test!(XLen::X64, "rv64ui-p-addiw");
+    riscv_test!(XLen::X64, "rv64ui-p-addw");
     riscv_test!(XLen::X32, "rv32ui-p-add");
     term_exit()
 }
