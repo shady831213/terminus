@@ -65,7 +65,7 @@ pub struct ProcessorCfg {
     pub hartid: RegT,
     pub start_address: u64,
     pub privilege_level: PrivilegeLevel,
-    pub enabel_dirty: bool,
+    pub enable_dirty: bool,
     pub extensions: Box<[char]>,
 }
 
@@ -268,9 +268,6 @@ impl Display for ProcessorState {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         writeln!(f, "config:")?;
         writeln!(f, "{:#x?}", self.config)?;
-        writeln!(f, "")?;
-        writeln!(f, "extensions:")?;
-        writeln!(f, "{:?}", self.extensions.keys())?;
         writeln!(f, "")?;
         writeln!(f, "states:")?;
         writeln!(f, "{}", self.trace())?;

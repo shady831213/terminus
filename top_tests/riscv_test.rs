@@ -20,7 +20,7 @@ fn riscv_basic_test() {
         hartid: 0,
         start_address: elf.entry_point().expect("Invalid ELF!"),
         privilege_level: PrivilegeLevel::MSU,
-        enabel_dirty: true,
+        enable_dirty: true,
         extensions: vec![].into_boxed_slice(),
     };
 

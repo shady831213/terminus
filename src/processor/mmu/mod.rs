@@ -200,7 +200,7 @@ impl Mmu {
         }
         //step 7
         if leaf_pte.attr().d() == 0 && opt == MmuOpt::Store || leaf_pte.attr().a() == 0 {
-            if self.p.config.enabel_dirty {
+            if self.p.config.enable_dirty {
                 let mut new_attr = leaf_pte.attr();
                 new_attr.set_a(1);
                 new_attr.set_d((opt == MmuOpt::Store) as u8);
@@ -248,7 +248,7 @@ fn pmp_basic_test() {
         hartid: 0,
         start_address: 0,
         privilege_level: PrivilegeLevel::MSU,
-        enabel_dirty: true,
+        enable_dirty: true,
         extensions: vec![].into_boxed_slice(),
     }, &Arc::new(Bus::new(&space)),
     );
