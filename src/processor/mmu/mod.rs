@@ -249,7 +249,8 @@ fn pmp_basic_test() {
         start_address: 0,
         privilege_level: PrivilegeLevel::MSU,
         enabel_dirty: true,
-    }, &Arc::new(Bus::new(&space)), vec![],
+        extensions: vec![].into_boxed_slice(),
+    }, &Arc::new(Bus::new(&space)),
     );
     //no valid region
     assert_eq!(p.mmu().match_pmpcfg_entry(0, 1), None);

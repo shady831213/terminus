@@ -66,6 +66,7 @@ pub struct ProcessorCfg {
     pub start_address: u64,
     pub privilege_level: PrivilegeLevel,
     pub enabel_dirty: bool,
+    pub extensions: Box<[char]>,
 }
 
 pub struct ProcessorState {
@@ -79,7 +80,7 @@ pub struct ProcessorState {
 }
 
 impl ProcessorState {
-    fn new(config: ProcessorCfg, extensions: Vec<char>) -> Result<ProcessorState, String> {
+    fn new(config: ProcessorCfg) -> Result<ProcessorState, String> {
         let hartid = config.hartid;
         let start_address = config.start_address;
         if config.xlen == XLen::X32 && start_address.leading_zeros() < 32 {
@@ -92,7 +93,7 @@ impl ProcessorState {
             Ok(())
         };
         add_extension('i')?;
-        for ext in extensions {
+        for &ext in config.extensions.iter() {
             add_extension(ext)?
         }
         let state = ProcessorState {
@@ -292,8 +293,8 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn new(config: ProcessorCfg, bus: &Arc<Bus>, extensions: Vec<char>) -> Processor {
-        let state = match ProcessorState::new(config, extensions) {
+    pub fn new(config: ProcessorCfg, bus: &Arc<Bus>) -> Processor {
+        let state = match ProcessorState::new(config) {
             Ok(state) => Rc::new(state),
             Err(msg) => panic!(msg)
         };

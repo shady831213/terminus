@@ -21,17 +21,17 @@ fn riscv_basic_test() {
         start_address: elf.entry_point().expect("Invalid ELF!"),
         privilege_level: PrivilegeLevel::MSU,
         enabel_dirty: true,
+        extensions: vec![].into_boxed_slice(),
     };
 
-    let p = Processor::new(processor_cfg, sys.bus(), vec![]);
+    let p = Processor::new(processor_cfg, sys.bus());
     loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
             println!("{}", msg);
-            break
+            break;
         }
         p.step_one();
         println!("{}", p.state().trace());
-
     }
     println!("{}", p.state().to_string());
     term_exit()
