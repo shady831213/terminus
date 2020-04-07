@@ -75,7 +75,6 @@ impl BytesAccess for HTIF {
 
 impl U32Access for HTIF {
     fn write(&self, addr: u64, data: u32) -> region::Result<()> {
-        println!("get htif write! to {:#x}", addr);
         match addr {
             0x0 => {
                 let mut desp = self.0.lock().unwrap();

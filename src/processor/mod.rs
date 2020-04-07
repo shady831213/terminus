@@ -7,7 +7,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::any::TypeId;
-
+use terminus_spaceport::EXIT_CTRL;
 
 mod decode;
 
@@ -26,7 +26,6 @@ mod extensions;
 use extensions::*;
 use extensions::i::csrs::*;
 
-
 mod mmu;
 
 use mmu::*;
@@ -38,7 +37,7 @@ use fetcher::*;
 mod load_store;
 
 use load_store::*;
-use crate::system::Bus;
+use crate::system::{Bus, SimCmdSink, SimCtrlError, SimResp, SimCmd};
 
 #[cfg(test)]
 mod test;
@@ -283,14 +282,14 @@ impl Display for ProcessorState {
 
 pub struct Processor {
     state: Rc<ProcessorState>,
-    bus: Arc<Bus>,
+    cmd: SimCmdSink,
     mmu: Mmu,
     fetcher: Fetcher,
     load_store: LoadStore,
 }
 
 impl Processor {
-    pub fn new(config: ProcessorCfg, bus: &Arc<Bus>) -> Processor {
+    pub fn new(config: ProcessorCfg, bus: &Arc<Bus>, cmd: SimCmdSink) -> Processor {
         let state = match ProcessorState::new(config) {
             Ok(state) => Rc::new(state),
             Err(msg) => panic!(msg)
@@ -299,10 +298,9 @@ impl Processor {
         let mmu = Mmu::new(&state, bus);
         let fetcher = Fetcher::new(&state, bus);
         let load_store = LoadStore::new(&state, bus);
-
         Processor {
             state,
-            bus: bus.clone(),
+            cmd,
             mmu,
             fetcher,
             load_store,
@@ -390,9 +388,53 @@ impl Processor {
         }
     }
 
-    pub fn step_one(&self) {
+    fn step_one(&self) {
         if let Err(trap) = self.execute_one() {
             self.handle_trap(trap);
         }
+        println!("{}", self.state().trace());
+    }
+
+    fn handle_sim_cmd(&self) -> Result<(), SimCtrlError> {
+        let cmd = self.cmd.cmd().recv()?;
+        match cmd {
+            SimCmd::RunOne => {
+                self.step_one();
+                Ok(self.cmd.resp().send(SimResp::RunOne(true))?)
+            }
+            SimCmd::RunN(n) => {
+                let mut cnt = 0;
+                for _ in 0..n {
+                    if let Ok(_) = EXIT_CTRL.poll() {
+                        break;
+                    }
+                    self.step_one();
+                    cnt += 1;
+                }
+                Ok(self.cmd.resp().send(SimResp::RunN(cnt))?)
+            }
+            SimCmd::RunAll => {
+                let mut cnt = 0;
+                loop {
+                    if let Ok(_) = EXIT_CTRL.poll() {
+                        break;
+                    }
+                    self.step_one();
+                    cnt += 1;
+                }
+                Ok(self.cmd.resp().send(SimResp::RunAll(cnt))?)
+            }
+        }
+    }
+
+    pub fn run(&self) -> Result<(), SimCtrlError> {
+        loop {
+            if let Ok(msg) = EXIT_CTRL.poll() {
+                println!("haitid{}, {}", self.state().config().hartid, msg);
+                break;
+            }
+            self.handle_sim_cmd()?;
+        }
+        Ok(())
     }
 }

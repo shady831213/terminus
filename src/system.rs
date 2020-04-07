@@ -3,12 +3,17 @@ use terminus_spaceport::memory::{MemInfo, region};
 use terminus_spaceport::space::{Space, SPACE_TABLE};
 use terminus_spaceport::space;
 use terminus_spaceport::derive_io;
-use std::sync::Arc;
-use std::fmt;
+use std::sync::{Arc, Mutex};
+use std::{fmt, io, thread};
 use super::elf::ElfLoader;
 use std::ops::Deref;
 use super::devices::htif::HTIF;
 use std::fmt::{Display, Formatter};
+use std::collections::HashMap;
+use terminus_global::RegT;
+use std::sync::mpsc::{Sender, Receiver, channel, SendError, RecvError, TryRecvError};
+use crate::processor::{ProcessorCfg, Processor};
+use std::thread::JoinHandle;
 
 #[derive_io(U8, U16, U32, U64)]
 pub struct Bus {
@@ -62,35 +67,159 @@ impl U64Access for Bus {
 }
 
 
+pub enum SimCmd {
+    RunOne,
+    RunAll,
+    RunN(usize),
+}
+
+pub enum SimResp {
+    RunOne(bool),
+    RunAll(usize),
+    RunN(usize),
+}
+
+pub struct SimCmdSink {
+    cmd: Receiver<SimCmd>,
+    resp: Sender<SimResp>,
+}
+
+impl SimCmdSink {
+    pub fn cmd(&self) -> &Receiver<SimCmd> {
+        &self.cmd
+    }
+    pub fn resp(&self) -> &Sender<SimResp> {
+        &self.resp
+    }
+}
+
+struct SimCmdSource {
+    cmd: Sender<SimCmd>,
+    resp: Receiver<SimResp>,
+}
+
+pub struct SimController {
+    channels: Mutex<HashMap<RegT, SimCmdSource>>
+}
+
+#[derive(Debug)]
+pub enum SimCtrlError {
+    HartIdExisted,
+    HartIdNotExisted,
+    CmdSendError(SendError<SimCmd>),
+    RespSendError(SendError<SimResp>),
+    RecvError(RecvError),
+    TryRecvError(TryRecvError),
+}
+
+impl From<SendError<SimCmd>> for SimCtrlError {
+    fn from(e: SendError<SimCmd>) -> SimCtrlError {
+        SimCtrlError::CmdSendError(e)
+    }
+}
+
+impl From<SendError<SimResp>> for SimCtrlError {
+    fn from(e: SendError<SimResp>) -> SimCtrlError {
+        SimCtrlError::RespSendError(e)
+    }
+}
+
+impl From<RecvError> for SimCtrlError {
+    fn from(e: RecvError) -> SimCtrlError {
+        SimCtrlError::RecvError(e)
+    }
+}
+
+impl From<TryRecvError> for SimCtrlError {
+    fn from(e: TryRecvError) -> SimCtrlError {
+        SimCtrlError::TryRecvError(e)
+    }
+}
+
+impl SimController {
+    fn new() -> SimController {
+        SimController {
+            channels: Mutex::new(HashMap::new())
+        }
+    }
+
+    pub fn register_ch(&self, hartid: RegT) -> Result<SimCmdSink, SimCtrlError> {
+        let (cmd_sender, cmd_receiver) = channel();
+        let (resp_sender, resp_receiver) = channel();
+        if let Some(_) = self.channels.lock().unwrap().insert(hartid, SimCmdSource { cmd: cmd_sender, resp: resp_receiver }) {
+            Err(SimCtrlError::HartIdExisted)
+        } else {
+            Ok(SimCmdSink { cmd: cmd_receiver, resp: resp_sender })
+        }
+    }
+
+    pub fn send_cmd(&self, hartid: RegT, cmd: SimCmd) -> Result<SimResp, SimCtrlError> {
+        if let Some(ch) = self.channels.lock().unwrap().get(&hartid) {
+            ch.cmd.send(cmd)?;
+            Ok(ch.resp.recv()?)
+        } else {
+            Err(SimCtrlError::HartIdNotExisted)
+        }
+    }
+}
+
 pub struct System {
     name: String,
     mem_space: Arc<Space>,
     bus: Arc<Bus>,
+    elf: ElfLoader,
+    sim_controller: SimController,
 }
 
 impl System {
-    pub fn new(name: &str) -> System {
+    pub fn new(name: &str, elf_file: &str) -> System {
         let space = SPACE_TABLE.get_space(name);
         let bus = Arc::new(Bus::new(&space));
-        System {
+        let elf = ElfLoader::new(elf_file).expect(&format!("Invalid Elf {}", elf_file));
+        let sys = System {
             name: name.to_string(),
             mem_space: space,
             bus,
-        }
+            elf,
+            sim_controller: SimController::new(),
+        };
+        sys.try_register_htif();
+        sys
     }
+
+    pub fn new_processor<F: Fn(&Processor) + std::marker::Send + 'static>(&self, name: &str, config: ProcessorCfg, f: F) -> io::Result<JoinHandle<()>> {
+        thread::Builder::new().name(name.to_string()).spawn({
+            let bus = self.bus().clone();
+            let hartid = config.hartid;
+            let sink = self.sim_controller().register_ch(hartid).unwrap();
+            move || {
+                let p = Processor::new(config, &bus, sink);
+                f(&p);
+            }
+        })
+    }
+
 
     fn register_region(&self, name: &str, base: u64, region: &Arc<Region>) -> Result<Arc<Region>, space::Error> {
         self.mem_space.add_region(name, &Region::remap(base, &region))
+    }
+
+    fn try_register_htif(&self) {
+        if let Some(s) = self.elf.htif_section().expect("Invalid ELF!") {
+            self.register_region("htif", s.address(), &Region::io(0, 0x1000, Box::new(HTIF::new()))).unwrap();
+        }
     }
 
     pub fn bus(&self) -> &Arc<Bus> {
         &self.bus
     }
 
-    pub fn try_register_htif(&self, elf: &ElfLoader) {
-        if let Some(s) = elf.htif_section().expect("Invalid ELF!") {
-            self.register_region("htif", s.address(), &Region::io(0, 0x1000, Box::new(HTIF::new()))).unwrap();
-        }
+    pub fn sim_controller(&self) -> &SimController {
+        &self.sim_controller
+    }
+
+    pub fn mem_space(&self) -> &Arc<Space> {
+        &self.mem_space
     }
 
     pub fn register_memory(&self, name: &str, base: u64, mem: &Arc<Region>) {
@@ -123,8 +252,12 @@ impl System {
         }
     }
 
-    pub fn load_elf(&self, elf: &ElfLoader) {
-        elf.load(|addr, data| {
+    pub fn entry_point(&self) -> Result<u64, String> {
+        self.elf.entry_point()
+    }
+
+    pub fn load_elf(&self) {
+        self.elf.load(|addr, data| {
             let region = self.mem_space.get_region_by_addr(addr).unwrap();
             if addr + data.len() as u64 > region.info.base + region.info.size {
                 Err(format!("not enough memory!"))
@@ -137,10 +270,6 @@ impl System {
             }
         }).expect(&format!("{} load elf fail!", self.name));
     }
-
-    pub fn mem_space(&self) -> &Arc<Space> {
-        &self.mem_space
-    }
 }
 
 impl Display for System {
@@ -149,4 +278,5 @@ impl Display for System {
         writeln!(f, "   {}", self.mem_space.to_string())
     }
 }
+
 

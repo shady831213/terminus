@@ -7,6 +7,7 @@ use std::sync::Arc;
 use crate::processor::{ProcessorState, Privilege};
 use crate::processor::extensions::i::csrs::*;
 use terminus_macros::*;
+use crate::system::Bus;
 
 mod pmp;
 
@@ -237,12 +238,11 @@ use terminus_global::XLen;
 #[cfg(test)]
 use crate::processor::{Processor, ProcessorCfg, PrivilegeLevel};
 #[cfg(test)]
-use terminus_spaceport::space::Space;
-use crate::system::Bus;
+use crate::system::System;
 
 #[test]
 fn pmp_basic_test() {
-    let space = Arc::new(Space::new());
+    let sys = System::new("test", "top_tests/elf/rv64ui-p-add");
     let p = Processor::new(ProcessorCfg {
         xlen: XLen::X32,
         hartid: 0,
@@ -250,7 +250,7 @@ fn pmp_basic_test() {
         privilege_level: PrivilegeLevel::MSU,
         enable_dirty: true,
         extensions: vec![].into_boxed_slice(),
-    }, &Arc::new(Bus::new(&space)),
+    }, sys.bus(), sys.sim_controller().register_ch(0).unwrap(),
     );
     //no valid region
     assert_eq!(p.mmu().match_pmpcfg_entry(0, 1), None);
