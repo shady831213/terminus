@@ -2,50 +2,61 @@ use xmas_elf::ElfFile;
 use xmas_elf::program::SegmentData;
 use xmas_elf::header;
 use xmas_elf::sections::SectionHeader;
+use std::{fs, io};
 
-pub struct ElfLoader<'a> {
-    elf: ElfFile<'a>,
+pub struct ElfLoader {
+    content: Box<[u8]>
 }
 
-impl<'a> ElfLoader<'a> {
-    pub fn new(input: &'a [u8]) -> Result<ElfLoader<'a>, String> {
-        let elf = ElfFile::new(input)?;
+impl ElfLoader {
+    pub fn new(file: &str) -> io::Result<ElfLoader> {
+        let content = fs::read(file)?.into_boxed_slice();
         Ok(ElfLoader {
-            elf
+            content
         })
     }
 
+    fn elf(&self) -> Result<ElfFile<'_>, String> {
+        match ElfFile::new(&self.content) {
+            Ok(elf) => Ok(elf),
+            Err(e) => Err(e.to_string())
+        }
+    }
+
     fn check_header(&self) -> Result<(), String> {
+        let elf = self.elf()?;
         //check riscv
-        if let header::Machine::Other(id) = self.elf.header.pt2.machine().as_machine() {
+        if let header::Machine::Other(id) = elf.header.pt2.machine().as_machine() {
             if id == 243 {
                 Ok(())
             } else {
-                Err(format!("Invalid Arch {:?}!", self.elf.header.pt2.machine()))
+                Err(format!("Invalid Arch {:?}!", elf.header.pt2.machine()))
             }
         } else {
-            Err(format!("Invalid Arch {:?}!", self.elf.header.pt2.machine()))
+            Err(format!("Invalid Arch {:?}!", elf.header.pt2.machine()))
         }
     }
 
-    pub fn htif_section(&self) -> Option<SectionHeader> {
-        if let Some(s) = self.elf.find_section_by_name(".tohost") {
-            Some(s)
-        } else if let Some(s) = self.elf.find_section_by_name(".htif") {
-            Some(s)
+    pub fn htif_section(&self) -> Result<Option<SectionHeader>, String> {
+        let elf = self.elf()?;
+        if let Some(s) = elf.find_section_by_name(".tohost") {
+            Ok(Some(s))
+        } else if let Some(s) = elf.find_section_by_name(".htif") {
+            Ok(Some(s))
         } else {
-            None
+            Ok(None)
         }
     }
 
-    pub fn entry_point(&self) -> u64 {
-        self.elf.header.pt2.entry_point()
+    pub fn entry_point(&self) -> Result<u64, String> {
+        Ok(self.elf()?.header.pt2.entry_point())
     }
 
     pub fn load<F: Fn(u64, &[u8]) -> Result<(), String>>(&self, f: F) -> Result<(), String> {
         self.check_header()?;
-        let result = self.elf.program_iter().map(|p| {
-            let data = match p.get_data(&self.elf)? {
+        let elf = self.elf()?;
+        let result = elf.program_iter().map(|p| {
+            let data = match p.get_data(&elf)? {
                 SegmentData::Undefined(d) => Ok(d),
                 _ => Err("Only support Undefined SectionData for now!")
             };
