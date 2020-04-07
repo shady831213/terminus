@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use terminus_macros::*;
 use terminus_global::*;
-use terminus_spaceport::space::Space;
 use std::sync::Arc;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::rc::Rc;
@@ -32,10 +31,6 @@ mod mmu;
 
 use mmu::*;
 
-mod bus;
-
-use bus::*;
-
 mod fetcher;
 
 use fetcher::*;
@@ -43,6 +38,7 @@ use fetcher::*;
 mod load_store;
 
 use load_store::*;
+use crate::system::Bus;
 
 #[cfg(test)]
 mod test;
@@ -80,11 +76,10 @@ pub struct ProcessorState {
     pc: RefCell<RegT>,
     next_pc: RefCell<RegT>,
     ir: RefCell<InsnT>,
-    pub bus: ProcessorBus,
 }
 
 impl ProcessorState {
-    fn new(config: ProcessorCfg, space: &Arc<Space>, extensions: Vec<char>) -> Result<ProcessorState, String> {
+    fn new(config: ProcessorCfg, extensions: Vec<char>) -> Result<ProcessorState, String> {
         let hartid = config.hartid;
         let start_address = config.start_address;
         if config.xlen == XLen::X32 && start_address.leading_zeros() < 32 {
@@ -108,7 +103,6 @@ impl ProcessorState {
             pc: RefCell::new(0),
             next_pc: RefCell::new(start_address),
             ir: RefCell::new(0),
-            bus: ProcessorBus::new(space),
         };
 
         state.csrs::<ICsrs>().unwrap().mhartid_mut().set(hartid);
@@ -291,24 +285,26 @@ impl Display for ProcessorState {
 
 pub struct Processor {
     state: Rc<ProcessorState>,
+    bus: Arc<Bus>,
     mmu: Mmu,
     fetcher: Fetcher,
     load_store: LoadStore,
 }
 
 impl Processor {
-    pub fn new(config: ProcessorCfg, space: &Arc<Space>, extensions: Vec<char>) -> Processor {
-        let state = match ProcessorState::new(config, space, extensions) {
+    pub fn new(config: ProcessorCfg, bus: &Arc<Bus>, extensions: Vec<char>) -> Processor {
+        let state = match ProcessorState::new(config, extensions) {
             Ok(state) => Rc::new(state),
             Err(msg) => panic!(msg)
         };
 
-        let mmu = Mmu::new(&state);
-        let fetcher = Fetcher::new(&state);
-        let load_store = LoadStore::new(&state);
+        let mmu = Mmu::new(&state, bus);
+        let fetcher = Fetcher::new(&state, bus);
+        let load_store = LoadStore::new(&state, bus);
 
         Processor {
             state,
+            bus: bus.clone(),
             mmu,
             fetcher,
             load_store,

@@ -1,7 +1,8 @@
-use terminus_spaceport::memory::region::{Region, BytesAccess};
-use terminus_spaceport::memory::MemInfo;
+use terminus_spaceport::memory::region::{Region, BytesAccess, U8Access, U16Access, U32Access, U64Access, IOAccess};
+use terminus_spaceport::memory::{MemInfo, region};
 use terminus_spaceport::space::{Space, SPACE_TABLE};
 use terminus_spaceport::space;
+use terminus_spaceport::derive_io;
 use std::sync::Arc;
 use std::fmt;
 use super::elf::ElfLoader;
@@ -9,21 +10,81 @@ use std::ops::Deref;
 use super::devices::htif::HTIF;
 use std::fmt::{Display, Formatter};
 
+#[derive_io(U8, U16, U32, U64)]
+pub struct Bus {
+    space: Arc<Space>
+}
+
+impl Bus {
+    pub fn new(space: &Arc<Space>) -> Bus {
+        Bus { space: space.clone() }
+    }
+}
+
+impl U8Access for Bus {
+    fn write(&self, addr: u64, data: u8) -> region::Result<()> {
+        U8Access::write(self.space.deref(), addr, data)
+    }
+
+    fn read(&self, addr: u64) -> region::Result<u8> {
+        U8Access::read(self.space.deref(), addr)
+    }
+}
+
+impl U16Access for Bus {
+    fn write(&self, addr: u64, data: u16) -> region::Result<()> {
+        U16Access::write(self.space.deref(), addr, data)
+    }
+
+    fn read(&self, addr: u64) -> region::Result<u16> {
+        U16Access::read(self.space.deref(), addr)
+    }
+}
+
+impl U32Access for Bus {
+    fn write(&self, addr: u64, data: u32) -> region::Result<()> {
+        U32Access::write(self.space.deref(), addr, data)
+    }
+
+    fn read(&self, addr: u64) -> region::Result<u32> {
+        U32Access::read(self.space.deref(), addr)
+    }
+}
+
+impl U64Access for Bus {
+    fn write(&self, addr: u64, data: u64) -> region::Result<()> {
+        U64Access::write(self.space.deref(), addr, data)
+    }
+
+    fn read(&self, addr: u64) -> region::Result<u64> {
+        U64Access::read(self.space.deref(), addr)
+    }
+}
+
+
 pub struct System {
     name: String,
     mem_space: Arc<Space>,
+    bus: Arc<Bus>,
 }
 
 impl System {
     pub fn new(name: &str) -> System {
+        let space = SPACE_TABLE.get_space(name);
+        let bus = Arc::new(Bus::new(&space));
         System {
             name: name.to_string(),
-            mem_space: SPACE_TABLE.get_space(name),
+            mem_space: space,
+            bus,
         }
     }
 
     fn register_region(&self, name: &str, base: u64, region: &Arc<Region>) -> Result<Arc<Region>, space::Error> {
         self.mem_space.add_region(name, &Region::remap(base, &region))
+    }
+
+    pub fn bus(&self) -> &Arc<Bus> {
+        &self.bus
     }
 
     pub fn try_register_htif(&self, elf: &ElfLoader) {

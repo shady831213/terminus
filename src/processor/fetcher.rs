@@ -6,15 +6,20 @@ use terminus_global::{RegT, InsnT};
 use crate::processor::mmu::{Mmu, MmuOpt};
 use crate::processor::trap::Exception;
 use crate::processor::decode::*;
+use std::sync::Arc;
+use crate::system::Bus;
+use std::ops::Deref;
 
 pub struct Fetcher {
     p: Rc<ProcessorState>,
+    bus:Arc<Bus>
 }
 
 impl Fetcher {
-    pub fn new(p: &Rc<ProcessorState>) -> Fetcher {
+    pub fn new(p: &Rc<ProcessorState>, bus:&Arc<Bus>) -> Fetcher {
         Fetcher {
             p: p.clone(),
+            bus:bus.clone()
         }
     }
 
@@ -26,7 +31,7 @@ impl Fetcher {
             //expect compress, if is not support, raise illegeInst exception later
             if pc.trailing_zeros() == 1 {
                 let pa = mmu.translate(pc, 2, MmuOpt::Fetch)?;
-                match U16Access::read(&self.p.bus, pa) {
+                match U16Access::read(self.bus.deref(), pa) {
                     Ok(data) => data as InsnT,
                     Err(e) => match e {
                         region::Error::AccessErr(_, _) => return Err(Exception::FetchAccess(pc)),
@@ -35,7 +40,7 @@ impl Fetcher {
                 }
             } else {
                 let pa = mmu.translate(pc, 4, MmuOpt::Fetch)?;
-                match U32Access::read(&self.p.bus, pa) {
+                match U32Access::read(self.bus.deref(), pa) {
                     Ok(data) => {
                         //expect compress, if is not support, raise illegeInst exception later
                         if data & 0x3 != 0x3 {

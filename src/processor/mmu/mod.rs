@@ -3,16 +3,18 @@ use std::convert::TryFrom;
 use crate::processor::trap::Exception;
 use terminus_global::RegT;
 use std::rc::Rc;
+use std::sync::Arc;
 use crate::processor::{ProcessorState, Privilege};
 use crate::processor::extensions::i::csrs::*;
 use terminus_macros::*;
 
 mod pmp;
+
 use pmp::*;
 
 mod pte;
-use pte::*;
 
+use pte::*;
 
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -50,12 +52,14 @@ impl MmuOpt {
 
 pub struct Mmu {
     p: Rc<ProcessorState>,
+    bus: Arc<Bus>,
 }
 
 impl Mmu {
-    pub fn new(p: &Rc<ProcessorState>) -> Mmu {
+    pub fn new(p: &Rc<ProcessorState>, bus: &Arc<Bus>) -> Mmu {
         Mmu {
             p: p.clone(),
+            bus: bus.clone(),
         }
     }
 
@@ -169,7 +173,7 @@ impl Mmu {
             if !self.check_pmp(pte_addr, info.size, MmuOpt::Load, Privilege::S) {
                 return Err(opt.access_exception(va));
             }
-            let pte = match Pte::load(&info, &self.p.bus, pte_addr) {
+            let pte = match Pte::load(&info, self.bus.deref(), pte_addr) {
                 Ok(pte) => pte,
                 Err(_) => return Err(opt.access_exception(va))
             };
@@ -204,7 +208,7 @@ impl Mmu {
                     return Err(opt.access_exception(va));
                 }
                 leaf_pte.set_attr(new_attr);
-                if leaf_pte.store(&self.p.bus, pte_addr).is_err() {
+                if leaf_pte.store(self.bus.deref(), pte_addr).is_err() {
                     return Err(opt.access_exception(va));
                 }
             } else {
@@ -234,8 +238,7 @@ use terminus_global::XLen;
 use crate::processor::{Processor, ProcessorCfg, PrivilegeLevel};
 #[cfg(test)]
 use terminus_spaceport::space::Space;
-#[cfg(test)]
-use std::sync::Arc;
+use crate::system::Bus;
 
 #[test]
 fn pmp_basic_test() {
@@ -246,7 +249,7 @@ fn pmp_basic_test() {
         start_address: 0,
         privilege_level: PrivilegeLevel::MSU,
         enabel_dirty: true,
-    }, &space, vec![],
+    }, &Arc::new(Bus::new(&space)), vec![],
     );
     //no valid region
     assert_eq!(p.mmu().match_pmpcfg_entry(0, 1), None);

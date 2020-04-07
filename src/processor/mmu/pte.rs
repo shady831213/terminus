@@ -4,6 +4,7 @@ use std::convert::TryFrom;
 use terminus_spaceport::memory::region::{U32Access, U64Access};
 use crate::processor::extensions::i::csrs::*;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use crate::system::Bus;
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug, Eq, PartialEq)]
 #[repr(u8)]
@@ -406,23 +407,23 @@ impl Pte {
             _ => panic!(format!("unsupported PteMode {:?}", mode))
         }
     }
-    pub fn load<T: U32Access + U64Access>(info: &PteInfo, memory: &T, addr: u64) -> region::Result<Pte> {
+    pub fn load(info: &PteInfo, bus: &Bus, addr: u64) -> region::Result<Pte> {
         let value = match info.size {
             4 => {
-                U32Access::read(memory, addr)? as RegT
+                U32Access::read(bus, addr)? as RegT
             }
             8 => {
-                U64Access::read(memory, addr)? as RegT
+                U64Access::read(bus, addr)? as RegT
             }
             _ => unreachable!()
         };
         Ok(Pte::new(&info.mode, value))
     }
 
-    pub fn store<T: U32Access + U64Access>(&self, memory: &T, addr: u64) -> region::Result<()> {
+    pub fn store(&self, bus: &Bus, addr: u64) -> region::Result<()> {
         match self {
-            Pte::Sv32(_) => U32Access::write(memory, addr, self.value() as u32),
-            _ => U64Access::write(memory, addr, self.value() as u64)
+            Pte::Sv32(_) => U32Access::write(bus, addr, self.value() as u32),
+            _ => U64Access::write(bus, addr, self.value() as u64)
         }
     }
 

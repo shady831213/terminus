@@ -23,7 +23,7 @@ fn riscv_basic_test() {
         enabel_dirty: true,
     };
 
-    let p = Processor::new(processor_cfg, sys.mem_space(), vec![]);
+    let p = Processor::new(processor_cfg, sys.bus(), vec![]);
     loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
             println!("{}", msg);
