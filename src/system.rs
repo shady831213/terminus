@@ -12,7 +12,7 @@ use std::fmt::{Display, Formatter};
 use std::collections::HashMap;
 use terminus_global::RegT;
 use std::sync::mpsc::{Sender, Receiver, channel, SendError, RecvError, TryRecvError};
-use crate::processor::{ProcessorCfg, Processor};
+use crate::processor::{ProcessorCfg, Processor, ProcessorStateSnapShot};
 use std::thread::JoinHandle;
 
 #[derive_io(U8, U16, U32, U64)]
@@ -74,9 +74,8 @@ pub enum SimCmd {
 }
 
 pub enum SimResp {
-    RunOne(bool),
-    RunAll(usize),
-    RunN(usize),
+    Resp(ProcessorStateSnapShot),
+    Exited(String, ProcessorStateSnapShot),
 }
 
 pub struct SimCmdSink {

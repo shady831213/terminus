@@ -37,7 +37,7 @@ impl HTIF {
     }
 
     fn handle_cmd(desp: &mut HTIFDesp) -> region::Result<()> {
-        if desp.tohost == 1 {
+        if desp.tohost & 0x1 == 1 && desp.tohost_device() == 0 && desp.tohost_cmd() == 0{
             EXIT_CTRL.exit("htif shutdown!").unwrap();
             Ok(())
         } else if desp.tohost_device() == 1 && desp.tohost_cmd() == 1 {

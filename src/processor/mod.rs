@@ -58,7 +58,7 @@ pub enum Privilege {
     M = 3,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ProcessorCfg {
     pub xlen: XLen,
     pub hartid: RegT,
@@ -66,6 +66,51 @@ pub struct ProcessorCfg {
     pub privilege_level: PrivilegeLevel,
     pub enable_dirty: bool,
     pub extensions: Box<[char]>,
+}
+
+pub struct ProcessorStateSnapShot {
+    pub config: ProcessorCfg,
+    pub privilege: Privilege,
+    pub xreg: [RegT; 32],
+    pub pc: RegT,
+    pub next_pc: RegT,
+    pub ir: InsnT,
+}
+
+impl ProcessorStateSnapShot {
+    pub fn trace(&self) -> String {
+        format!("privilege = {:?};pc = {:#x}; ir = {:#x}; next_pc = {:#x};", self.privilege, self.pc, self.ir, self.next_pc)
+    }
+}
+
+impl Display for ProcessorStateSnapShot {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        writeln!(f, "config:")?;
+        writeln!(f, "{:#x?}", self.config)?;
+        writeln!(f, "")?;
+        writeln!(f, "states:")?;
+        writeln!(f, "{}", self.trace())?;
+        writeln!(f, "")?;
+        writeln!(f, "registers:")?;
+        for (i, v) in self.xreg.iter().enumerate() {
+            writeln!(f, "   x{:<2} : {:#x}", i, v)?;
+        }
+        writeln!(f, "")?;
+        Ok(())
+    }
+}
+
+impl From<&ProcessorState> for ProcessorStateSnapShot {
+    fn from(v: &ProcessorState) -> ProcessorStateSnapShot {
+        ProcessorStateSnapShot {
+            config: v.config.clone(),
+            privilege: v.privilege(),
+            xreg: v.xreg.borrow().clone(),
+            pc: v.pc(),
+            next_pc: v.next_pc(),
+            ir: v.ir(),
+        }
+    }
 }
 
 pub struct ProcessorState {
@@ -241,6 +286,14 @@ impl ProcessorState {
         *self.next_pc.borrow_mut() = pc
     }
 
+    fn next_pc(&self) -> RegT {
+        *self.next_pc.borrow()
+    }
+
+    fn ir(&self) -> InsnT {
+        *self.ir.borrow()
+    }
+
     pub fn xreg(&self, id: RegT) -> RegT {
         let trip_id = id & 0x1f;
         if trip_id == 0 {
@@ -255,28 +308,6 @@ impl ProcessorState {
         if trip_id != 0 {
             (*self.xreg.borrow_mut())[trip_id as usize] = value
         }
-    }
-
-    //fixme
-    pub fn trace(&self) -> String {
-        format!("privilege = {:?};pc = {:#x}; ir = {:#x}; next_pc = {:#x};", *self.privilege.borrow(), *self.pc.borrow(), *self.ir.borrow(), *self.next_pc.borrow())
-    }
-}
-
-impl Display for ProcessorState {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        writeln!(f, "config:")?;
-        writeln!(f, "{:#x?}", self.config)?;
-        writeln!(f, "")?;
-        writeln!(f, "states:")?;
-        writeln!(f, "{}", self.trace())?;
-        writeln!(f, "")?;
-        writeln!(f, "registers:")?;
-        for (i, v) in self.xreg.borrow().iter().enumerate() {
-            writeln!(f, "   x{:<2} : {:#x}", i, v)?;
-        }
-        writeln!(f, "")?;
-        Ok(())
     }
 }
 
@@ -392,49 +423,52 @@ impl Processor {
         if let Err(trap) = self.execute_one() {
             self.handle_trap(trap);
         }
-        println!("{}", self.state().trace());
     }
 
-    fn handle_sim_cmd(&self) -> Result<(), SimCtrlError> {
+    fn handle_sim_cmd(&self) -> Result<SimResp, SimCtrlError> {
         let cmd = self.cmd.cmd().recv()?;
+        if let Ok(msg) = EXIT_CTRL.poll() {
+            return Ok(SimResp::Exited(msg, self.state().into()));
+        }
         match cmd {
             SimCmd::RunOne => {
                 self.step_one();
-                Ok(self.cmd.resp().send(SimResp::RunOne(true))?)
+                Ok(SimResp::Resp(self.state().into()))
             }
             SimCmd::RunN(n) => {
-                let mut cnt = 0;
                 for _ in 0..n {
-                    if let Ok(_) = EXIT_CTRL.poll() {
-                        break;
-                    }
                     self.step_one();
-                    cnt += 1;
                 }
-                Ok(self.cmd.resp().send(SimResp::RunN(cnt))?)
+                Ok(SimResp::Resp(self.state().into()))
             }
             SimCmd::RunAll => {
-                let mut cnt = 0;
                 loop {
-                    if let Ok(_) = EXIT_CTRL.poll() {
-                        break;
+                    if let Ok(msg) = EXIT_CTRL.poll() {
+                        return Ok(SimResp::Exited(msg, self.state().into()));
                     }
                     self.step_one();
-                    cnt += 1;
                 }
-                Ok(self.cmd.resp().send(SimResp::RunAll(cnt))?)
             }
         }
     }
 
     pub fn run(&self) -> Result<(), SimCtrlError> {
         loop {
-            if let Ok(msg) = EXIT_CTRL.poll() {
-                println!("haitid{}, {}", self.state().config().hartid, msg);
-                break;
+            match self.handle_sim_cmd() {
+                Ok(resp) => match resp {
+                    SimResp::Exited(_, _) => {
+                        self.cmd.resp().send(resp)?;
+                        println!("haitid {} exited!", self.state().config().hartid);
+                        return Ok(());
+                    }
+                    _ => {
+                        self.cmd.resp().send(resp)?;
+                    }
+                },
+                Err(e) => {
+                    return Err(e);
+                }
             }
-            self.handle_sim_cmd()?;
         }
-        Ok(())
     }
 }

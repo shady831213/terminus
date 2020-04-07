@@ -1,8 +1,9 @@
-use terminus::processor::{Processor, ProcessorCfg, PrivilegeLevel};
-use terminus::system::{System, SimCmd};
+use terminus::processor::{ProcessorCfg, PrivilegeLevel};
+use terminus::system::{System, SimCmd, SimResp};
 use terminus_global::XLen;
-use terminus_spaceport::memory::region::GHEAP;
+use terminus_spaceport::memory::region::{GHEAP, U64Access};
 use terminus_spaceport::devices::term_exit;
+use std::ops::Deref;
 
 #[test]
 fn riscv_basic_test() {
@@ -22,10 +23,21 @@ fn riscv_basic_test() {
 
     let p0 = sys.new_processor("p0", processor_cfg, |p| {
         p.run().unwrap();
-        println!("{}", p.state().to_string());
+
     }).unwrap();
 
-    sys.sim_controller().send_cmd(0, SimCmd::RunAll).unwrap();
+    loop {
+        let resp = sys.sim_controller().send_cmd(0, SimCmd::RunOne);
+        if let Ok(SimResp::Exited(msg, resp)) = resp {
+            println!("{}:", msg);
+            println!("{}",  resp.to_string());
+            let htif = sys.mem_space().get_region("htif").unwrap();
+            assert_eq!(U64Access::read(htif.deref(),htif.info.base).unwrap(), 0x1);
+            break;
+        } else if let Ok(SimResp::Resp(resp)) = resp {
+            println!("{}", resp.trace());
+        }
+    }
     p0.join().unwrap();
 
     term_exit()
