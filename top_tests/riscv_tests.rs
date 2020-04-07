@@ -61,6 +61,7 @@ fn main() {
         }
         arg = args.next()
     }
+
     macro_rules! riscv_test {
         ($xlen:expr, $name:expr) => {
             if let Some(test_name) = &name {
@@ -80,6 +81,7 @@ fn main() {
             }
         };
     }
+
     riscv_test!(XLen::X64, "rv64ui-p-add");
     riscv_test!(XLen::X32, "rv32ui-p-add");
     term_exit()
