@@ -48,15 +48,36 @@ fn riscv_test(xlen: XLen, name: &str, debug: bool) -> bool {
 }
 
 fn main() {
-    let args: Vec<_> = std::env::args().collect();
-    let debug = args.len() == 2 && args[1] == "-d".to_string();
+    let mut args = std::env::args();
+    let mut debug = false;
+    let mut name:Option<String> = None;
+    let mut arg:Option<String> = args.next();
+    while let Some(a) = &arg {
+        if *a == "-d".to_string() {
+            debug = true
+        }
+        if *a == "-r".to_string() {
+            name = args.next()
+        }
+        arg = args.next()
+    }
     macro_rules! riscv_test {
         ($xlen:expr, $name:expr) => {
-            if !riscv_test($xlen, $name, debug) {
-                term_exit();
-                assert!(false,format!("{} fail!",$name))
+            if let Some(test_name) = &name {
+                if test_name == $name {
+                    if !riscv_test($xlen, $name, debug) {
+                        term_exit();
+                        assert!(false,format!("{} fail!",$name))
+                    }
+                    println!("{}", format!("{} pass!",$name));
+                }
+            } else {
+                if !riscv_test($xlen, $name, debug) {
+                    term_exit();
+                    assert!(false,format!("{} fail!",$name))
+                }
+                println!("{}", format!("{} pass!",$name));
             }
-            println!("{}", format!("{} pass!",$name));
         };
     }
     riscv_test!(XLen::X64, "rv64ui-p-add");
