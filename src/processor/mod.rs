@@ -4,7 +4,7 @@ use terminus_global::*;
 use std::sync::Arc;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::rc::Rc;
-use std::cell::RefCell;
+use std::cell::{RefCell, Ref};
 use std::fmt::{Display, Formatter};
 use std::any::TypeId;
 use terminus_spaceport::EXIT_CTRL;
@@ -117,7 +117,7 @@ pub struct ProcessorState {
     config: ProcessorCfg,
     privilege: RefCell<Privilege>,
     xreg: RefCell<[RegT; 32]>,
-    extensions: HashMap<char, Extension>,
+    extensions: RefCell<HashMap<char, Extension>>,
     pc: RefCell<RegT>,
     next_pc: RefCell<RegT>,
     ir: RefCell<InsnT>,
@@ -125,56 +125,56 @@ pub struct ProcessorState {
 
 impl ProcessorState {
     fn new(config: ProcessorCfg) -> Result<ProcessorState, String> {
-        let hartid = config.hartid;
         let start_address = config.start_address;
         if config.xlen == XLen::X32 && start_address.leading_zeros() < 32 {
             return Err(format!("invalid start addr {:#x} when xlen == X32!", start_address));
-        }
-        let mut extensions_map: HashMap<char, Extension> = HashMap::new();
-        let mut add_extension = |id: char| -> Result<(), String>  {
-            let ext = Extension::new(&config, id)?;
-            extensions_map.insert(id, ext);
-            Ok(())
-        };
-        add_extension('i')?;
-        for &ext in config.extensions.iter() {
-            add_extension(ext)?
         }
         let state = ProcessorState {
             config,
             privilege: RefCell::new(Privilege::M),
             xreg: RefCell::new([0 as RegT; 32]),
-            extensions: extensions_map,
+            extensions: RefCell::new(HashMap::new()),
             pc: RefCell::new(0),
             next_pc: RefCell::new(start_address),
             ir: RefCell::new(0),
         };
+        state.reset()?;
+        Ok(state)
+    }
+
+    fn reset(&self) -> Result<(), String> {
+        *self.xreg.borrow_mut() = [0 as RegT; 32];
+        *self.extensions.borrow_mut() = HashMap::new();
+        *self.pc.borrow_mut() = 0;
+        *self.next_pc.borrow_mut() = self.config().start_address;
+        *self.ir.borrow_mut() = 0;
+        self.add_extension()?;
 
         //hartid
-        state.csrs::<ICsrs>().unwrap().mhartid_mut().set(hartid);
+        self.csrs::<ICsrs>().unwrap().mhartid_mut().set(self.config().hartid);
 
         //xlen config
-        match state.config().xlen {
+        match self.config().xlen {
             XLen::X32 => {
-                state.csrs::<ICsrs>().unwrap().misa_mut().set_mxl(1);
+                self.csrs::<ICsrs>().unwrap().misa_mut().set_mxl(1);
             }
             XLen::X64 => {
-                state.csrs::<ICsrs>().unwrap().misa_mut().set_mxl(2);
-                state.csrs::<ICsrs>().unwrap().mstatus_mut().set_uxl(2);
-                state.csrs::<ICsrs>().unwrap().mstatus_mut().set_sxl(2);
+                self.csrs::<ICsrs>().unwrap().misa_mut().set_mxl(2);
+                self.csrs::<ICsrs>().unwrap().mstatus_mut().set_uxl(2);
+                self.csrs::<ICsrs>().unwrap().mstatus_mut().set_sxl(2);
             }
         }
         //extensions config
-        let extensions_value = state.extensions.keys()
+        let extensions_value = self.extensions().keys()
             .map(|e| { (*e as u8 - 'a' as u8) as RegT })
             .map(|v| { 1 << v })
             .fold(0 as RegT, |acc, v| { acc | v });
-        state.csrs::<ICsrs>().unwrap().misa_mut().set_extensions(extensions_value);
+        self.csrs::<ICsrs>().unwrap().misa_mut().set_extensions(extensions_value);
         //privilege_level config
-        match state.config.privilege_level {
+        match self.config.privilege_level {
             PrivilegeLevel::MSU => {}
             PrivilegeLevel::MU => {
-                state.csrs::<ICsrs>().unwrap().mstatus_mut().set_mpp_transform(|mpp| {
+                self.csrs::<ICsrs>().unwrap().mstatus_mut().set_mpp_transform(|mpp| {
                     if mpp != 0 {
                         let m: u8 = Privilege::M.into();
                         m as RegT
@@ -182,25 +182,41 @@ impl ProcessorState {
                         0
                     }
                 });
-                state.csrs::<ICsrs>().unwrap().mstatus_mut().set_spp_transform(|_| { 0 });
-                state.csrs::<ICsrs>().unwrap().mstatus_mut().set_tvm_transform(|_| { 0 });
+                self.csrs::<ICsrs>().unwrap().mstatus_mut().set_spp_transform(|_| { 0 });
+                self.csrs::<ICsrs>().unwrap().mstatus_mut().set_tvm_transform(|_| { 0 });
             }
             PrivilegeLevel::M => {
                 let m: u8 = Privilege::M.into();
-                state.csrs::<ICsrs>().unwrap().mstatus_mut().set_mpp(m as RegT);
-                state.csrs::<ICsrs>().unwrap().mstatus_mut().set_mpp_transform(move |_| {
+                self.csrs::<ICsrs>().unwrap().mstatus_mut().set_mpp(m as RegT);
+                self.csrs::<ICsrs>().unwrap().mstatus_mut().set_mpp_transform(move |_| {
                     m as RegT
                 });
-                state.csrs::<ICsrs>().unwrap().mstatus_mut().set_spp_transform(|_| { 0 });
-                state.csrs::<ICsrs>().unwrap().mstatus_mut().set_tvm_transform(|_| { 0 });
+                self.csrs::<ICsrs>().unwrap().mstatus_mut().set_spp_transform(|_| { 0 });
+                self.csrs::<ICsrs>().unwrap().mstatus_mut().set_tvm_transform(|_| { 0 });
             }
         }
-        Ok(state)
+        Ok(())
     }
 
+    fn add_extension(&self) -> Result<(), String> {
+        let add_one_extension = |id: char| -> Result<(), String>  {
+            let ext = Extension::new(self.config(), id)?;
+            self.extensions.borrow_mut().insert(id, ext);
+            Ok(())
+        };
+        add_one_extension('i')?;
+        for &ext in self.config().extensions.iter() {
+            add_one_extension(ext)?
+        }
+        Ok(())
+    }
+
+    fn extensions(&self) -> Ref<'_, HashMap<char, Extension>> {
+        self.extensions.borrow()
+    }
 
     fn csrs<T: 'static>(&self) -> Result<Rc<T>, String> {
-        if let Some(t) = self.extensions.values().find_map(|extension| {
+        if let Some(t) = self.extensions().values().find_map(|extension| {
             if let Some(csrs) = extension.csrs() {
                 match csrs.downcast::<T>() {
                     Ok(t) => Some(t),
@@ -232,7 +248,7 @@ impl ProcessorState {
     pub fn csr(&self, id: RegT) -> Result<RegT, Exception> {
         let trip_id = id & 0xfff;
         self.csr_privilege_check(trip_id)?;
-        match self.extensions.values().find_map(|e| { e.csr_read(trip_id) }) {
+        match self.extensions().values().find_map(|e| { e.csr_read(trip_id) }) {
             Some(v) => Ok(v),
             None => Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
@@ -241,14 +257,14 @@ impl ProcessorState {
     pub fn set_csr(&self, id: RegT, value: RegT) -> Result<(), Exception> {
         let trip_id = id & 0xfff;
         self.csr_privilege_check(trip_id)?;
-        match self.extensions.values().find_map(|e| { e.csr_write(trip_id, value) }) {
+        match self.extensions().values().find_map(|e| { e.csr_write(trip_id, value) }) {
             Some(_) => Ok(()),
             None => Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
     }
 
     pub fn check_extension(&self, ext: char) -> Result<(), Exception> {
-        if self.extensions.contains_key(&ext) {
+        if self.extensions().contains_key(&ext) {
             Ok(())
         } else {
             Err(Exception::IllegalInsn(*self.ir.borrow()))
@@ -355,6 +371,12 @@ impl Processor {
             mmu,
             fetcher,
             load_store,
+        }
+    }
+
+    pub fn reset(&self) {
+        if let Err(msg) = self.state.reset(){
+            panic!(msg)
         }
     }
 
