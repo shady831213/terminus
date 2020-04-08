@@ -96,6 +96,11 @@ fn main() {
     riscv_test!(XLen::X64, "rv64ui-p-bltu");
     riscv_test!(XLen::X64, "rv64ui-p-bne");
     riscv_test!(XLen::X64, "rv64ui-p-fence_i");
+    riscv_test!(XLen::X64, "rv64ui-p-jal");
+    riscv_test!(XLen::X64, "rv64ui-p-jalr");
+    riscv_test!(XLen::X64, "rv64ui-p-lb");
+    riscv_test!(XLen::X64, "rv64ui-p-lbu");
+    riscv_test!(XLen::X64, "rv64ui-p-lui");
     riscv_test!(XLen::X32, "rv32ui-p-add");
     term_exit()
 }
