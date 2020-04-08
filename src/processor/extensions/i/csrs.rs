@@ -6,16 +6,19 @@ pub ICsrs(0x0, 0xfff) {
     sstatus(RW):SStatus,0x100;
     sie(RW):Sie, 0x104;
     stvec(RW):Tvec, 0x105;
+    sscratch(RW):Scratch, 0x140;
     sepc(RW):Epc, 0x141;
     scause(RW):Cause, 0x142;
     stval(RW):Tval, 0x143;
     sip(RW):Sip, 0x144;
     satp(RW):Satp, 0x180;
     mstatus(RW):MStatus, 0x300;
+    misa(RW):Misa, 0x301;
     medeleg(RW):Deleg, 0x302;
     mideleg(RW):Deleg, 0x303;
     mie(RW):Mie, 0x304;
     mtvec(RW):Tvec, 0x305;
+    mscratch(RW):Scratch, 0x340;
     mepc(RW):Epc, 0x341;
     mcause(RW):Cause, 0x342;
     mtval(RW):Tval, 0x343;
@@ -41,6 +44,21 @@ pub ICsrs(0x0, 0xfff) {
     pmpaddr14(RW):PmpAddr, 0x3BE;
     pmpaddr15(RW):PmpAddr, 0x3BF;
     mhartid(RO):Mhartid, 0xF14;
+}
+}
+
+
+define_csr! {
+Misa {
+    fields {
+        extensions(RO):25,0;
+    },
+    fields32{
+        mxl(RO):31,30;
+    },
+    fields64{
+        mxl(RO):63,62;
+    },
 }
 }
 
@@ -91,8 +109,8 @@ MStatus {
          sd(RW): 31, 31;
     },
     fields64 {
-         uxl(RW): 33, 32;
-         sxl(RW): 35,34;
+         uxl(RO): 33, 32;
+         sxl(RO): 35,34;
          sd(RW): 63, 63;
     },
 }
@@ -255,6 +273,11 @@ Cause {
 define_csr! {
 Tval {}
 }
+
+define_csr! {
+Scratch {}
+}
+
 
 #[test]
 fn test_status() {

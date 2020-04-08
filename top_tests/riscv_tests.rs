@@ -83,7 +83,7 @@ fn main() {
             }
         };
     }
-
+    //ui-p
     riscv_test!(XLen::X64, "rv64ui-p-add");
     riscv_test!(XLen::X64, "rv64ui-p-addi");
     riscv_test!(XLen::X64, "rv64ui-p-addiw");
@@ -173,6 +173,11 @@ fn main() {
     riscv_test!(XLen::X32, "rv32ui-p-sw");
     riscv_test!(XLen::X32, "rv32ui-p-xor");
     riscv_test!(XLen::X32, "rv32ui-p-xori");
+
+    //mi-p-*
+    riscv_test!(XLen::X64, "rv64mi-p-access");
+    //riscv_test!(XLen::X64, "rv64mi-p-breakpoint");
+    riscv_test!(XLen::X64, "rv64mi-p-csr");
 
     term_exit()
 }

@@ -150,7 +150,27 @@ impl ProcessorState {
             ir: RefCell::new(0),
         };
 
+        //hartid
         state.csrs::<ICsrs>().unwrap().mhartid_mut().set(hartid);
+
+        //xlen config
+        match state.config().xlen {
+            XLen::X32 => {
+                state.csrs::<ICsrs>().unwrap().misa_mut().set_mxl(1);
+            }
+            XLen::X64 => {
+                state.csrs::<ICsrs>().unwrap().misa_mut().set_mxl(2);
+                state.csrs::<ICsrs>().unwrap().mstatus_mut().set_uxl(2);
+                state.csrs::<ICsrs>().unwrap().mstatus_mut().set_sxl(2);
+            }
+        }
+        //extensions config
+        let extensions_value = state.extensions.keys()
+            .map(|e| { (*e as u8 - 'a' as u8) as RegT })
+            .map(|v| { 1 << v })
+            .fold(0 as RegT, |acc, v| { acc | v });
+        state.csrs::<ICsrs>().unwrap().misa_mut().set_extensions(extensions_value);
+        //privilege_level config
         match state.config.privilege_level {
             PrivilegeLevel::MSU => {}
             PrivilegeLevel::MU => {
@@ -448,6 +468,9 @@ impl Processor {
                     }
                     self.step_one();
                 }
+            }
+            SimCmd::Exit => {
+                Ok(SimResp::Exited("exit cmd".to_string(), self.state().into()))
             }
         }
     }

@@ -69,6 +69,7 @@ impl U64Access for Bus {
 
 
 pub enum SimCmd {
+    Exit,
     RunOne,
     RunAll,
     RunN(usize),
