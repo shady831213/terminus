@@ -272,7 +272,7 @@ impl Execution for SRLIW {
         p.state().check_xlen(XLen::X64)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
         let shamt: RegT = (self.imm() as RegT).bit_range(4, 0);
-        p.state().set_xreg(self.rd() as RegT, rs1 >> shamt);
+        p.state().set_xreg(self.rd() as RegT, sext(rs1 >> shamt, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -449,7 +449,7 @@ impl Execution for SUB {
 }
 
 #[derive(Instruction)]
-#[format(I)]
+#[format(R)]
 #[code("0b0100000??????????000?????0111011")]
 #[derive(Debug)]
 struct SUBW(InsnT);
@@ -515,7 +515,7 @@ impl Execution for SRL {
 }
 
 #[derive(Instruction)]
-#[format(I)]
+#[format(R)]
 #[code("0b0000000??????????101?????0111011")]
 #[derive(Debug)]
 struct SRLW(InsnT);
@@ -525,7 +525,7 @@ impl Execution for SRLW {
         p.state().check_xlen(XLen::X64)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
         let shamt: RegT = p.state().xreg(self.rs2() as RegT).bit_range(4, 0);
-        p.state().set_xreg(self.rd() as RegT, rs1 >> shamt);
+        p.state().set_xreg(self.rd() as RegT, sext(rs1 >> shamt, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }

@@ -27,21 +27,21 @@ fn riscv_test(xlen: XLen, name: &str, debug: bool) -> bool {
         p.run().unwrap();
     }).unwrap();
 
-    loop {
-        let resp = sys.sim_controller().send_cmd(0, SimCmd::RunOne);
-        if let Ok(SimResp::Exited(msg, resp)) = resp {
-            if debug {
+    if debug {
+        loop {
+            let resp = sys.sim_controller().send_cmd(0, SimCmd::RunOne);
+            if let Ok(SimResp::Exited(msg, resp)) = resp {
                 println!("{}:", msg);
                 println!("{}", resp.to_string());
-            }
-            break;
-        } else if let Ok(SimResp::Resp(resp)) = resp {
-            if debug {
+                break;
+            } else if let Ok(SimResp::Resp(resp)) = resp {
                 println!("{}", resp.trace());
+            } else if resp.is_err() {
+                break;
             }
-        } else if resp.is_err() {
-            break
         }
+    } else {
+        sys.sim_controller().send_cmd(0, SimCmd::RunAll).unwrap();
     }
     p0.join().unwrap();
 
@@ -52,8 +52,8 @@ fn riscv_test(xlen: XLen, name: &str, debug: bool) -> bool {
 fn main() {
     let mut args = std::env::args();
     let mut debug = false;
-    let mut name:Option<String> = None;
-    let mut arg:Option<String> = args.next();
+    let mut name: Option<String> = None;
+    let mut arg: Option<String> = args.next();
     while let Some(a) = &arg {
         if *a == "-d".to_string() {
             debug = true
@@ -126,6 +126,14 @@ fn main() {
     riscv_test!(XLen::X64, "rv64ui-p-srai");
     riscv_test!(XLen::X64, "rv64ui-p-sraiw");
     riscv_test!(XLen::X64, "rv64ui-p-sraw");
+    riscv_test!(XLen::X64, "rv64ui-p-srl");
+    riscv_test!(XLen::X64, "rv64ui-p-srli");
+    riscv_test!(XLen::X64, "rv64ui-p-srliw");
+    riscv_test!(XLen::X64, "rv64ui-p-srlw");
+    riscv_test!(XLen::X64, "rv64ui-p-sub");
+    riscv_test!(XLen::X64, "rv64ui-p-subw");
+    riscv_test!(XLen::X64, "rv64ui-p-xor");
+    riscv_test!(XLen::X64, "rv64ui-p-xori");
     riscv_test!(XLen::X32, "rv32ui-p-add");
     term_exit()
 }
