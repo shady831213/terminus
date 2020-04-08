@@ -115,6 +115,14 @@ fn main() {
     riscv_test!(XLen::X64, "rv64ui-p-sh");
     riscv_test!(XLen::X64, "rv64ui-p-simple");
     riscv_test!(XLen::X64, "rv64ui-p-sll");
+    riscv_test!(XLen::X64, "rv64ui-p-slli");
+    riscv_test!(XLen::X64, "rv64ui-p-slliw");
+    riscv_test!(XLen::X64, "rv64ui-p-sllw");
+    riscv_test!(XLen::X64, "rv64ui-p-slt");
+    riscv_test!(XLen::X64, "rv64ui-p-slti");
+    riscv_test!(XLen::X64, "rv64ui-p-sltiu");
+    riscv_test!(XLen::X64, "rv64ui-p-sltu");
+    riscv_test!(XLen::X64, "rv64ui-p-sra");
     riscv_test!(XLen::X32, "rv32ui-p-add");
     term_exit()
 }
