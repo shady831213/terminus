@@ -258,22 +258,23 @@ impl System {
 
     pub fn load_elf(&self) {
         self.elf.load(|addr, data| {
-            let mut base = addr;
-            let mut rest = data;
-            while !rest.is_empty() {
-                if let Ok(ref region) = self.mem_space.get_region_by_addr(base) {
-                    let len = min((region.info.base + region.info.size - base)  as usize, rest.len());
-                    let (head, tails) = rest.split_at(len);
-                    if let Err(e) = BytesAccess::write(region.deref(), base, head) {
-                        return Err(format!("{:?}", e));
-                    }
-                    base = region.info.base + region.info.size;
-                    rest = tails;
+            fn load(space:&Space, addr:u64, data:&[u8]) -> (Result<(), String>) {
+                if data.is_empty() {
+                    Ok(())
                 } else {
-                    return Err(format!("not enough memory!"));
+                    if let Ok(ref region) = space.get_region_by_addr(addr) {
+                        let len = min((region.info.base + region.info.size - addr)  as usize, data.len());
+                        let (head, tails) = data.split_at(len);
+                        if let Err(e) = BytesAccess::write(region.deref(), addr, head) {
+                            return Err(format!("{:?}", e));
+                        }
+                        load(space, region.info.base + region.info.size, tails)
+                    } else {
+                        Err(format!("not enough memory!"))
+                    }
                 }
-            }
-            Ok(())
+            };
+            load(self.mem_space().deref(), addr, data)
         }).expect(&format!("{} load elf fail!", self.name));
     }
 }
