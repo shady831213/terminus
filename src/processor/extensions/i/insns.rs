@@ -548,7 +548,7 @@ impl Execution for SRA {
 }
 
 #[derive(Instruction)]
-#[format(I)]
+#[format(R)]
 #[code("0b0100000??????????101?????0111011")]
 #[derive(Debug)]
 struct SRAW(InsnT);
