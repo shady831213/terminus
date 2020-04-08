@@ -272,7 +272,7 @@ impl Execution for SRLIW {
         p.state().check_xlen(XLen::X64)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
         let shamt: RegT = (self.imm() as RegT).bit_range(4, 0);
-        p.state().set_xreg(self.rd() as RegT, sext(rs1 >> shamt, 32));
+        p.state().set_xreg(self.rd() as RegT, sext(rs1 >> shamt, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -288,7 +288,7 @@ impl Execution for SRAI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let rs1 = p.state().xreg(self.rs1() as RegT) & p.state().config().xlen.mask();
         let shamt: RegT = (self.imm() as RegT).bit_range(p.state().config().xlen.len().trailing_zeros() as usize - 1, 0);
-        p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shr(shamt as u32), p.state().config().xlen.len() - shamt as usize));
+        p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shr(shamt as u32), p.state().config().xlen.len() - shamt as usize) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -305,7 +305,7 @@ impl Execution for SRAIW {
         p.state().check_xlen(XLen::X64)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
         let shamt: RegT = (self.imm() as RegT).bit_range(4, 0);
-        p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shr(shamt as u32), 32 - shamt as usize));
+        p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shr(shamt as u32), 32 - shamt as usize) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -492,7 +492,7 @@ impl Execution for SLLW {
         p.state().check_xlen(XLen::X64)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
         let shamt: RegT = p.state().xreg(self.rs2() as RegT).bit_range(4, 0);
-        p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shl(shamt as u32), 32));
+        p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shl(shamt as u32), 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -525,7 +525,7 @@ impl Execution for SRLW {
         p.state().check_xlen(XLen::X64)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
         let shamt: RegT = p.state().xreg(self.rs2() as RegT).bit_range(4, 0);
-        p.state().set_xreg(self.rd() as RegT, sext(rs1 >> shamt, 32));
+        p.state().set_xreg(self.rd() as RegT, sext(rs1 >> shamt, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -541,7 +541,7 @@ impl Execution for SRA {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let rs1 = p.state().xreg(self.rs1() as RegT) & p.state().config().xlen.mask();
         let shamt: RegT = p.state().xreg(self.rs2() as RegT).bit_range(p.state().config().xlen.len().trailing_zeros() as usize - 1, 0);
-        p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shr(shamt as u32), p.state().config().xlen.len() - shamt as usize));
+        p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shr(shamt as u32), p.state().config().xlen.len() - shamt as usize) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -558,7 +558,7 @@ impl Execution for SRAW {
         p.state().check_xlen(XLen::X64)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
         let shamt: RegT = p.state().xreg(self.rs2() as RegT).bit_range(4, 0);
-        p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shr(shamt as u32), 32 - shamt as usize));
+        p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shr(shamt as u32), 32 - shamt as usize) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }

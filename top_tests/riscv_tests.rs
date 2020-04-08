@@ -135,6 +135,25 @@ fn main() {
     riscv_test!(XLen::X64, "rv64ui-p-xor");
     riscv_test!(XLen::X64, "rv64ui-p-xori");
     riscv_test!(XLen::X32, "rv32ui-p-add");
+    riscv_test!(XLen::X32, "rv32ui-p-addi");
+    riscv_test!(XLen::X32, "rv32ui-p-and");
+    riscv_test!(XLen::X32, "rv32ui-p-andi");
+    riscv_test!(XLen::X32, "rv32ui-p-auipc");
+    riscv_test!(XLen::X32, "rv32ui-p-beq");
+    riscv_test!(XLen::X32, "rv32ui-p-bge");
+    riscv_test!(XLen::X32, "rv32ui-p-bgeu");
+    riscv_test!(XLen::X32, "rv32ui-p-blt");
+    riscv_test!(XLen::X32, "rv32ui-p-bltu");
+    riscv_test!(XLen::X32, "rv32ui-p-bne");
+    riscv_test!(XLen::X32, "rv32ui-p-fence_i");
+    riscv_test!(XLen::X32, "rv32ui-p-jal");
+    riscv_test!(XLen::X32, "rv32ui-p-jalr");
+    riscv_test!(XLen::X32, "rv32ui-p-lb");
+    riscv_test!(XLen::X32, "rv32ui-p-lbu");
+    riscv_test!(XLen::X32, "rv32ui-p-lh");
+    riscv_test!(XLen::X32, "rv32ui-p-lhu");
+    riscv_test!(XLen::X32, "rv32ui-p-lui");
+
     term_exit()
 }
 
