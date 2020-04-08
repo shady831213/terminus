@@ -394,8 +394,8 @@ impl Processor {
     }
 
     fn one_insn(&self) -> Result<(), Exception> {
-        let inst = self.fetcher.fetch(*self.state.next_pc.borrow(), self.mmu())?;
         *self.state.pc.borrow_mut() = *self.state.next_pc.borrow();
+        let inst = self.fetcher.fetch(*self.state.pc.borrow(), self.mmu())?;
         *self.state.ir.borrow_mut() = inst.ir();
         inst.execute(self)
     }

@@ -14,11 +14,20 @@ use std::convert::TryFrom;
 trait Branch: InstructionImp {
     fn branch<F: Fn(RegT, RegT) -> bool>(&self, p: &Processor, condition: F) -> Result<(), Exception> {
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm() as RegT, self.imm_len()));
+
         let pc: Wrapping<RegT> = Wrapping(p.state().pc());
         let rs1 = p.state().xreg(self.rs1() as RegT);
         let rs2 = p.state().xreg(self.rs2() as RegT);
         if condition(rs1, rs2) {
-            p.state().set_pc((offset + pc).0);
+            let t = (offset + pc).0;
+            if let Err(_) = p.state().check_extension('c') {
+                if t.trailing_zeros() < 2 {
+                    return Err(Exception::FetchMisaligned(t));
+                }
+            } else if t.trailing_zeros() < 1 {
+                return Err(Exception::FetchMisaligned(t));
+            }
+            p.state().set_pc(t);
         } else {
             p.state().set_pc(pc.0 + 4);
         }
@@ -113,8 +122,16 @@ impl Execution for BGEU {
 
 trait Jump: InstructionImp {
     fn jump<F: Fn(Wrapping<RegT>) -> Wrapping<RegT>>(&self, p: &Processor, target: F) -> Result<(), Exception> {
-        let offset: Wrapping<RegT> = Wrapping(sext(self.imm() as RegT, self.imm_len()));
-        p.state().set_pc(target(offset).0);
+        let offset: Wrapping<RegT> = Wrapping(sext(((self.imm() >> 1) << 1) as RegT, self.imm_len()));
+        let t = target(offset).0;
+        if let Err(_) = p.state().check_extension('c') {
+            if t.trailing_zeros() < 2 {
+                return Err(Exception::FetchMisaligned(t));
+            }
+        } else if t.trailing_zeros() < 1 {
+            return Err(Exception::FetchMisaligned(t));
+        }
+        p.state().set_pc(t);
         p.state().set_xreg(self.rd() as RegT, p.state().pc() + 4);
         Ok(())
     }

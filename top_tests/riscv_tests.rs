@@ -176,8 +176,13 @@ fn main() {
 
     //mi-p-*
     riscv_test!(XLen::X64, "rv64mi-p-access");
+    //no debug
     //riscv_test!(XLen::X64, "rv64mi-p-breakpoint");
     riscv_test!(XLen::X64, "rv64mi-p-csr");
+    //no interrupt
+    //riscv_test!(XLen::X64, "rv64mi-p-illegal");
+    riscv_test!(XLen::X64, "rv64mi-p-ma_addr");
+    riscv_test!(XLen::X64, "rv64mi-p-ma_fetch");
 
     term_exit()
 }

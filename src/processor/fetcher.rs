@@ -24,9 +24,6 @@ impl Fetcher {
     }
 
     pub fn fetch(&self, pc: RegT, mmu: &Mmu) -> Result<Instruction, Exception> {
-        if pc.trailing_zeros() == 0 {
-            return Err(Exception::FetchMisaligned(pc));
-        }
         let code = {
             //expect compress, if is not support, raise illegeInst exception later
             if pc.trailing_zeros() == 1 {
