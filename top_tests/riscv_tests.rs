@@ -153,6 +153,26 @@ fn main() {
     riscv_test!(XLen::X32, "rv32ui-p-lh");
     riscv_test!(XLen::X32, "rv32ui-p-lhu");
     riscv_test!(XLen::X32, "rv32ui-p-lui");
+    riscv_test!(XLen::X32, "rv32ui-p-lw");
+    riscv_test!(XLen::X32, "rv32ui-p-or");
+    riscv_test!(XLen::X32, "rv32ui-p-ori");
+    riscv_test!(XLen::X32, "rv32ui-p-sb");
+    riscv_test!(XLen::X32, "rv32ui-p-sh");
+    riscv_test!(XLen::X32, "rv32ui-p-simple");
+    riscv_test!(XLen::X32, "rv32ui-p-sll");
+    riscv_test!(XLen::X32, "rv32ui-p-slli");
+    riscv_test!(XLen::X32, "rv32ui-p-slt");
+    riscv_test!(XLen::X32, "rv32ui-p-slti");
+    riscv_test!(XLen::X32, "rv32ui-p-sltiu");
+    riscv_test!(XLen::X32, "rv32ui-p-sltu");
+    riscv_test!(XLen::X32, "rv32ui-p-sra");
+    riscv_test!(XLen::X32, "rv32ui-p-srai");
+    riscv_test!(XLen::X32, "rv32ui-p-srl");
+    riscv_test!(XLen::X32, "rv32ui-p-srli");
+    riscv_test!(XLen::X32, "rv32ui-p-sub");
+    riscv_test!(XLen::X32, "rv32ui-p-sw");
+    riscv_test!(XLen::X32, "rv32ui-p-xor");
+    riscv_test!(XLen::X32, "rv32ui-p-xori");
 
     term_exit()
 }
