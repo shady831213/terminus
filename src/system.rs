@@ -258,7 +258,7 @@ impl System {
 
     pub fn load_elf(&self) {
         self.elf.load(|addr, data| {
-            fn load(space:&Space, addr:u64, data:&[u8]) -> (Result<(), String>) {
+            fn load(space:&Space, addr:u64, data:&[u8]) -> Result<(), String> {
                 if data.is_empty() {
                     Ok(())
                 } else {

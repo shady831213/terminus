@@ -39,6 +39,8 @@ fn riscv_test(xlen: XLen, name: &str, debug: bool) -> bool {
             if debug {
                 println!("{}", resp.trace());
             }
+        } else if resp.is_err() {
+            break
         }
     }
     p0.join().unwrap();
@@ -100,7 +102,19 @@ fn main() {
     riscv_test!(XLen::X64, "rv64ui-p-jalr");
     riscv_test!(XLen::X64, "rv64ui-p-lb");
     riscv_test!(XLen::X64, "rv64ui-p-lbu");
+    riscv_test!(XLen::X64, "rv64ui-p-ld");
+    riscv_test!(XLen::X64, "rv64ui-p-lh");
+    riscv_test!(XLen::X64, "rv64ui-p-lhu");
     riscv_test!(XLen::X64, "rv64ui-p-lui");
+    riscv_test!(XLen::X64, "rv64ui-p-lw");
+    riscv_test!(XLen::X64, "rv64ui-p-lwu");
+    riscv_test!(XLen::X64, "rv64ui-p-or");
+    riscv_test!(XLen::X64, "rv64ui-p-ori");
+    riscv_test!(XLen::X64, "rv64ui-p-sb");
+    riscv_test!(XLen::X64, "rv64ui-p-sd");
+    riscv_test!(XLen::X64, "rv64ui-p-sh");
+    riscv_test!(XLen::X64, "rv64ui-p-simple");
+    riscv_test!(XLen::X64, "rv64ui-p-sll");
     riscv_test!(XLen::X32, "rv32ui-p-add");
     term_exit()
 }
