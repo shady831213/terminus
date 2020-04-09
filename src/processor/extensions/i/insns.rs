@@ -237,6 +237,10 @@ struct SLLI(InsnT);
 
 impl Execution for SLLI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        let high: RegT = (self.imm() as RegT).bit_range(self.imm_len() - 1, p.state().config().xlen.len().trailing_zeros() as usize);
+        if high != 0 {
+            return Err(Exception::IllegalInsn(self.ir()));
+        }
         let rs1 = p.state().xreg(self.rs1() as RegT);
         let shamt: RegT = (self.imm() as RegT).bit_range(p.state().config().xlen.len().trailing_zeros() as usize - 1, 0);
         p.state().set_xreg(self.rd() as RegT, rs1.wrapping_shl(shamt as u32) & p.state().config().xlen.mask());
@@ -254,6 +258,10 @@ struct SLLIW(InsnT);
 impl Execution for SLLIW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
+        let high: RegT = (self.imm() as RegT).bit_range(self.imm_len() - 1,5);
+        if high != 0 {
+            return Err(Exception::IllegalInsn(self.ir()));
+        }
         let rs1 = p.state().xreg(self.rs1() as RegT);
         let shamt: RegT = (self.imm() as RegT).bit_range(4, 0);
         p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shl(shamt as u32), 32));

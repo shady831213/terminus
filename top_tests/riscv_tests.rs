@@ -188,20 +188,35 @@ fn main() {
     riscv_test!(XLen::X64, "rv64mi-p-scall");
 
     //no debug
-    //riscv_test!(XLen::X64, "rv32mi-p-breakpoint");
-    //riscv_test!(XLen::X64, "rv32mi-p-sbreak");
-    riscv_test!(XLen::X64, "rv32mi-p-csr");
+    //riscv_test!(XLen::X32, "rv32mi-p-breakpoint");
+    //riscv_test!(XLen::X32, "rv32mi-p-sbreak");
+    riscv_test!(XLen::X32, "rv32mi-p-csr");
     //no interrupt
-    //riscv_test!(XLen::X64, "rv32mi-p-illegal");
-    riscv_test!(XLen::X64, "rv32mi-p-ma_addr");
-    riscv_test!(XLen::X64, "rv32mi-p-ma_fetch");
-    riscv_test!(XLen::X64, "rv32mi-p-mcsr");
-    riscv_test!(XLen::X64, "rv32mi-p-scall");
-    riscv_test!(XLen::X64, "rv32mi-p-shamt");
+    //riscv_test!(XLen::X32, "rv32mi-p-illegal");
+    riscv_test!(XLen::X32, "rv32mi-p-ma_addr");
+    riscv_test!(XLen::X32, "rv32mi-p-ma_fetch");
+    riscv_test!(XLen::X32, "rv32mi-p-mcsr");
+    riscv_test!(XLen::X32, "rv32mi-p-scall");
+    riscv_test!(XLen::X32, "rv32mi-p-shamt");
 
     //si-p-*
     riscv_test!(XLen::X64, "rv64si-p-csr");
     riscv_test!(XLen::X64, "rv64si-p-dirty");
+    riscv_test!(XLen::X64, "rv64si-p-ma_fetch");
+    //no debug
+    //riscv_test!(XLen::X64, "rv64si-p-sbreak");
+    riscv_test!(XLen::X64, "rv64si-p-scall");
+    //no interrupt
+    //riscv_test!(XLen::X64, "rv64si-p-wfi");
+
+    riscv_test!(XLen::X32, "rv32si-p-csr");
+    riscv_test!(XLen::X32, "rv32si-p-dirty");
+    riscv_test!(XLen::X32, "rv32si-p-ma_fetch");
+    //no debug
+    //riscv_test!(XLen::X32, "rv32si-p-sbreak");
+    riscv_test!(XLen::X32, "rv32si-p-scall");
+    //no interrupt
+    //riscv_test!(XLen::X32, "rv32si-p-wfi");
 
     term_exit()
 }
