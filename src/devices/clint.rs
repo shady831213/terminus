@@ -182,3 +182,41 @@ impl U64Access for Clint {
         Err(region::Error::AccessErr(addr, "clint:U64Access Invalid addr!".to_string()))
     }
 }
+
+#[cfg(test)]
+use std::thread;
+#[cfg(test)]
+use std::time::Duration;
+#[test]
+fn timer_test() {
+    let clint = Arc::new(Clint::new(100));
+    let irq_vec = clint.alloc_irq();
+    let p0 = thread::spawn({
+        let irq = irq_vec.clone();
+        let c = clint.clone();
+        move ||{
+            for cnt in 0..10 {
+                while !irq.pending(1).unwrap() {}
+                println!("get timer {}!", cnt);
+                irq.clr_pending(1).unwrap();
+                let time = U64Access::read(c.deref(), MTIME_BASE).unwrap();
+                println!("time = {}", time);
+                U64Access::write(c.deref(), MTIMECMP_BASE, time+1).unwrap();
+            }
+        }
+    }
+    );
+
+    thread::spawn({
+        let c = clint.clone();
+        move || {
+            loop {
+                thread::sleep(Duration::from_millis(5));
+                c.tick(1);
+            }
+        }
+    }
+    );
+
+    p0.join().unwrap();
+}
