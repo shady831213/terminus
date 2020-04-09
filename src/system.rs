@@ -9,7 +9,6 @@ use super::elf::ElfLoader;
 use std::ops::Deref;
 use super::devices::htif::HTIF;
 use std::fmt::{Display, Formatter};
-use std::collections::HashMap;
 use terminus_global::RegT;
 use std::sync::mpsc::{Sender, Receiver, channel, SendError, RecvError, TryRecvError};
 use crate::processor::{ProcessorCfg, Processor, ProcessorStateSnapShot};
@@ -87,6 +86,12 @@ pub struct SimCmdSink {
 }
 
 impl SimCmdSink {
+    pub fn new(cmd: Receiver<SimCmd>, resp: Sender<SimResp>) -> SimCmdSink {
+        SimCmdSink {
+            cmd,
+            resp,
+        }
+    }
     pub fn cmd(&self) -> &Receiver<SimCmd> {
         &self.cmd
     }
@@ -148,7 +153,7 @@ impl SimController {
         let (cmd_sender, cmd_receiver) = channel();
         let (resp_sender, resp_receiver) = channel();
         self.channels.lock().unwrap().push(SimCmdSource { cmd: cmd_sender, resp: resp_receiver });
-        SimCmdSink { cmd: cmd_receiver, resp: resp_sender }
+        SimCmdSink::new(cmd_receiver, resp_sender)
     }
 
     pub fn send_cmd(&self, hartid: RegT, cmd: SimCmd) -> Result<SimResp, SimCtrlError> {

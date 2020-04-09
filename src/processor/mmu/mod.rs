@@ -240,13 +240,18 @@ use terminus_global::XLen;
 #[cfg(test)]
 use crate::processor::{Processor, ProcessorCfg, PrivilegeLevel};
 #[cfg(test)]
-use crate::system::System;
+use crate::system::{System, SimCmdSink};
 #[cfg(test)]
 use terminus_spaceport::irq::IrqVec;
+#[cfg(test)]
+use std::sync::mpsc::channel;
 
 #[test]
 fn pmp_basic_test() {
     let sys = System::new("test", "top_tests/elf/rv64ui-p-add");
+    let (_, cmd_receiver) = channel();
+    let (resp_sender, _) = channel();
+
     let p = Processor::new(ProcessorCfg {
         xlen: XLen::X32,
         hartid: 0,
@@ -254,7 +259,7 @@ fn pmp_basic_test() {
         privilege_level: PrivilegeLevel::MSU,
         enable_dirty: true,
         extensions: vec![].into_boxed_slice(),
-    }, sys.bus(), &Arc::new(IrqVec::new(2)), sys.sim_controller().register_ch(0).unwrap(),
+    }, sys.bus(), &Arc::new(IrqVec::new(2)),  SimCmdSink::new(cmd_receiver, resp_sender),
     );
     //no valid region
     assert_eq!(p.mmu().match_pmpcfg_entry(0, 1), None);
