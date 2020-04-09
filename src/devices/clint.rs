@@ -1,7 +1,7 @@
 use std::num::Wrapping;
 use terminus_spaceport::derive_io;
 use terminus_spaceport::memory::region::{BytesAccess, U8Access, U16Access, U32Access, U64Access, IOAccess};
-use std::sync::Mutex;
+use std::sync::{Mutex, Arc};
 use terminus_spaceport::irq::IrqVec;
 use terminus_spaceport::memory::region;
 use terminus_macros::*;
@@ -34,14 +34,49 @@ const MTIME_SIZE: u64 = 8;
 
 struct ClintInner {
     timer: Timer,
-    irq_vecs: Vec<IrqVec>,
+    irq_vecs: Vec<Arc<IrqVec>>,
     mtimecmps: Vec<u64>,
 }
 
 #[derive_io(U32, U64)]
 pub struct Clint(Mutex<ClintInner>);
 
-impl Clint {}
+impl Clint {
+    pub fn new(freq: usize) -> Clint {
+        Clint(
+            Mutex::new(
+                ClintInner {
+                    timer: Timer {
+                        freq,
+                        cnt: 0,
+                    },
+                    irq_vecs: vec![],
+                    mtimecmps: vec![],
+                }
+            )
+        )
+    }
+
+    pub fn alloc_irq(&self) -> Arc<IrqVec> {
+        let mut state = self.0.lock().unwrap();
+        let irq_vec = Arc::new(IrqVec::new(2));
+        irq_vec.set_enable(0).unwrap();
+        irq_vec.set_enable(1).unwrap();
+        state.irq_vecs.push(irq_vec.clone());
+        state.mtimecmps.push(0);
+        irq_vec
+    }
+
+    pub fn tick(&self, n: u64) {
+        let mut state = self.0.lock().unwrap();
+        state.timer.tick(n);
+        for (irq_vec, mtimecmp) in state.irq_vecs.iter().zip(state.mtimecmps.iter()) {
+            if state.timer.cnt >= *mtimecmp {
+                irq_vec.sender(1).unwrap().send().unwrap()
+            }
+        }
+    }
+}
 
 impl U32Access for Clint {
     fn write(&self, addr: u64, data: u32) -> region::Result<()> {
@@ -62,13 +97,13 @@ impl U32Access for Clint {
                 state.mtimecmps[offset].set_bit_range(63, 32, data)
             } else {
                 state.mtimecmps[offset].set_bit_range(31, 0, data)
-            })
+            });
         } else if addr >= MTIME_BASE && addr + 4 <= MTIME_BASE + MTIME_SIZE {
             return Ok(if addr.trailing_zeros() == 2 {
                 state.timer.cnt.set_bit_range(63, 32, data)
             } else {
                 state.timer.cnt.set_bit_range(31, 0, data)
-            })
+            });
         }
 
         Err(region::Error::AccessErr(addr, "clint:U32Access Invalid addr!".to_string()))
@@ -88,13 +123,13 @@ impl U32Access for Clint {
                 state.mtimecmps[offset] >> 32
             } else {
                 state.mtimecmps[offset]
-            } as u32)
+            } as u32);
         } else if addr >= MTIME_BASE && addr + 4 <= MTIME_BASE + MTIME_SIZE {
             return Ok(if addr.trailing_zeros() == 2 {
                 state.timer.cnt >> 32
             } else {
                 state.timer.cnt
-            } as u32)
+            } as u32);
         }
 
         Err(region::Error::AccessErr(addr, "clint:U32Access Invalid addr!".to_string()))
@@ -121,9 +156,9 @@ impl U64Access for Clint {
             return Ok(());
         } else if addr >= MTIMECMP_BASE && addr + 8 <= MTIMECMP_BASE + state.mtimecmps.len() as u64 * MTMIECMP_SIZE {
             let offset = ((addr - MTIMECMP_BASE) >> 3) as usize;
-            return Ok(state.mtimecmps[offset] = data)
+            return Ok(state.mtimecmps[offset] = data);
         } else if addr >= MTIME_BASE && addr + 8 <= MTIME_BASE + MTIME_SIZE {
-            return Ok(state.timer.cnt = data)
+            return Ok(state.timer.cnt = data);
         }
 
         Err(region::Error::AccessErr(addr, "clint:U64Access Invalid addr!".to_string()))
@@ -139,9 +174,9 @@ impl U64Access for Clint {
             return Ok((state.irq_vecs[offset].pending(0).unwrap() as u64) | ((state.irq_vecs[offset + 1].pending(0).unwrap() as u64) << 32));
         } else if addr >= MTIMECMP_BASE && addr + 8 <= MTIMECMP_BASE + state.mtimecmps.len() as u64 * MTMIECMP_SIZE {
             let offset = ((addr - MTIMECMP_BASE) >> 3) as usize;
-            return Ok(state.mtimecmps[offset])
+            return Ok(state.mtimecmps[offset]);
         } else if addr >= MTIME_BASE && addr + 8 <= MTIME_BASE + MTIME_SIZE {
-            return Ok(state.timer.cnt)
+            return Ok(state.timer.cnt);
         }
 
         Err(region::Error::AccessErr(addr, "clint:U64Access Invalid addr!".to_string()))
