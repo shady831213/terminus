@@ -197,10 +197,10 @@ fn timer_test() {
         move ||{
             for cnt in 0..10 {
                 while !irq.pending(1).unwrap() {}
-                println!("get timer {}!", cnt);
+                // println!("get timer {}!", cnt);
                 irq.clr_pending(1).unwrap();
                 let time = U64Access::read(c.deref(), MTIME_BASE).unwrap();
-                println!("time = {}", time);
+                // println!("time = {}", time);
                 U64Access::write(c.deref(), MTIMECMP_BASE, time+1).unwrap();
             }
         }
