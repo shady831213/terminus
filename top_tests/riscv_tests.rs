@@ -199,6 +199,10 @@ fn main() {
     riscv_test!(XLen::X64, "rv32mi-p-scall");
     riscv_test!(XLen::X64, "rv32mi-p-shamt");
 
+    //si-p-*
+    riscv_test!(XLen::X64, "rv64si-p-csr");
+    riscv_test!(XLen::X64, "rv64si-p-dirty");
+
     term_exit()
 }
 

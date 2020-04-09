@@ -1060,3 +1060,21 @@ impl Execution for MRET {
         Ok(())
     }
 }
+
+#[derive(Instruction)]
+#[format(I)]
+#[code("0b0001001??????????000000001110011")]
+#[derive(Debug)]
+struct SFENCEVMA(InsnT);
+
+impl Execution for SFENCEVMA {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_privilege_level(Privilege::S)?;
+        if p.state().privilege() == Privilege::S && p.state().csrs::<ICsrs>().unwrap().mstatus().tvm() == 1 {
+            return Err(Exception::IllegalInsn(self.ir()));
+        }
+        //fixme:no cache in fetcher, load_store and mmu for now
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}

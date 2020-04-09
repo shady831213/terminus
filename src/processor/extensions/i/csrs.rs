@@ -97,7 +97,7 @@ SStatus {
          sd(RW): 31, 31;
     },
     fields64 {
-         uxl(RW): 33, 32;
+         uxl(RO): 33, 32;
          sd(RW): 63, 63;
     },
 }

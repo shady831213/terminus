@@ -162,6 +162,7 @@ impl ProcessorState {
                 self.csrs::<ICsrs>().unwrap().misa_mut().set_mxl(2);
                 self.csrs::<ICsrs>().unwrap().mstatus_mut().set_uxl(2);
                 self.csrs::<ICsrs>().unwrap().mstatus_mut().set_sxl(2);
+                self.csrs::<ICsrs>().unwrap().sstatus_mut().set_uxl(2);
             }
         }
         //extensions config
@@ -240,6 +241,10 @@ impl ProcessorState {
         let cur_priv: u8 = (*self.privilege.borrow()).into();
         let csr_priv: u8 = id.bit_range(9, 8);
         if cur_priv < csr_priv {
+            return Err(Exception::IllegalInsn(*self.ir.borrow()));
+        }
+        //stap
+        if id == 0x180 && self.privilege() == Privilege::S && self.csrs::<ICsrs>().unwrap().mstatus().tvm() == 1 {
             return Err(Exception::IllegalInsn(*self.ir.borrow()));
         }
         Ok(())

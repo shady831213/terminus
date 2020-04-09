@@ -196,8 +196,10 @@ impl Mmu {
         //step 5
         self.check_pte_privilege(va, &leaf_pte.attr(), &opt, &privilege)?;
         //step 6
-        if level > 0 && leaf_pte.ppn(level - 1).unwrap() != 0 {
-            return Err(opt.pagefault_exception(va));
+        for l in 0..level {
+            if leaf_pte.ppn(l).unwrap() != 0 {
+                return Err(opt.pagefault_exception(va));
+            }
         }
         //step 7
         if leaf_pte.attr().d() == 0 && opt == MmuOpt::Store || leaf_pte.attr().a() == 0 {
