@@ -15,6 +15,7 @@ use std::sync::mpsc::{Sender, Receiver, channel, SendError, RecvError, TryRecvEr
 use crate::processor::{ProcessorCfg, Processor, ProcessorStateSnapShot};
 use std::thread::JoinHandle;
 use std::cmp::min;
+use terminus_spaceport::irq::IrqVec;
 
 #[derive_io(U8, U16, U32, U64)]
 pub struct Bus {
@@ -192,9 +193,11 @@ impl System {
         thread::Builder::new().name(name.to_string()).spawn({
             let bus = self.bus().clone();
             let hartid = config.hartid;
+            let clint = Arc::new(IrqVec::new(2));
             let sink = self.sim_controller().register_ch(hartid).unwrap();
             move || {
-                let p = Processor::new(config, &bus, sink);
+                //fixme:irqvec should be create by clint
+                let p = Processor::new(config, &bus, &clint, sink);
                 f(&p);
             }
         })
@@ -259,12 +262,12 @@ impl System {
 
     pub fn load_elf(&self) {
         self.elf.load(|addr, data| {
-            fn load(space:&Space, addr:u64, data:&[u8]) -> Result<(), String> {
+            fn load(space: &Space, addr: u64, data: &[u8]) -> Result<(), String> {
                 if data.is_empty() {
                     Ok(())
                 } else {
                     if let Ok(ref region) = space.get_region_by_addr(addr) {
-                        let len = min((region.info.base + region.info.size - addr)  as usize, data.len());
+                        let len = min((region.info.base + region.info.size - addr) as usize, data.len());
                         let (head, tails) = data.split_at(len);
                         if let Err(e) = BytesAccess::write(region.deref(), addr, head) {
                             return Err(format!("{:?}", e));

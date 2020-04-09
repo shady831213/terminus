@@ -241,6 +241,8 @@ use terminus_global::XLen;
 use crate::processor::{Processor, ProcessorCfg, PrivilegeLevel};
 #[cfg(test)]
 use crate::system::System;
+#[cfg(test)]
+use terminus_spaceport::irq::IrqVec;
 
 #[test]
 fn pmp_basic_test() {
@@ -252,7 +254,7 @@ fn pmp_basic_test() {
         privilege_level: PrivilegeLevel::MSU,
         enable_dirty: true,
         extensions: vec![].into_boxed_slice(),
-    }, sys.bus(), sys.sim_controller().register_ch(0).unwrap(),
+    }, sys.bus(), &Arc::new(IrqVec::new(2)), sys.sim_controller().register_ch(0).unwrap(),
     );
     //no valid region
     assert_eq!(p.mmu().match_pmpcfg_entry(0, 1), None);

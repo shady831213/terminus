@@ -20,12 +20,6 @@ impl HTIFDesp {
     fn tohost_device(&self) -> u64 {
         (self.tohost) >> 56
     }
-    // fn fromhost_cmd(&self) -> u64 {
-    //     ((self.fromhost) >> 48) & 0xff
-    // }
-    // fn fromhost_device(&self) -> u64 {
-    //     (self.fromhost) >> 56
-    // }
 }
 
 #[derive_io(Bytes, U32, U64)]

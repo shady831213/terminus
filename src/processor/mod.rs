@@ -8,6 +8,7 @@ use std::cell::{RefCell, Ref};
 use std::fmt::{Display, Formatter};
 use std::any::TypeId;
 use terminus_spaceport::EXIT_CTRL;
+use terminus_spaceport::irq::IrqVec;
 
 mod decode;
 
@@ -121,10 +122,11 @@ pub struct ProcessorState {
     pc: RefCell<RegT>,
     next_pc: RefCell<RegT>,
     ir: RefCell<InsnT>,
+    clint: Arc<IrqVec>,
 }
 
 impl ProcessorState {
-    fn new(config: ProcessorCfg) -> Result<ProcessorState, String> {
+    fn new(config: ProcessorCfg, clint: &Arc<IrqVec>) -> Result<ProcessorState, String> {
         let start_address = config.start_address;
         if config.xlen == XLen::X32 && start_address.leading_zeros() < 32 {
             return Err(format!("invalid start addr {:#x} when xlen == X32!", start_address));
@@ -137,6 +139,7 @@ impl ProcessorState {
             pc: RefCell::new(0),
             next_pc: RefCell::new(start_address),
             ir: RefCell::new(0),
+            clint: clint.clone(),
         };
         state.reset()?;
         Ok(state)
@@ -149,7 +152,33 @@ impl ProcessorState {
         *self.next_pc.borrow_mut() = self.config().start_address;
         *self.ir.borrow_mut() = 0;
         self.add_extension()?;
-
+        //register clint:0:msip, 1:mtip
+        self.csrs::<ICsrs>().unwrap().mip_mut().set_msip_transform({
+            let clint = self.clint.clone();
+            move |_| {
+                clint.clr_pending(0).unwrap();
+                0
+            }
+        });
+        self.csrs::<ICsrs>().unwrap().mip_mut().msip_transform({
+            let clint = self.clint.clone();
+            move |_| {
+                clint.pending(0).unwrap() as RegT
+            }
+        });
+        self.csrs::<ICsrs>().unwrap().mip_mut().set_mtip_transform({
+            let clint = self.clint.clone();
+            move |_| {
+                clint.clr_pending(1).unwrap();
+                0
+            }
+        });
+        self.csrs::<ICsrs>().unwrap().mip_mut().mtip_transform({
+            let clint = self.clint.clone();
+            move |_| {
+                clint.pending(1).unwrap() as RegT
+            }
+        });
         //hartid
         self.csrs::<ICsrs>().unwrap().mhartid_mut().set(self.config().hartid);
 
@@ -361,8 +390,8 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn new(config: ProcessorCfg, bus: &Arc<Bus>, cmd: SimCmdSink) -> Processor {
-        let state = match ProcessorState::new(config) {
+    pub fn new(config: ProcessorCfg, bus: &Arc<Bus>, clint: &Arc<IrqVec>, cmd: SimCmdSink) -> Processor {
+        let state = match ProcessorState::new(config, clint) {
             Ok(state) => Rc::new(state),
             Err(msg) => panic!(msg)
         };
@@ -380,7 +409,7 @@ impl Processor {
     }
 
     pub fn reset(&self) {
-        if let Err(msg) = self.state.reset(){
+        if let Err(msg) = self.state.reset() {
             panic!(msg)
         }
     }
