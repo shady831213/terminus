@@ -101,12 +101,11 @@ struct SimCmdSource {
 }
 
 pub struct SimController {
-    channels: Mutex<HashMap<RegT, SimCmdSource>>
+    channels: Mutex<Vec<SimCmdSource>>
 }
 
 #[derive(Debug)]
 pub enum SimCtrlError {
-    HartIdExisted,
     HartIdNotExisted,
     CmdSendError(SendError<SimCmd>),
     RespSendError(SendError<SimResp>),
@@ -141,26 +140,24 @@ impl From<TryRecvError> for SimCtrlError {
 impl SimController {
     fn new() -> SimController {
         SimController {
-            channels: Mutex::new(HashMap::new())
+            channels: Mutex::new(vec![])
         }
     }
 
-    pub fn register_ch(&self, hartid: RegT) -> Result<SimCmdSink, SimCtrlError> {
+    pub fn register_ch(&self) -> SimCmdSink {
         let (cmd_sender, cmd_receiver) = channel();
         let (resp_sender, resp_receiver) = channel();
-        if let Some(_) = self.channels.lock().unwrap().insert(hartid, SimCmdSource { cmd: cmd_sender, resp: resp_receiver }) {
-            Err(SimCtrlError::HartIdExisted)
-        } else {
-            Ok(SimCmdSink { cmd: cmd_receiver, resp: resp_sender })
-        }
+        self.channels.lock().unwrap().push(SimCmdSource { cmd: cmd_sender, resp: resp_receiver });
+        SimCmdSink { cmd: cmd_receiver, resp: resp_sender }
     }
 
     pub fn send_cmd(&self, hartid: RegT, cmd: SimCmd) -> Result<SimResp, SimCtrlError> {
-        if let Some(ch) = self.channels.lock().unwrap().get(&hartid) {
-            ch.cmd.send(cmd)?;
-            Ok(ch.resp.recv()?)
-        } else {
+        let channels = self.channels.lock().unwrap();
+        if hartid as usize >= channels.len() {
             Err(SimCtrlError::HartIdNotExisted)
+        } else {
+            channels[hartid as usize].cmd.send(cmd)?;
+            Ok(channels[hartid as usize].resp.recv()?)
         }
     }
 }
@@ -192,9 +189,8 @@ impl System {
     pub fn new_processor<F: Fn(&Processor) + std::marker::Send + 'static>(&self, name: &str, config: ProcessorCfg, f: F) -> io::Result<JoinHandle<()>> {
         thread::Builder::new().name(name.to_string()).spawn({
             let bus = self.bus().clone();
-            let hartid = config.hartid;
             let clint = Arc::new(IrqVec::new(2));
-            let sink = self.sim_controller().register_ch(hartid).unwrap();
+            let sink = self.sim_controller().register_ch();
             move || {
                 //fixme:irqvec should be create by clint
                 let p = Processor::new(config, &bus, &clint, sink);
