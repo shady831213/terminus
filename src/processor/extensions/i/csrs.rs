@@ -43,7 +43,25 @@ pub ICsrs(0x0, 0xfff) {
     pmpaddr13(RW):PmpAddr, 0x3BD;
     pmpaddr14(RW):PmpAddr, 0x3BE;
     pmpaddr15(RW):PmpAddr, 0x3BF;
+    mvendorid(RO):Mvendorid, 0xF11;
+    marchid(RO):Marchid, 0xF12;
+    mimpid(RO):Mimpid, 0xF13;
     mhartid(RO):Mhartid, 0xF14;
+}
+}
+
+define_csr! {
+Mvendorid {
+}
+}
+
+define_csr! {
+Marchid {
+}
+}
+
+define_csr! {
+Mimpid {
 }
 }
 

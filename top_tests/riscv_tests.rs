@@ -183,6 +183,7 @@ fn main() {
     //riscv_test!(XLen::X64, "rv64mi-p-illegal");
     riscv_test!(XLen::X64, "rv64mi-p-ma_addr");
     riscv_test!(XLen::X64, "rv64mi-p-ma_fetch");
+    riscv_test!(XLen::X64, "rv64mi-p-mcsr");
 
     term_exit()
 }
