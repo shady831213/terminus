@@ -212,7 +212,7 @@ fn timer_test() {
         move || {
             loop {
                 thread::sleep(Duration::from_millis(5));
-                c.tick(1);
+                c.tick(5);
             }
         }
     }

@@ -153,26 +153,26 @@ impl ProcessorState {
         *self.ir.borrow_mut() = 0;
         self.add_extension()?;
         //register clint:0:msip, 1:mtip
-        self.csrs::<ICsrs>().unwrap().mip_mut().set_msip_transform({
-            let clint = self.clint.clone();
-            move |_| {
-                clint.clr_pending(0).unwrap();
-                0
-            }
-        });
+        // self.csrs::<ICsrs>().unwrap().mip_mut().set_msip_transform({
+        //     let clint = self.clint.clone();
+        //     move |_| {
+        //         clint.clr_pending(0).unwrap();
+        //         0
+        //     }
+        // });
         self.csrs::<ICsrs>().unwrap().mip_mut().msip_transform({
             let clint = self.clint.clone();
             move |_| {
                 clint.pending(0).unwrap() as RegT
             }
         });
-        self.csrs::<ICsrs>().unwrap().mip_mut().set_mtip_transform({
-            let clint = self.clint.clone();
-            move |_| {
-                clint.clr_pending(1).unwrap();
-                0
-            }
-        });
+        // self.csrs::<ICsrs>().unwrap().mip_mut().set_mtip_transform({
+        //     let clint = self.clint.clone();
+        //     move |_| {
+        //         clint.clr_pending(1).unwrap();
+        //         0
+        //     }
+        // });
         self.csrs::<ICsrs>().unwrap().mip_mut().mtip_transform({
             let clint = self.clint.clone();
             move |_| {
