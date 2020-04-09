@@ -144,7 +144,7 @@ impl SimController {
         }
     }
 
-    pub fn register_ch(&self) -> SimCmdSink {
+    fn register_ch(&self) -> SimCmdSink {
         let (cmd_sender, cmd_receiver) = channel();
         let (resp_sender, resp_receiver) = channel();
         self.channels.lock().unwrap().push(SimCmdSource { cmd: cmd_sender, resp: resp_receiver });
