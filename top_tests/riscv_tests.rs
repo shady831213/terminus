@@ -178,12 +178,26 @@ fn main() {
     riscv_test!(XLen::X64, "rv64mi-p-access");
     //no debug
     //riscv_test!(XLen::X64, "rv64mi-p-breakpoint");
+    //riscv_test!(XLen::X64, "rv64mi-p-sbreak");
     riscv_test!(XLen::X64, "rv64mi-p-csr");
     //no interrupt
     //riscv_test!(XLen::X64, "rv64mi-p-illegal");
     riscv_test!(XLen::X64, "rv64mi-p-ma_addr");
     riscv_test!(XLen::X64, "rv64mi-p-ma_fetch");
     riscv_test!(XLen::X64, "rv64mi-p-mcsr");
+    riscv_test!(XLen::X64, "rv64mi-p-scall");
+
+    //no debug
+    //riscv_test!(XLen::X64, "rv32mi-p-breakpoint");
+    //riscv_test!(XLen::X64, "rv32mi-p-sbreak");
+    riscv_test!(XLen::X64, "rv32mi-p-csr");
+    //no interrupt
+    //riscv_test!(XLen::X64, "rv32mi-p-illegal");
+    riscv_test!(XLen::X64, "rv32mi-p-ma_addr");
+    riscv_test!(XLen::X64, "rv32mi-p-ma_fetch");
+    riscv_test!(XLen::X64, "rv32mi-p-mcsr");
+    riscv_test!(XLen::X64, "rv32mi-p-scall");
+    riscv_test!(XLen::X64, "rv32mi-p-shamt");
 
     term_exit()
 }
