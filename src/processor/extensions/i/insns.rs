@@ -1028,6 +1028,18 @@ impl Execution for ECALL {
 
 #[derive(Instruction)]
 #[format(I)]
+#[code("0b00000000000100000000000001110011")]
+#[derive(Debug)]
+struct EBREAK(InsnT);
+
+impl Execution for EBREAK {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        return Err(Exception::Breakpoint)
+    }
+}
+
+#[derive(Instruction)]
+#[format(I)]
 #[code("0b00010000001000000000000001110011")]
 #[derive(Debug)]
 struct SRET(InsnT);
@@ -1072,6 +1084,7 @@ impl Execution for MRET {
         Ok(())
     }
 }
+
 
 #[derive(Instruction)]
 #[format(I)]

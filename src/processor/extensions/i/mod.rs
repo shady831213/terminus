@@ -18,6 +18,8 @@ impl ExtensionI {
         let e = ExtensionI {
             csrs: Rc::new(ICsrs::new(cfg.xlen))
         };
+        //no debug
+        e.csrs.tselect_mut().set(0xffff_ffff_ffff_ffff);
         //deleg sstatus to mstatus
         macro_rules! deleg_sstatus_set {
                     ($setter:ident, $transform:ident) => {

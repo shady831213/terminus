@@ -43,6 +43,8 @@ pub ICsrs(0x0, 0xfff) {
     pmpaddr13(RW):PmpAddr, 0x3BD;
     pmpaddr14(RW):PmpAddr, 0x3BE;
     pmpaddr15(RW):PmpAddr, 0x3BF;
+    //no debug
+    tselect(RO):Tselect, 0x7A0;
     mvendorid(RO):Mvendorid, 0xF11;
     marchid(RO):Marchid, 0xF12;
     mimpid(RO):Mimpid, 0xF13;
@@ -310,6 +312,10 @@ Tval {}
 
 define_csr! {
 Scratch {}
+}
+
+define_csr! {
+Tselect {}
 }
 
 
