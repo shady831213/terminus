@@ -128,6 +128,34 @@ impl ProcessorState {
     }
 
     fn reset(&self) -> Result<(), String> {
+        macro_rules! deleg_csr_set {
+                    ($src:ident, $tar:ident, $setter:ident, $transform:ident) => {
+                        self.csrs::<ICsrs>().unwrap().$src().$transform({
+                        let _csrs = self.csrs::<ICsrs>().unwrap();
+                            move |field| {
+                                _csrs.$tar().$setter(field);
+                                field
+                            }
+                        });
+                    }
+                };
+        macro_rules! deleg_csr_get {
+                    ($src:ident, $tar:ident, $getter:ident, $transform:ident) => {
+                        self.csrs::<ICsrs>().unwrap().$src().$transform({
+                        let _csrs = self.csrs::<ICsrs>().unwrap();
+                            move |_| {
+                                _csrs.$tar().$getter()
+                            }
+                        });
+                    }
+                };
+        macro_rules! deleg_csr {
+                    ($src:ident, $get_tar:ident, $getter:ident, $get_transform:ident, $set_tar:ident, $setter:ident, $set_transform:ident) => {
+                        deleg_csr_get!($src,$get_tar, $getter, $get_transform);
+                        deleg_csr_set!($src,$set_tar, $setter, $set_transform);
+                    }
+                };
+
         *self.xreg.borrow_mut() = [0 as RegT; 32];
         *self.extensions.borrow_mut() = HashMap::new();
         *self.pc.borrow_mut() = 0;
@@ -135,26 +163,12 @@ impl ProcessorState {
         *self.ir.borrow_mut() = 0;
         self.add_extension()?;
         //register clint:0:msip, 1:mtip
-        // self.csrs::<ICsrs>().unwrap().mip_mut().set_msip_transform({
-        //     let clint = self.clint.clone();
-        //     move |_| {
-        //         clint.clr_pending(0).unwrap();
-        //         0
-        //     }
-        // });
         self.csrs::<ICsrs>().unwrap().mip_mut().msip_transform({
             let clint = self.clint.clone();
             move |_| {
                 clint.pending(0).unwrap() as RegT
             }
         });
-        // self.csrs::<ICsrs>().unwrap().mip_mut().set_mtip_transform({
-        //     let clint = self.clint.clone();
-        //     move |_| {
-        //         clint.clr_pending(1).unwrap();
-        //         0
-        //     }
-        // });
         self.csrs::<ICsrs>().unwrap().mip_mut().mtip_transform({
             let clint = self.clint.clone();
             move |_| {
@@ -183,6 +197,22 @@ impl ProcessorState {
             .fold(0 as RegT, |acc, v| { acc | v });
         self.csrs::<ICsrs>().unwrap().misa_mut().set_extensions(extensions_value);
         //privilege_level config
+        macro_rules! deleg_sstatus {
+                    ($getter:ident, $get_transform:ident, $setter:ident, $set_transform:ident) => {
+                        deleg_csr!(sstatus_mut,mstatus, $getter, $get_transform, mstatus_mut, $setter, $set_transform);
+                    }
+                };
+        deleg_sstatus!(upie, upie_transform, set_upie, set_upie_transform);
+        deleg_sstatus!(sie, sie_transform, set_sie, set_sie_transform);
+        deleg_sstatus!(upie, upie_transform, set_upie, set_upie_transform);
+        deleg_sstatus!(spie, spie_transform, set_spie, set_spie_transform);
+        deleg_sstatus!(spp, spp_transform, set_spp, set_spp_transform);
+        deleg_sstatus!(fs, fs_transform, set_fs, set_fs_transform);
+        deleg_sstatus!(xs, xs_transform, set_xs, set_xs_transform);
+        deleg_sstatus!(sum, sum_transform, set_sum, set_sum_transform);
+        deleg_sstatus!(mxr, mxr_transform, set_mxr, set_mxr_transform);
+        deleg_sstatus!(sd, sd_transform, set_sd, set_sd_transform);
+        deleg_sstatus!(uxl, uxl_transform, set_uxl, set_uxl_transform);
         match self.config.privilege_level {
             PrivilegeLevel::MSU => {}
             PrivilegeLevel::MU => {
@@ -196,6 +226,7 @@ impl ProcessorState {
                 });
                 self.csrs::<ICsrs>().unwrap().mstatus_mut().set_spp_transform(|_| { 0 });
                 self.csrs::<ICsrs>().unwrap().mstatus_mut().set_tvm_transform(|_| { 0 });
+                self.csrs::<ICsrs>().unwrap().mstatus_mut().set_tsr_transform(|_| { 0 });
             }
             PrivilegeLevel::M => {
                 let m: u8 = Privilege::M.into();
@@ -205,6 +236,8 @@ impl ProcessorState {
                 });
                 self.csrs::<ICsrs>().unwrap().mstatus_mut().set_spp_transform(|_| { 0 });
                 self.csrs::<ICsrs>().unwrap().mstatus_mut().set_tvm_transform(|_| { 0 });
+                self.csrs::<ICsrs>().unwrap().mstatus_mut().set_tsr_transform(|_| { 0 });
+                self.csrs::<ICsrs>().unwrap().mstatus_mut().set_tw_transform(|_| { 0 });
             }
         }
         Ok(())
@@ -414,17 +447,46 @@ impl Processor {
         inst.execute(self)
     }
 
-    fn take_interrupt(&self) -> Result<(), Trap> {
+    fn take_interrupt(&self) -> Result<(), Interrupt> {
+        let csrs = self.state().csrs::<ICsrs>().unwrap();
+        let pendings = csrs.mip().get() & csrs.mie().get();
+        let mie = csrs.mstatus().mie();
+        let m_enabled = self.state().privilege() != Privilege::M || (self.state().privilege() == Privilege::M && mie == 1);
+        let m_pendings = pendings & !csrs.mideleg().get() & sext(m_enabled as RegT, 1);
+        let sie = csrs.mstatus().sie();
+        let s_enabled = self.state().privilege() == Privilege::U || (self.state().privilege() == Privilege::S && sie == 1);
+        let s_pendings = pendings & csrs.mideleg().get() & sext(s_enabled as RegT, 1);
+
+        //m_pendings > s_pendings
+        let interrupts = Mip::new(self.state().config().xlen,
+                                  if m_pendings == 0 {
+                                      s_pendings
+                                  } else {
+                                      m_pendings
+                                  });
+
+        // MEI > MSI > MTI > SEI > SSI > STI
+        if interrupts.meip() == 1 {
+            return Err(Interrupt::MEInt);
+        } else if interrupts.msip() == 1 {
+            return Err(Interrupt::MSInt);
+        } else if interrupts.mtip() == 1 {
+            return Err(Interrupt::MTInt);
+        } else if interrupts.seip() == 1 {
+            return Err(Interrupt::SEInt);
+        } else if interrupts.ssip() == 1 {
+            return Err(Interrupt::SSInt);
+        } else if interrupts.stip() == 1 {
+            return Err(Interrupt::STInt);
+        }
         Ok(())
     }
 
 
     fn execute_one(&self) -> Result<(), Trap> {
         self.take_interrupt()?;
-        match self.one_insn() {
-            Ok(_) => Ok(()),
-            Err(e) => Err(Trap::Exception(e))
-        }
+        self.one_insn()?;
+        Ok(())
     }
 
     fn handle_trap(&self, trap: Trap) {
@@ -441,7 +503,7 @@ impl Processor {
             } else {
                 0
             };
-            self.state().set_pc(tvec.base() << 2 + offset);
+            self.state().set_pc((tvec.base() << 2) + offset);
             csrs.scause_mut().set_code(code);
             csrs.scause_mut().set_int(int_flag);
             csrs.sepc_mut().set(self.state().pc());
@@ -460,7 +522,7 @@ impl Processor {
             } else {
                 0
             };
-            self.state().set_pc(tvec.base() << 2 + offset);
+            self.state().set_pc((tvec.base() << 2) + offset);
             csrs.mcause_mut().set_code(code);
             csrs.mcause_mut().set_int(int_flag);
             csrs.mepc_mut().set(self.state().pc());

@@ -1,7 +1,7 @@
 use terminus_global::*;
 use terminus_macros::*;
 use terminus_proc_macros::Instruction;
-use crate::processor::{Processor, Privilege};
+use crate::processor::{Processor, Privilege, PrivilegeLevel};
 use crate::processor::trap::Exception;
 use crate::processor::insn::*;
 use crate::processor::decode::*;
@@ -1036,6 +1036,10 @@ impl Execution for SRET {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_privilege_level(Privilege::S)?;
         let csrs = p.state().csrs::<ICsrs>().unwrap();
+        let tsr = csrs.mstatus().tsr();
+        if tsr == 1 && p.state().privilege() == Privilege::S {
+            return Err(Exception::IllegalInsn(self.ir()))
+        }
         let spp = csrs.mstatus().spp();
         let spie = csrs.mstatus().spie();
         csrs.mstatus_mut().set_sie(spie);
@@ -1083,6 +1087,25 @@ impl Execution for SFENCEVMA {
         }
         //fixme:no cache in fetcher, load_store and mmu for now
         p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(I)]
+#[code("0b00010000010100000000000001110011")]
+#[derive(Debug)]
+struct WFI(InsnT);
+
+impl Execution for WFI {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        let csrs = p.state().csrs::<ICsrs>().unwrap();
+        if csrs.mstatus().tw() != 0 && p.state().config().privilege_level != PrivilegeLevel::M {
+            return Err(Exception::IllegalInsn(self.ir()))
+        }
+        if csrs.mip().get() & csrs.mie().get() != 0{
+            p.state().set_pc(p.state().pc() + 4);
+        }
         Ok(())
     }
 }

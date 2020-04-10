@@ -244,14 +244,14 @@ use crate::system::System;
 
 #[test]
 fn pmp_basic_test() {
-    let mut sys = System::new("test", "top_tests/elf/rv64ui-p-add");
-
-    let p = sys.new_processor(ProcessorCfg {
+    let sys = System::new("test", "top_tests/elf/rv64ui-p-add", vec![ProcessorCfg {
         xlen: XLen::X32,
         privilege_level: PrivilegeLevel::MSU,
         enable_dirty: true,
         extensions: vec![].into_boxed_slice(),
-    });
+    }], 100);
+
+    let p = sys.processor(0).unwrap();
     //no valid region
     assert_eq!(p.mmu().match_pmpcfg_entry(0, 1), None);
     //NA4

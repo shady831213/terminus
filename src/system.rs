@@ -11,7 +11,7 @@ use super::devices::htif::HTIF;
 use std::fmt::{Display, Formatter};
 use crate::processor::{ProcessorCfg, Processor};
 use std::cmp::min;
-use terminus_spaceport::irq::IrqVec;
+use crate::devices::clint::Timer;
 
 #[derive_io(U8, U16, U32, U64)]
 pub struct Bus {
@@ -69,32 +69,35 @@ pub struct System {
     name: String,
     mem_space: Arc<Space>,
     bus: Arc<Bus>,
+    timer: Arc<Timer>,
     elf: ElfLoader,
     processors: Vec<Processor>,
 }
 
 impl System {
-    pub fn new(name: &str, elf_file: &str) -> System {
+    pub fn new(name: &str, elf_file: &str, processor_cfgs: Vec<ProcessorCfg>, timer_freq: usize) -> System {
         let space = SPACE_TABLE.get_space(name);
         let bus = Arc::new(Bus::new(&space));
         let elf = ElfLoader::new(elf_file).expect(&format!("Invalid Elf {}", elf_file));
-        let sys = System {
+        let mut sys = System {
             name: name.to_string(),
             mem_space: space,
             bus,
+            timer: Arc::new(Timer::new(timer_freq)),
             elf,
             processors: vec![],
         };
         sys.try_register_htif();
+        for cfg in processor_cfgs {
+            sys.new_processor(cfg)
+        }
         sys
     }
 
-    pub fn new_processor(&mut self, config: ProcessorCfg) -> &Processor {
-        let p = Processor::new(self.processors.len(), self.elf.entry_point().unwrap(), config, &self.bus, &Arc::new(IrqVec::new(2)));
-        self.processors.push(p);
-        self.processors.last().unwrap()
+    fn new_processor(&mut self, config: ProcessorCfg) {
+        let p = Processor::new(self.processors.len(), self.elf.entry_point().unwrap(), config, &self.bus, &self.timer().alloc_irq());
+        self.processors.push(p)
     }
-
 
     fn register_region(&self, name: &str, base: u64, region: &Arc<Region>) -> Result<Arc<Region>, space::Error> {
         self.mem_space.add_region(name, &Region::remap(base, &region))
@@ -106,12 +109,28 @@ impl System {
         }
     }
 
+    pub fn processor(&self, hartid: usize) -> Option<&Processor> {
+        if hartid >= self.processors.len() {
+            None
+        } else {
+            Some(&self.processors[hartid])
+        }
+    }
+
     pub fn bus(&self) -> &Arc<Bus> {
         &self.bus
     }
 
+    pub fn timer(&self) -> &Arc<Timer> {
+        &self.timer
+    }
+
     pub fn mem_space(&self) -> &Arc<Space> {
         &self.mem_space
+    }
+
+    pub fn register_device<D: IOAccess+'static>(&self, name: &str, base: u64, size: u64, device: D) -> Result<Arc<Region>, space::Error> {
+        self.register_region(name, base, &Region::io(base, size, Box::new(device)))
     }
 
     pub fn register_memory(&self, name: &str, base: u64, mem: &Arc<Region>) {

@@ -6,23 +6,27 @@ use terminus_spaceport::devices::term_exit;
 use std::ops::Deref;
 use std::path::Path;
 use terminus_spaceport::EXIT_CTRL;
+use terminus::devices::clint::Clint;
 
 fn riscv_test(xlen: XLen, name: &str, debug: bool) -> bool {
     EXIT_CTRL.reset();
-    let mut sys = System::new(name, Path::new("top_tests/elf").join(Path::new(name)).to_str().expect(&format!("{} not existed!", name)));
-    sys.register_memory("main_memory", 0x80000000, &GHEAP.alloc(0x10000000, 1).expect("main_memory alloc fail!"));
-    sys.register_memory("rom", 0x20000000, &GHEAP.alloc(0x10000000, 1).expect("rom alloc fail!"));
-    sys.load_elf();
-
     let processor_cfg = ProcessorCfg {
         xlen,
         privilege_level: PrivilegeLevel::MSU,
         enable_dirty: true,
         extensions: vec![].into_boxed_slice(),
     };
+    let sys = System::new(name, Path::new("top_tests/elf").join(Path::new(name)).to_str().expect(&format!("{} not existed!", name)), vec![processor_cfg], 100);
+    sys.register_memory("main_memory", 0x80000000, &GHEAP.alloc(0x10000000, 1).expect("main_memory alloc fail!"));
+    sys.register_memory("rom", 0x20000000, &GHEAP.alloc(0x10000000, 1).expect("rom alloc fail!"));
+    sys.register_device("clint", 0x20000, 0x10000, Clint::new(sys.timer())).unwrap();
+    sys.load_elf();
 
-    let p = sys.new_processor(processor_cfg);
 
+    let p = sys.processor(0).unwrap();
+
+    let interval: u64 = 100;
+    let mut interval_cnt: u64 = 0;
     loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
             if debug {
@@ -31,8 +35,12 @@ fn riscv_test(xlen: XLen, name: &str, debug: bool) -> bool {
             break;
         }
         p.step(1);
+        interval_cnt += 1;
         if debug {
             println!("{}", p.state().trace())
+        }
+        if interval_cnt % interval == interval - 1 {
+            sys.timer().tick(interval)
         }
     }
     if debug {
@@ -175,7 +183,7 @@ fn main() {
     //riscv_test!(XLen::X64, "rv64mi-p-sbreak");
     riscv_test!(XLen::X64, "rv64mi-p-csr");
     //no interrupt
-    //riscv_test!(XLen::X64, "rv64mi-p-illegal");
+    riscv_test!(XLen::X64, "rv64mi-p-illegal");
     riscv_test!(XLen::X64, "rv64mi-p-ma_addr");
     riscv_test!(XLen::X64, "rv64mi-p-ma_fetch");
     riscv_test!(XLen::X64, "rv64mi-p-mcsr");

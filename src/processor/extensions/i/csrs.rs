@@ -299,7 +299,7 @@ Scratch {}
 
 #[test]
 fn test_status() {
-    let mut status = MStatus::new(XLen::X32);
+    let mut status = MStatus::new(XLen::X32, 0);
     status.set_xs(0xf);
     assert_eq!(status.xs(), 0x3);
     status.set_xs(0);

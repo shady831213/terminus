@@ -122,7 +122,7 @@ use syn::parse_macro_input;
 /// }
 /// }
 /// fn main() {
-///     let mut test = Test::new(XLen::X64);
+///     let mut test = Test::new(XLen::X64, 0);
 ///     test.set_field1_transform(|value|{
 ///         if value == 1 {
 ///             3
@@ -142,7 +142,7 @@ use syn::parse_macro_input;
 ///     assert_eq!(test.get(), 0x1_0000_0070);
 ///     assert_eq!(test.field2(), 0x1);
 ///
-///     let mut test2 = Test::new(XLen::X32);
+///     let mut test2 = Test::new(XLen::X32, 0);
 ///     test2.set_field1(0xffff_ffff_ffff);
 ///     assert_eq!(test2.field1(), 0x7);
 ///     test2.set_field2(0xffff_ffff_ffff);
@@ -225,10 +225,10 @@ use syn::parse_macro_input;
 /// }
 ///
 /// impl Test {
-///     pub fn new(xlen:XLen) -> Test {
+///     pub fn new(xlen:XLen, init:RegT) -> Test {
 ///         Test {
 ///             xlen,
-///             csr:TestU{x64:Test64(0)}
+///             csr:TestU{x64:Test64(init)}
 ///         }
 ///     }
 /// }
@@ -283,7 +283,7 @@ use syn::parse_macro_input;
 ///     }
 /// }
 /// fn main() {
-///     let mut test = Test::new(XLen::X64);
+///     let mut test = Test::new(XLen::X64, 0);
 ///     test.set_field3(0xff);
 ///     assert_eq!(test.field3(), 0x1);
 ///     test.set_field2(3);
@@ -294,7 +294,7 @@ use syn::parse_macro_input;
 ///     assert_eq!(test.get(), 0x1_0000_0070);
 ///     assert_eq!(test.field2(), 0x1);
 ///
-///     let mut test2 = Test::new(XLen::X32);
+///     let mut test2 = Test::new(XLen::X32, 0);
 ///     test2.set_field1(0xffff_ffff_ffff);
 ///     assert_eq!(test2.field1(), 0x7);
 ///     test2.set_field2(0xffff_ffff_ffff);

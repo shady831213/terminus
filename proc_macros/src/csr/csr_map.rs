@@ -168,9 +168,9 @@ impl<'a> Maps<'a> {
             let name = &csr_map.name;
             let ty = &csr_map.ty;
             if locked {
-                quote! {#name:std::sync::Mutex::new(#ty::new(xlen)),}
+                quote! {#name:std::sync::Mutex::new(#ty::new(xlen, 0)),}
             } else {
-                quote! {#name:std::cell::RefCell::new(#ty::new(xlen)),}
+                quote! {#name:std::cell::RefCell::new(#ty::new(xlen, 0)),}
             }
         });
         let write_matchs = quote_map_fold(self.maps.iter(), |csr_map| {

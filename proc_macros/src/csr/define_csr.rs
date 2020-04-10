@@ -405,10 +405,10 @@ impl<'a> FieldSet<'a> {
             }
 
             impl #top_name {
-                pub fn new(xlen:XLen) -> #top_name {
+                pub fn new(xlen:XLen, init:RegT) -> #top_name {
                     #top_name{
                         xlen,
-                        csr:#union_name{x64:{#struct64_name(0)}},
+                        csr:#union_name{x64:{#struct64_name(init)}},
                         transforms:#transforms_name::new()
                     }
                 }

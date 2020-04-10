@@ -1,8 +1,21 @@
 use terminus_global::{InsnT, RegT};
+
 #[derive(Debug, Copy, Clone)]
 pub enum Trap {
     Exception(Exception),
     Interrupt(Interrupt),
+}
+
+impl From<Exception> for Trap {
+    fn from(e: Exception) -> Self {
+        Trap::Exception(e)
+    }
+}
+
+impl From<Interrupt> for Trap {
+    fn from(i: Interrupt) -> Self {
+        Trap::Interrupt(i)
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
