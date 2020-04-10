@@ -3,16 +3,13 @@ use terminus_spaceport::memory::{MemInfo, region};
 use terminus_spaceport::space::{Space, SPACE_TABLE};
 use terminus_spaceport::space;
 use terminus_spaceport::derive_io;
-use std::sync::{Arc, Mutex};
-use std::{fmt, io, thread};
+use std::sync::Arc;
+use std::fmt;
 use super::elf::ElfLoader;
 use std::ops::Deref;
 use super::devices::htif::HTIF;
 use std::fmt::{Display, Formatter};
-use terminus_global::RegT;
-use std::sync::mpsc::{Sender, Receiver, channel, SendError, RecvError, TryRecvError};
-use crate::processor::{ProcessorCfg, Processor, ProcessorStateSnapShot};
-use std::thread::JoinHandle;
+use crate::processor::{ProcessorCfg, Processor};
 use std::cmp::min;
 use terminus_spaceport::irq::IrqVec;
 
@@ -68,111 +65,12 @@ impl U64Access for Bus {
 }
 
 
-pub enum SimCmd {
-    Exit,
-    RunOne,
-    RunAll,
-    RunN(usize),
-}
-
-pub enum SimResp {
-    Resp(ProcessorStateSnapShot),
-    Exited(String, ProcessorStateSnapShot),
-}
-
-pub struct SimCmdSink {
-    cmd: Receiver<SimCmd>,
-    resp: Sender<SimResp>,
-}
-
-impl SimCmdSink {
-    pub fn new(cmd: Receiver<SimCmd>, resp: Sender<SimResp>) -> SimCmdSink {
-        SimCmdSink {
-            cmd,
-            resp,
-        }
-    }
-    pub fn cmd(&self) -> &Receiver<SimCmd> {
-        &self.cmd
-    }
-    pub fn resp(&self) -> &Sender<SimResp> {
-        &self.resp
-    }
-}
-
-struct SimCmdSource {
-    cmd: Sender<SimCmd>,
-    resp: Receiver<SimResp>,
-}
-
-pub struct SimController {
-    channels: Mutex<Vec<SimCmdSource>>
-}
-
-#[derive(Debug)]
-pub enum SimCtrlError {
-    HartIdNotExisted,
-    CmdSendError(SendError<SimCmd>),
-    RespSendError(SendError<SimResp>),
-    RecvError(RecvError),
-    TryRecvError(TryRecvError),
-}
-
-impl From<SendError<SimCmd>> for SimCtrlError {
-    fn from(e: SendError<SimCmd>) -> SimCtrlError {
-        SimCtrlError::CmdSendError(e)
-    }
-}
-
-impl From<SendError<SimResp>> for SimCtrlError {
-    fn from(e: SendError<SimResp>) -> SimCtrlError {
-        SimCtrlError::RespSendError(e)
-    }
-}
-
-impl From<RecvError> for SimCtrlError {
-    fn from(e: RecvError) -> SimCtrlError {
-        SimCtrlError::RecvError(e)
-    }
-}
-
-impl From<TryRecvError> for SimCtrlError {
-    fn from(e: TryRecvError) -> SimCtrlError {
-        SimCtrlError::TryRecvError(e)
-    }
-}
-
-impl SimController {
-    fn new() -> SimController {
-        SimController {
-            channels: Mutex::new(vec![])
-        }
-    }
-
-    fn register_ch(&self) -> SimCmdSink {
-        let (cmd_sender, cmd_receiver) = channel();
-        let (resp_sender, resp_receiver) = channel();
-        self.channels.lock().unwrap().push(SimCmdSource { cmd: cmd_sender, resp: resp_receiver });
-        SimCmdSink::new(cmd_receiver, resp_sender)
-    }
-
-    pub fn send_cmd(&self, hartid: RegT, cmd: SimCmd) -> Result<SimResp, SimCtrlError> {
-        let channels = self.channels.lock().unwrap();
-        if hartid as usize >= channels.len() {
-            Err(SimCtrlError::HartIdNotExisted)
-        } else {
-            channels[hartid as usize].cmd.send(cmd)?;
-            Ok(channels[hartid as usize].resp.recv()?)
-        }
-    }
-}
-
 pub struct System {
     name: String,
     mem_space: Arc<Space>,
     bus: Arc<Bus>,
     elf: ElfLoader,
-    sim_controller: SimController,
+    processors: Vec<Processor>,
 }
 
 impl System {
@@ -185,23 +83,16 @@ impl System {
             mem_space: space,
             bus,
             elf,
-            sim_controller: SimController::new(),
+            processors: vec![],
         };
         sys.try_register_htif();
         sys
     }
 
-    pub fn new_processor<F: Fn(&Processor) + std::marker::Send + 'static>(&self, name: &str, config: ProcessorCfg, f: F) -> io::Result<JoinHandle<()>> {
-        thread::Builder::new().name(name.to_string()).spawn({
-            let bus = self.bus().clone();
-            let clint = Arc::new(IrqVec::new(2));
-            let sink = self.sim_controller().register_ch();
-            move || {
-                //fixme:irqvec should be create by clint
-                let p = Processor::new(config, &bus, &clint, sink);
-                f(&p);
-            }
-        })
+    pub fn new_processor(&mut self, config: ProcessorCfg) -> &Processor {
+        let p = Processor::new(self.processors.len(), self.elf.entry_point().unwrap(), config, &self.bus, &Arc::new(IrqVec::new(2)));
+        self.processors.push(p);
+        self.processors.last().unwrap()
     }
 
 
@@ -217,10 +108,6 @@ impl System {
 
     pub fn bus(&self) -> &Arc<Bus> {
         &self.bus
-    }
-
-    pub fn sim_controller(&self) -> &SimController {
-        &self.sim_controller
     }
 
     pub fn mem_space(&self) -> &Arc<Space> {
@@ -257,9 +144,6 @@ impl System {
         }
     }
 
-    pub fn entry_point(&self) -> Result<u64, String> {
-        self.elf.entry_point()
-    }
 
     pub fn load_elf(&self) {
         self.elf.load(|addr, data| {

@@ -1,5 +1,5 @@
 use terminus::processor::{ProcessorCfg, PrivilegeLevel};
-use terminus::system::{System, SimCmd, SimResp};
+use terminus::system::System;
 use terminus_global::XLen;
 use terminus_spaceport::memory::region::{GHEAP, U64Access};
 use terminus_spaceport::devices::term_exit;
@@ -9,41 +9,35 @@ use terminus_spaceport::EXIT_CTRL;
 
 fn riscv_test(xlen: XLen, name: &str, debug: bool) -> bool {
     EXIT_CTRL.reset();
-    let sys = System::new(name, Path::new("top_tests/elf").join(Path::new(name)).to_str().expect(&format!("{} not existed!", name)));
+    let mut sys = System::new(name, Path::new("top_tests/elf").join(Path::new(name)).to_str().expect(&format!("{} not existed!", name)));
     sys.register_memory("main_memory", 0x80000000, &GHEAP.alloc(0x10000000, 1).expect("main_memory alloc fail!"));
     sys.register_memory("rom", 0x20000000, &GHEAP.alloc(0x10000000, 1).expect("rom alloc fail!"));
     sys.load_elf();
 
     let processor_cfg = ProcessorCfg {
         xlen,
-        hartid: 0,
-        start_address: sys.entry_point().expect("Invalid ELF!"),
         privilege_level: PrivilegeLevel::MSU,
         enable_dirty: true,
         extensions: vec![].into_boxed_slice(),
     };
 
-    let p0 = sys.new_processor("p0", processor_cfg, |p| {
-        p.run().unwrap();
-    }).unwrap();
+    let p = sys.new_processor(processor_cfg);
 
-    if debug {
-        loop {
-            let resp = sys.sim_controller().send_cmd(0, SimCmd::RunOne);
-            if let Ok(SimResp::Exited(msg, resp)) = resp {
-                println!("{}:", msg);
-                println!("{}", resp.to_string());
-                break;
-            } else if let Ok(SimResp::Resp(resp)) = resp {
-                println!("{}", resp.trace());
-            } else if resp.is_err() {
-                break;
+    loop {
+        if let Ok(msg) = EXIT_CTRL.poll() {
+            if debug {
+                println!("{}", msg)
             }
+            break;
         }
-    } else {
-        sys.sim_controller().send_cmd(0, SimCmd::RunAll).unwrap();
+        p.step(1);
+        if debug {
+            println!("{}", p.state().trace())
+        }
     }
-    p0.join().unwrap();
+    if debug {
+        println!("{}", p.state().to_string())
+    }
 
     let htif = sys.mem_space().get_region("htif").unwrap();
     U64Access::read(htif.deref(), htif.info.base).unwrap() == 0x1
