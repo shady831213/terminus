@@ -14,8 +14,8 @@ pub ICsrs(0x0, 0xfff) {
     satp(RW):Satp, 0x180;
     mstatus(RW):MStatus, 0x300;
     misa(RW):Misa, 0x301;
-    medeleg(RW):Deleg, 0x302;
-    mideleg(RW):Deleg, 0x303;
+    medeleg(RW):Medeleg, 0x302;
+    mideleg(RW):Mideleg, 0x303;
     mie(RW):Mie, 0x304;
     mtvec(RW):Tvec, 0x305;
     mscratch(RW):Scratch, 0x340;
@@ -209,18 +209,34 @@ Tvec {
 }
 
 define_csr! {
-Deleg{}
+Medeleg{}
+}
+
+define_csr! {
+Mideleg {
+    fields{
+        usip(RW):0,0;
+        ssip(RW):1,1;
+        msip(RW):3,3;
+        utip(RW):4,4;
+        stip(RW):5,5;
+        mtip(RW):7,7;
+        ueip(RW):8,8;
+        seip(RW):9,9;
+        meip(RW):11,11;
+    }
+}
 }
 
 define_csr! {
 Sip {
     fields{
-        usip(RW):0,0;
+        usip(RO):0,0;
         ssip(RW):1,1;
-        utip(RW):4,4;
-        stip(RW):5,5;
-        ueip(RW):8,8;
-        seip(RW):9,9;
+        utip(RO):4,4;
+        stip(RO):5,5;
+        ueip(RO):8,8;
+        seip(RO):9,9;
     }
 }
 }

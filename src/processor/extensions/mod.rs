@@ -55,8 +55,8 @@ impl Extension {
             'c' => Ok(Extension::C(ExtensionC {})),
             'd' => Ok(Extension::D(ExtensionD {})),
             'f' => Ok(Extension::F(ExtensionF {})),
-            'i' => Ok(Extension::I(ExtensionI::new(cfg.xlen))),
-            'm' => Ok(Extension::M(ExtensionM {})),
+            'i' => Ok(Extension::I(ExtensionI::new(cfg))),
+            'm' => Ok(Extension::M(ExtensionM::new(cfg))),
             'v' => Ok(Extension::V(ExtensionV {})),
             _ => Err(format!("unsupported extension \'{}\', supported extension is a, c, d, f, i, m or v!", id))
         }
