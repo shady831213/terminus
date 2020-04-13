@@ -104,9 +104,9 @@ impl Execution for MULW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('m')?;
         p.state().check_xlen(XLen::X64)?;
-        let rs1 = BigInt::from(p.state().xreg(self.rs1() as RegT) as i32);
-        let rs2 = BigInt::from(p.state().xreg(self.rs2() as RegT) as i32);
-        p.state().set_xreg(self.rd() as RegT, bigint_to_reg(rs1 * rs2, 4) & p.state().config().xlen.mask());
+        let rs1: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs1() as RegT), 32));
+        let rs2: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs2() as RegT), 32));
+        p.state().set_xreg(self.rd() as RegT, sext((rs1 * rs2).0, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
