@@ -1,7 +1,7 @@
 use terminus_global::*;
 use terminus_macros::*;
 use terminus_proc_macros::Instruction;
-use crate::processor::{Processor, Privilege, PrivilegeLevel};
+use crate::processor::Processor;
 use crate::processor::trap::Exception;
 use crate::processor::insn::*;
 use crate::processor::decode::*;

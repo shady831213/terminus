@@ -39,25 +39,25 @@ trait NoCsr {
 
 
 pub enum Extension {
-    A(ExtensionA),
-    C(ExtensionC),
-    D(ExtensionD),
-    F(ExtensionF),
-    I(ExtensionI),
-    M(ExtensionM),
-    V(ExtensionV),
+    A(Rc<ExtensionA>),
+    C(Rc<ExtensionC>),
+    D(Rc<ExtensionD>),
+    F(Rc<ExtensionF>),
+    I(Rc<ExtensionI>),
+    M(Rc<ExtensionM>),
+    V(Rc<ExtensionV>),
 }
 
 impl Extension {
     pub fn new(cfg: &ProcessorCfg, id: char) -> Result<Extension, String> {
         match id {
-            'a' => Ok(Extension::A(ExtensionA {})),
-            'c' => Ok(Extension::C(ExtensionC {})),
-            'd' => Ok(Extension::D(ExtensionD {})),
-            'f' => Ok(Extension::F(ExtensionF {})),
-            'i' => Ok(Extension::I(ExtensionI::new(cfg))),
-            'm' => Ok(Extension::M(ExtensionM::new(cfg))),
-            'v' => Ok(Extension::V(ExtensionV {})),
+            'a' => Ok(Extension::A(Rc::new(ExtensionA {}))),
+            'c' => Ok(Extension::C(Rc::new(ExtensionC::new(cfg)))),
+            'd' => Ok(Extension::D(Rc::new(ExtensionD {}))),
+            'f' => Ok(Extension::F(Rc::new(ExtensionF::new(cfg)))),
+            'i' => Ok(Extension::I(Rc::new(ExtensionI::new(cfg)))),
+            'm' => Ok(Extension::M(Rc::new(ExtensionM::new(cfg)))),
+            'v' => Ok(Extension::V(Rc::new(ExtensionV {}))),
             _ => Err(format!("unsupported extension \'{}\', supported extension is a, c, d, f, i, m or v!", id))
         }
     }
