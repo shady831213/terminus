@@ -78,6 +78,27 @@ impl Execution for FSW {
     }
 }
 
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b0000000??????????????????1010011")]
+#[derive(Debug)]
+struct FADDS(InsnT);
+
+impl FloatInsn for FADDS {}
+
+impl Execution for FADDS {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        let f = self.get_f_ext(p)?;
+        let rs1: FRegT = f.freg(self.rs1() as RegT).bit_range(31, 0);
+        let rs2: FRegT = f.freg(self.rs2() as RegT).bit_range(31, 0);
+        let frs1 = rs1 as f32;
+        let frs2 = rs2 as f32;
+        f.set_freg(self.rd() as RegT, (frs1 + frs2) as FRegT & f.flen.mask());
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
 
 #[derive(Instruction)]
 #[format(R)]

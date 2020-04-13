@@ -236,8 +236,10 @@ fn main() {
     riscv_test!(XLen::X32, "rv32um-p-remu");
 
     //uf-p-*
+    // riscv_test!(XLen::X64, "rv64uf-p-fadd");
     riscv_test!(XLen::X64, "rv64uf-p-ldst");
 
+    // riscv_test!(XLen::X32, "rv32uf-p-fadd");
     riscv_test!(XLen::X32, "rv32uf-p-ldst");
 
     term_exit()

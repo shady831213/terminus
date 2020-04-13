@@ -184,7 +184,7 @@ impl ProcessorState {
             Ok(())
         };
         add_one_extension('i')?;
-        for &ext in self.config().extensions.iter() {
+        for &ext in self.config().extensions.iter().filter(|&e|{*e != 'i'}) {
             add_one_extension(ext)?
         }
         Ok(())

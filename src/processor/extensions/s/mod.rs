@@ -2,32 +2,58 @@ use std::rc::Rc;
 use crate::processor::ProcessorState;
 use crate::processor::extensions::HasCsr;
 use std::any::Any;
-use terminus_global::{RegT, XLen};
+use terminus_global::RegT;
 use crate::processor::extensions::i::csrs::*;
+use std::cell::RefCell;
 
 mod insns;
 pub mod csrs;
 
 use csrs::*;
+use std::ops::Deref;
 
 pub struct ExtensionS {
     csrs: Rc<SCsrs>,
+    tvm: Rc<RefCell<bool>>,
+    tsr: Rc<RefCell<bool>>,
+
 }
 
 impl ExtensionS {
     pub fn new(state: &ProcessorState) -> ExtensionS {
         let e = ExtensionS {
             csrs: Rc::new(SCsrs::new(state.config().xlen)),
+            tvm: Rc::new(RefCell::new(false)),
+            tsr: Rc::new(RefCell::new(false)),
         };
         let icsrs = state.csrs::<ICsrs>().unwrap();
-        //xlen config
-        match state.config().xlen {
-            XLen::X32 => {}
-            XLen::X64 => {
-                e.csrs.sstatus_mut().set_uxl(2);
+        //map tvm and tsr
+        icsrs.mstatus_mut().set_tvm_transform({
+            let tvm = e.tvm.clone();
+            move |value| {
+                *tvm.borrow_mut() = value & 0x1 == 1;
+                0
             }
-        }
-
+        });
+        icsrs.mstatus_mut().tvm_transform({
+            let tvm = e.tvm.clone();
+            move |_| {
+                *tvm.deref().borrow() as RegT
+            }
+        });
+        icsrs.mstatus_mut().set_tsr_transform({
+            let tsr = e.tsr.clone();
+            move |value| {
+                *tsr.borrow_mut() = value & 0x1 == 1;
+                0
+            }
+        });
+        icsrs.mstatus_mut().tsr_transform({
+            let tsr = e.tsr.clone();
+            move |_| {
+                *tsr.deref().borrow() as RegT
+            }
+        });
         //deleg sstatus to mstatus
         macro_rules! deleg_sstatus_set {
                     ($setter:ident, $transform:ident) => {

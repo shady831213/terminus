@@ -33,6 +33,9 @@ impl ExtensionI {
             }
         }
         );
+        //will be overrided if 's' implemented
+        e.csrs.mstatus_mut().set_tvm_transform(|_| { 0 });
+        e.csrs.mstatus_mut().set_tsr_transform(|_| { 0 });
         //xlen config
         match cfg.xlen {
             XLen::X32 => {
@@ -57,9 +60,6 @@ impl ExtensionI {
                         0
                     }
                 });
-                e.csrs.mstatus_mut().set_spp_transform(|_| { 0 });
-                e.csrs.mstatus_mut().set_tvm_transform(|_| { 0 });
-                e.csrs.mstatus_mut().set_tsr_transform(|_| { 0 });
             }
             PrivilegeLevel::M => {
                 let m: u8 = Privilege::M.into();
@@ -67,9 +67,6 @@ impl ExtensionI {
                 e.csrs.mstatus_mut().set_mpp_transform(move |_| {
                     m as RegT
                 });
-                e.csrs.mstatus_mut().set_spp_transform(|_| { 0 });
-                e.csrs.mstatus_mut().set_tvm_transform(|_| { 0 });
-                e.csrs.mstatus_mut().set_tsr_transform(|_| { 0 });
                 e.csrs.mstatus_mut().set_tw_transform(|_| { 0 });
             }
         }
