@@ -200,3 +200,91 @@ impl Execution for DIVUW {
         Ok(())
     }
 }
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b0000001??????????110?????0110011")]
+#[derive(Debug)]
+struct REM(InsnT);
+
+impl Execution for REM {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('m')?;
+        let rs1: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs1() as RegT), p.state().config().xlen.len()) as SRegT);
+        let rs2: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs2() as RegT), p.state().config().xlen.len()) as SRegT);
+        if rs2 == Wrapping(0 as SRegT) {
+            p.state().set_xreg(self.rd() as RegT, rs1.0 as RegT & p.state().config().xlen.mask());
+        } else {
+            p.state().set_xreg(self.rd() as RegT, (rs1 % rs2).0 as RegT & p.state().config().xlen.mask());
+        }
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b0000001??????????111?????0110011")]
+#[derive(Debug)]
+struct REMU(InsnT);
+
+impl Execution for REMU {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('m')?;
+        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
+        let rs2: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2() as RegT));
+        if rs2 == Wrapping(0 as RegT) {
+            p.state().set_xreg(self.rd() as RegT, rs1.0 & p.state().config().xlen.mask());
+        } else {
+            p.state().set_xreg(self.rd() as RegT, (rs1 % rs2).0 & p.state().config().xlen.mask());
+        }
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b0000001??????????110?????0111011")]
+#[derive(Debug)]
+struct REMW(InsnT);
+
+impl Execution for REMW {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('m')?;
+        p.state().check_xlen(XLen::X64)?;
+        let rs1: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs1() as RegT), 32) as SRegT);
+        let rs2: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs2() as RegT), 32) as SRegT);
+        if rs2 == Wrapping(0 as SRegT) {
+            p.state().set_xreg(self.rd() as RegT, sext(rs1.0 as RegT, 32) & p.state().config().xlen.mask());
+        } else {
+            p.state().set_xreg(self.rd() as RegT, sext((rs1 % rs2).0 as RegT, 32) & p.state().config().xlen.mask());
+        }
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b0000001??????????111?????0111011")]
+#[derive(Debug)]
+struct REMUW(InsnT);
+
+impl Execution for REMUW {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('m')?;
+        p.state().check_xlen(XLen::X64)?;
+        let rs1_u: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
+        let rs1: Wrapping<RegT> = Wrapping(rs1_u);
+        let rs2_u: RegT = p.state().xreg(self.rs2() as RegT).bit_range(31, 0);
+        let rs2: Wrapping<RegT> = Wrapping(rs2_u);
+        if rs2 == Wrapping(0 as RegT) {
+            p.state().set_xreg(self.rd() as RegT, sext(rs1.0, 32) & p.state().config().xlen.mask());
+        } else {
+            p.state().set_xreg(self.rd() as RegT, sext((rs1 % rs2).0 as RegT, 32) & p.state().config().xlen.mask());
+        }
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}

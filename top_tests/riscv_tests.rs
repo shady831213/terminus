@@ -222,13 +222,19 @@ fn main() {
     riscv_test!(XLen::X64, "rv64um-p-divu");
     riscv_test!(XLen::X64, "rv64um-p-divw");
     riscv_test!(XLen::X64, "rv64um-p-divuw");
+    riscv_test!(XLen::X64, "rv64um-p-rem");
+    riscv_test!(XLen::X64, "rv64um-p-remu");
+    riscv_test!(XLen::X64, "rv64um-p-remw");
+    riscv_test!(XLen::X64, "rv64um-p-remuw");
 
     riscv_test!(XLen::X32, "rv32um-p-mul");
     riscv_test!(XLen::X32, "rv32um-p-mulh");
     riscv_test!(XLen::X32, "rv32um-p-mulhsu");
     riscv_test!(XLen::X32, "rv32um-p-mulhu");
-    riscv_test!(XLen::X64, "rv32um-p-div");
-    riscv_test!(XLen::X64, "rv32um-p-divu");
+    riscv_test!(XLen::X32, "rv32um-p-div");
+    riscv_test!(XLen::X32, "rv32um-p-divu");
+    riscv_test!(XLen::X32, "rv32um-p-rem");
+    riscv_test!(XLen::X32, "rv32um-p-remu");
 
     term_exit()
 }
