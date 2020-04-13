@@ -1,4 +1,4 @@
-use crate::processor::ProcessorCfg;
+use crate::processor::ProcessorState;
 use terminus_global::*;
 
 pub mod a;
@@ -7,6 +7,8 @@ pub mod d;
 pub mod f;
 pub mod i;
 pub mod m;
+pub mod s;
+pub mod u;
 pub mod v;
 
 use a::*;
@@ -15,6 +17,8 @@ use d::*;
 use f::*;
 use i::*;
 use m::*;
+use s::*;
+use u::*;
 use v::*;
 use std::rc::Rc;
 use std::any::Any;
@@ -45,20 +49,24 @@ pub enum Extension {
     F(Rc<ExtensionF>),
     I(Rc<ExtensionI>),
     M(Rc<ExtensionM>),
+    S(Rc<ExtensionS>),
+    U(Rc<ExtensionU>),
     V(Rc<ExtensionV>),
 }
 
 impl Extension {
-    pub fn new(cfg: &ProcessorCfg, id: char) -> Result<Extension, String> {
+    pub fn new(state: &ProcessorState, id: char) -> Result<Extension, String> {
         match id {
             'a' => Ok(Extension::A(Rc::new(ExtensionA {}))),
-            'c' => Ok(Extension::C(Rc::new(ExtensionC::new(cfg)))),
+            'c' => Ok(Extension::C(Rc::new(ExtensionC::new(state.config())))),
             'd' => Ok(Extension::D(Rc::new(ExtensionD {}))),
-            'f' => Ok(Extension::F(Rc::new(ExtensionF::new(cfg)))),
-            'i' => Ok(Extension::I(Rc::new(ExtensionI::new(cfg)))),
-            'm' => Ok(Extension::M(Rc::new(ExtensionM::new(cfg)))),
+            'f' => Ok(Extension::F(Rc::new(ExtensionF::new(state)))),
+            'i' => Ok(Extension::I(Rc::new(ExtensionI::new(state.config())))),
+            'm' => Ok(Extension::M(Rc::new(ExtensionM::new(state.config())))),
+            's' => Ok(Extension::S(Rc::new(ExtensionS {}))),
+            'u' => Ok(Extension::U(Rc::new(ExtensionU {}))),
             'v' => Ok(Extension::V(Rc::new(ExtensionV {}))),
-            _ => Err(format!("unsupported extension \'{}\', supported extension is a, c, d, f, i, m or v!", id))
+            _ => Err(format!("unsupported extension \'{}\', supported extension is a, c, d, f, i, m, s, u or v!", id))
         }
     }
 }
@@ -72,6 +80,8 @@ impl HasCsr for Extension {
             Extension::F(f) => f.csrs(),
             Extension::I(i) => i.csrs(),
             Extension::M(m) => m.csrs(),
+            Extension::S(s) => s.csrs(),
+            Extension::U(u) => u.csrs(),
             Extension::V(v) => v.csrs(),
         }
     }
@@ -83,6 +93,8 @@ impl HasCsr for Extension {
             Extension::F(f) => f.csr_write(addr, value),
             Extension::I(i) => i.csr_write(addr, value),
             Extension::M(m) => m.csr_write(addr, value),
+            Extension::S(s) => s.csr_write(addr, value),
+            Extension::U(u) => u.csr_write(addr, value),
             Extension::V(v) => v.csr_write(addr, value),
         }
     }
@@ -94,6 +106,8 @@ impl HasCsr for Extension {
             Extension::F(f) => f.csr_read(addr),
             Extension::I(i) => i.csr_read(addr),
             Extension::M(m) => m.csr_read(addr),
+            Extension::S(s) => s.csr_read(addr),
+            Extension::U(u) => u.csr_read(addr),
             Extension::V(v) => v.csr_read(addr),
         }
     }

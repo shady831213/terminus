@@ -61,9 +61,22 @@ pub enum Privilege {
 #[derive(Debug, Clone)]
 pub struct ProcessorCfg {
     pub xlen: XLen,
-    pub privilege_level: PrivilegeLevel,
     pub enable_dirty: bool,
     pub extensions: Box<[char]>,
+}
+
+impl ProcessorCfg {
+    fn privilege_level(&self) -> PrivilegeLevel {
+        if self.extensions.contains(&'u') {
+            if self.extensions.contains(&'s') {
+                PrivilegeLevel::MSU
+            } else {
+                PrivilegeLevel::MU
+            }
+        } else {
+            PrivilegeLevel::M
+        }
+    }
 }
 
 
@@ -99,6 +112,11 @@ impl Display for ProcessorState {
         writeln!(f, "registers:")?;
         for (i, v) in self.xreg.borrow().iter().enumerate() {
             writeln!(f, "   x{:<2} : {:#x}", i, v)?;
+        }
+        if let Some(Extension::F(float)) = self.extensions().get(&'f') {
+            for (i, v) in float.fregs().iter().enumerate() {
+                writeln!(f, "   f{:<2} : {:#x}", i, v)?;
+            }
         }
         writeln!(f, "")?;
         Ok(())
@@ -160,7 +178,7 @@ impl ProcessorState {
 
     fn add_extension(&self) -> Result<(), String> {
         let add_one_extension = |id: char| -> Result<(), String>  {
-            let ext = Extension::new(self.config(), id)?;
+            let ext = Extension::new(self, id)?;
             self.extensions.borrow_mut().insert(id, ext);
             Ok(())
         };
@@ -244,7 +262,7 @@ impl ProcessorState {
     }
 
     pub fn check_privilege_level(&self, privilege: Privilege) -> Result<(), Exception> {
-        match self.config().privilege_level {
+        match self.config().privilege_level() {
             PrivilegeLevel::M => if privilege != Privilege::M {
                 return Err(Exception::IllegalInsn(*self.ir.borrow()));
             },
@@ -261,7 +279,7 @@ impl ProcessorState {
     }
 
     pub fn set_privilege(&self, privilege: Privilege) -> Privilege {
-        match self.config().privilege_level {
+        match self.config().privilege_level() {
             PrivilegeLevel::M => Privilege::M,
             PrivilegeLevel::MU => if privilege != Privilege::M {
                 *self.privilege.borrow_mut() = Privilege::U;

@@ -15,7 +15,11 @@ trait FloatInsn: InstructionImp {
     fn get_f_ext(&self, p: &Processor) -> Result<Rc<ExtensionF>, Exception> {
         p.state().check_extension('f')?;
         if let Some(Extension::F(f)) = p.state().extensions().get(&'f') {
-            Ok(f.clone())
+            if f.dirty() == 0 {
+                Err(Exception::IllegalInsn(self.ir()))
+            } else {
+                Ok(f.clone())
+            }
         } else {
             Err(Exception::IllegalInsn(self.ir()))
         }
@@ -69,6 +73,43 @@ impl Execution for FSW {
         let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
         let data = f.freg(self.src());
         p.load_store().store_word((base + self.offset()).0, data as RegT, p.mmu())?;
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b111000000000?????000?????1010011")]
+#[derive(Debug)]
+struct FMVXW(InsnT);
+
+impl FloatInsn for FMVXW {}
+
+impl Execution for FMVXW {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        let f = self.get_f_ext(p)?;
+        let data:RegT = f.freg(self.rs1() as RegT).bit_range(31, 0);
+        p.state().set_xreg(self.rd() as RegT, sext(data, 32) & p.state().config().xlen.mask());
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b111100000000?????000?????1010011")]
+#[derive(Debug)]
+struct FMVWX(InsnT);
+
+impl FloatInsn for FMVWX {}
+
+impl Execution for FMVWX {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        let f = self.get_f_ext(p)?;
+        let data:RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
+        f.set_freg(self.rd() as RegT, data as FRegT);
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }

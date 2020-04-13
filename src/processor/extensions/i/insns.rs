@@ -1113,7 +1113,7 @@ struct WFI(InsnT);
 impl Execution for WFI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let csrs = p.state().csrs::<ICsrs>().unwrap();
-        if csrs.mstatus().tw() != 0 && p.state().config().privilege_level != PrivilegeLevel::M {
+        if csrs.mstatus().tw() != 0 && p.state().config().privilege_level() != PrivilegeLevel::M {
             return Err(Exception::IllegalInsn(self.ir()))
         }
         if csrs.mip().get() & csrs.mie().get() != 0{

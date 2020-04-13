@@ -238,7 +238,7 @@ impl Mmu {
 #[cfg(test)]
 use terminus_global::XLen;
 #[cfg(test)]
-use crate::processor::{ProcessorCfg, PrivilegeLevel};
+use crate::processor::ProcessorCfg;
 #[cfg(test)]
 use crate::system::System;
 
@@ -246,7 +246,6 @@ use crate::system::System;
 fn pmp_basic_test() {
     let sys = System::new("test", "top_tests/elf/rv64ui-p-add", vec![ProcessorCfg {
         xlen: XLen::X32,
-        privilege_level: PrivilegeLevel::MSU,
         enable_dirty: true,
         extensions: vec![].into_boxed_slice(),
     }], 100);

@@ -1,14 +1,16 @@
-use crate::processor::ProcessorCfg;
-use std::cell::RefCell;
+use crate::processor::ProcessorState;
+use std::cell::{RefCell, Ref};
 use std::rc::Rc;
 use crate::processor::extensions::HasCsr;
 use std::any::Any;
 use terminus_global::RegT;
+use super::i::csrs::*;
 
 mod insns;
 pub mod csrs;
 
 use csrs::FCsrs;
+use std::ops::Deref;
 
 type FRegT = u128;
 
@@ -45,22 +47,42 @@ pub struct ExtensionF {
     flen: FLen,
     freg: RefCell<[FRegT; 32]>,
     csrs: Rc<FCsrs>,
+    dirty: Rc<RefCell<RegT>>,
 }
 
 impl ExtensionF {
-    pub fn new(cfg: &ProcessorCfg) -> ExtensionF {
+    pub fn new(state:&ProcessorState) -> ExtensionF {
         let mut e = ExtensionF {
             flen: FLen::F32,
             freg: RefCell::new([0 as FRegT; 32]),
-            csrs: Rc::new(FCsrs::new(cfg.xlen)),
+            csrs: Rc::new(FCsrs::new(state.config().xlen)),
+            dirty: Rc::new(RefCell::new(0)),
         };
 
-        if cfg.extensions.contains(&'q') {
+        if state.config().extensions.contains(&'q') {
             e.flen = FLen::F128
-        } else if cfg.extensions.contains(&'d') {
+        } else if state.config().extensions.contains(&'d') {
             e.flen = FLen::F64
         }
 
+        //map dirty to mstatus.fs
+        state.csrs::<ICsrs>().unwrap().mstatus_mut().set_fs_transform(
+            {
+                let dirty = e.dirty.clone();
+                move |value| {
+                    *dirty.borrow_mut() = value & 0x3;
+                    0
+                }
+            }
+        );
+        state.csrs::<ICsrs>().unwrap().mstatus_mut().fs_transform(
+            {
+                let dirty = e.dirty.clone();
+                move |_| {
+                    *dirty.deref().borrow()
+                }
+            }
+        );
         //deleg frm and fflags to fcsr
         macro_rules! deleg_fcsr_set {
                     ($src:ident, $setter:ident, $transform:ident) => {
@@ -111,8 +133,17 @@ impl ExtensionF {
     pub fn set_freg(&self, id: RegT, value: FRegT) {
         let trip_id = id & 0x1f;
         if trip_id != 0 {
+            *self.dirty.borrow_mut() = 0x3;
             (*self.freg.borrow_mut())[trip_id as usize] = value
         }
+    }
+
+    pub fn dirty(&self) -> RegT {
+        *self.dirty.deref().borrow()
+    }
+
+    pub fn fregs(&self) -> Ref<'_, [FRegT; 32]> {
+        self.freg.borrow()
     }
 }
 
@@ -121,9 +152,14 @@ impl HasCsr for ExtensionF {
         Some(self.csrs.clone() as Rc<dyn Any>)
     }
     fn csr_write(&self, addr: RegT, value: RegT) -> Option<()> {
+        *self.dirty.borrow_mut() = 0x3;
         self.csrs.write(addr, value)
     }
     fn csr_read(&self, addr: RegT) -> Option<RegT> {
-        self.csrs.read(addr)
+        if self.dirty() == 0 {
+            None
+        } else {
+            self.csrs.read(addr)
+        }
     }
 }

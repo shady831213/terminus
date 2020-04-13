@@ -96,11 +96,11 @@ SStatus {
          mxr(RW): 19, 19;
     },
     fields32 {
-         sd(RW): 31, 31;
+         sd(RO): 31, 31;
     },
     fields64 {
          uxl(RO): 33, 32;
-         sd(RW): 63, 63;
+         sd(RO): 63, 63;
     },
 }
 }

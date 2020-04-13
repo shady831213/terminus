@@ -1,4 +1,4 @@
-use terminus::processor::{ProcessorCfg, PrivilegeLevel};
+use terminus::processor::ProcessorCfg;
 use terminus::system::System;
 use terminus_global::XLen;
 use terminus_spaceport::memory::region::{GHEAP, U64Access};
@@ -12,9 +12,8 @@ fn riscv_test(xlen: XLen, name: &str, debug: bool) -> bool {
     EXIT_CTRL.reset();
     let processor_cfg = ProcessorCfg {
         xlen,
-        privilege_level: PrivilegeLevel::MSU,
         enable_dirty: true,
-        extensions: vec!['m', 'f'].into_boxed_slice(),
+        extensions: vec!['m', 'f', 's', 'u'].into_boxed_slice(),
     };
     let sys = System::new(name, Path::new("top_tests/elf").join(Path::new(name)).to_str().expect(&format!("{} not existed!", name)), vec![processor_cfg], 100);
     sys.register_memory("main_memory", 0x80000000, &GHEAP.alloc(0x10000000, 1).expect("main_memory alloc fail!"));
@@ -238,6 +237,8 @@ fn main() {
 
     //uf-p-*
     riscv_test!(XLen::X64, "rv64uf-p-ldst");
+
+    riscv_test!(XLen::X32, "rv32uf-p-ldst");
 
     term_exit()
 }

@@ -20,6 +20,19 @@ impl ExtensionI {
         };
         //no debug
         e.csrs.tselect_mut().set(0xffff_ffff_ffff_ffff);
+        //mstatus
+        //sd bit
+        e.csrs.mstatus_mut().sd_transform({
+            let csrs = e.csrs.clone();
+            move |_| {
+                if csrs.mstatus().fs() == 0x3 && csrs.mstatus().xs() == 0x3 {
+                    1
+                } else {
+                    0
+                }
+            }
+        }
+        );
         //deleg sstatus to mstatus
         macro_rules! deleg_sstatus_set {
                     ($setter:ident, $transform:ident) => {
@@ -138,7 +151,7 @@ impl ExtensionI {
         }
 
         //privilege_level config
-        match cfg.privilege_level {
+        match cfg.privilege_level() {
             PrivilegeLevel::MSU => {}
             PrivilegeLevel::MU => {
                 e.csrs.mstatus_mut().set_mpp_transform(|mpp| {
@@ -165,6 +178,7 @@ impl ExtensionI {
                 e.csrs.mstatus_mut().set_tw_transform(|_| { 0 });
             }
         }
+
         e
     }
 }
