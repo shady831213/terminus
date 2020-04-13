@@ -25,6 +25,7 @@ mod extensions;
 
 use extensions::*;
 use extensions::i::csrs::*;
+use extensions::s::csrs::*;
 
 mod mmu;
 
@@ -423,49 +424,50 @@ impl Processor {
     }
 
     fn handle_trap(&self, trap: Trap) {
-        let csrs = self.state().csrs::<ICsrs>().unwrap();
+        let mcsrs = self.state().csrs::<ICsrs>().unwrap();
         let (int_flag, deleg, code, tval) = match trap {
-            Trap::Exception(e) => (0 as RegT, csrs.medeleg().get(), e.code(), e.tval()),
-            Trap::Interrupt(i) => (1 as RegT, csrs.mideleg().get(), i.code(), i.tval()),
+            Trap::Exception(e) => (0 as RegT, mcsrs.medeleg().get(), e.code(), e.tval()),
+            Trap::Interrupt(i) => (1 as RegT, mcsrs.mideleg().get(), i.code(), i.tval()),
         };
         //deleg to s-mode
         if self.state().privilege() != Privilege::M && (deleg >> code) & 1 == 1 {
-            let tvec = csrs.stvec();
+            let scsrs = self.state().csrs::<SCsrs>().unwrap();
+            let tvec = scsrs.stvec();
             let offset = if tvec.mode() == 1 && int_flag == 1 {
                 code << 2
             } else {
                 0
             };
             self.state().set_pc((tvec.base() << 2) + offset);
-            csrs.scause_mut().set_code(code);
-            csrs.scause_mut().set_int(int_flag);
-            csrs.sepc_mut().set(self.state().pc());
-            csrs.stval_mut().set(tval);
+            scsrs.scause_mut().set_code(code);
+            scsrs.scause_mut().set_int(int_flag);
+            scsrs.sepc_mut().set(self.state().pc());
+            scsrs.stval_mut().set(tval);
 
-            let sie = csrs.mstatus().sie();
-            csrs.mstatus_mut().set_spie(sie);
+            let sie = mcsrs.mstatus().sie();
+            mcsrs.mstatus_mut().set_spie(sie);
             let priv_value: u8 = self.state().privilege().into();
-            csrs.mstatus_mut().set_spp(priv_value as RegT);
-            csrs.mstatus_mut().set_sie(0);
+            mcsrs.mstatus_mut().set_spp(priv_value as RegT);
+            mcsrs.mstatus_mut().set_sie(0);
             self.state().set_privilege(Privilege::S);
         } else {
-            let tvec = csrs.mtvec();
+            let tvec = mcsrs.mtvec();
             let offset = if tvec.mode() == 1 && int_flag == 1 {
                 code << 2
             } else {
                 0
             };
             self.state().set_pc((tvec.base() << 2) + offset);
-            csrs.mcause_mut().set_code(code);
-            csrs.mcause_mut().set_int(int_flag);
-            csrs.mepc_mut().set(self.state().pc());
-            csrs.mtval_mut().set(tval);
+            mcsrs.mcause_mut().set_code(code);
+            mcsrs.mcause_mut().set_int(int_flag);
+            mcsrs.mepc_mut().set(self.state().pc());
+            mcsrs.mtval_mut().set(tval);
 
-            let mie = csrs.mstatus().mie();
-            csrs.mstatus_mut().set_mpie(mie);
+            let mie = mcsrs.mstatus().mie();
+            mcsrs.mstatus_mut().set_mpie(mie);
             let priv_value: u8 = self.state().privilege().into();
-            csrs.mstatus_mut().set_mpp(priv_value as RegT);
-            csrs.mstatus_mut().set_mie(0);
+            mcsrs.mstatus_mut().set_mpp(priv_value as RegT);
+            mcsrs.mstatus_mut().set_mie(0);
             self.state().set_privilege(Privilege::M);
         }
     }

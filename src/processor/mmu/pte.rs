@@ -2,7 +2,7 @@ use terminus_spaceport::memory::region;
 use terminus_global::{XLen, RegT};
 use std::convert::TryFrom;
 use terminus_spaceport::memory::region::{U32Access, U64Access};
-use crate::processor::extensions::i::csrs::*;
+use crate::processor::extensions::s::csrs::*;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use crate::system::Bus;
 

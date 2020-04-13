@@ -1040,32 +1040,6 @@ impl Execution for EBREAK {
 
 #[derive(Instruction)]
 #[format(I)]
-#[code("0b00010000001000000000000001110011")]
-#[derive(Debug)]
-struct SRET(InsnT);
-
-impl Execution for SRET {
-    fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        p.state().check_privilege_level(Privilege::S)?;
-        let csrs = p.state().csrs::<ICsrs>().unwrap();
-        let tsr = csrs.mstatus().tsr();
-        if tsr == 1 && p.state().privilege() == Privilege::S {
-            return Err(Exception::IllegalInsn(self.ir()))
-        }
-        let spp = csrs.mstatus().spp();
-        let spie = csrs.mstatus().spie();
-        csrs.mstatus_mut().set_sie(spie);
-        csrs.mstatus_mut().set_spie(1);
-        let u_value: u8 = Privilege::U.into();
-        csrs.mstatus_mut().set_spp(u_value as RegT);
-        p.state().set_privilege(Privilege::try_from(spp as u8).unwrap());
-        p.state().set_pc(csrs.sepc().get());
-        Ok(())
-    }
-}
-
-#[derive(Instruction)]
-#[format(I)]
 #[code("0b00110000001000000000000001110011")]
 #[derive(Debug)]
 struct MRET(InsnT);
@@ -1081,25 +1055,6 @@ impl Execution for MRET {
         csrs.mstatus_mut().set_mpp(u_value as RegT);
         p.state().set_privilege(Privilege::try_from(mpp as u8).unwrap());
         p.state().set_pc(csrs.mepc().get());
-        Ok(())
-    }
-}
-
-
-#[derive(Instruction)]
-#[format(I)]
-#[code("0b0001001??????????000000001110011")]
-#[derive(Debug)]
-struct SFENCEVMA(InsnT);
-
-impl Execution for SFENCEVMA {
-    fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        p.state().check_privilege_level(Privilege::S)?;
-        if p.state().privilege() == Privilege::S && p.state().csrs::<ICsrs>().unwrap().mstatus().tvm() == 1 {
-            return Err(Exception::IllegalInsn(self.ir()));
-        }
-        //fixme:no cache in fetcher, load_store and mmu for now
-        p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
 }

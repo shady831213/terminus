@@ -63,7 +63,7 @@ impl Extension {
             'f' => Ok(Extension::F(Rc::new(ExtensionF::new(state)))),
             'i' => Ok(Extension::I(Rc::new(ExtensionI::new(state.config())))),
             'm' => Ok(Extension::M(Rc::new(ExtensionM::new(state.config())))),
-            's' => Ok(Extension::S(Rc::new(ExtensionS {}))),
+            's' => Ok(Extension::S(Rc::new(ExtensionS::new(state)))),
             'u' => Ok(Extension::U(Rc::new(ExtensionU {}))),
             'v' => Ok(Extension::V(Rc::new(ExtensionV {}))),
             _ => Err(format!("unsupported extension \'{}\', supported extension is a, c, d, f, i, m, s, u or v!", id))

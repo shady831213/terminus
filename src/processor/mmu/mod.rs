@@ -6,6 +6,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use crate::processor::{ProcessorState, Privilege};
 use crate::processor::extensions::i::csrs::*;
+use crate::processor::extensions::s::csrs::*;
 use terminus_macros::*;
 use crate::system::Bus;
 
@@ -113,7 +114,7 @@ impl Mmu {
     }
 
     fn pte_info(&self) -> PteInfo {
-        PteInfo::new(self.p.csrs::<ICsrs>().unwrap().satp().deref())
+        PteInfo::new(self.p.csrs::<SCsrs>().unwrap().satp().deref())
     }
 
     fn get_privileage(&self, opt: MmuOpt) -> Privilege {
@@ -163,7 +164,7 @@ impl Mmu {
         }
         let vaddr = Vaddr::new(&info.mode, va);
         //step 1
-        let ppn = self.p.csrs::<ICsrs>().unwrap().satp().ppn();
+        let ppn = self.p.csrs::<SCsrs>().unwrap().satp().ppn();
         let mut a = ppn * info.page_size as RegT;
         let mut level = info.level - 1;
         let mut leaf_pte: Pte;
