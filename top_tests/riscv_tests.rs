@@ -14,7 +14,7 @@ fn riscv_test(xlen: XLen, name: &str, debug: bool) -> bool {
         xlen,
         privilege_level: PrivilegeLevel::MSU,
         enable_dirty: true,
-        extensions: vec![].into_boxed_slice(),
+        extensions: vec!['m'].into_boxed_slice(),
     };
     let sys = System::new(name, Path::new("top_tests/elf").join(Path::new(name)).to_str().expect(&format!("{} not existed!", name)), vec![processor_cfg], 100);
     sys.register_memory("main_memory", 0x80000000, &GHEAP.alloc(0x10000000, 1).expect("main_memory alloc fail!"));
@@ -212,6 +212,17 @@ fn main() {
     riscv_test!(XLen::X32, "rv32si-p-scall");
     riscv_test!(XLen::X32, "rv32si-p-wfi");
 
+    //um-p-*
+    riscv_test!(XLen::X64, "rv64um-p-mul");
+    riscv_test!(XLen::X64, "rv64um-p-mulh");
+    riscv_test!(XLen::X64, "rv64um-p-mulhsu");
+    riscv_test!(XLen::X64, "rv64um-p-mulhu");
+    riscv_test!(XLen::X64, "rv64um-p-mulw");
+
+    riscv_test!(XLen::X32, "rv32um-p-mul");
+    riscv_test!(XLen::X32, "rv32um-p-mulh");
+    riscv_test!(XLen::X32, "rv32um-p-mulhsu");
+    riscv_test!(XLen::X32, "rv32um-p-mulhu");
     term_exit()
 }
 

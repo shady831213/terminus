@@ -22,6 +22,10 @@ impl XLen {
         }
     }
 
+    pub fn size(&self) -> usize {
+        self.len() >> 3
+    }
+
     pub fn mask(&self) -> RegT {
         match self {
             XLen::X32 => ((1 as RegT) << (self.len() as RegT)) - 1,

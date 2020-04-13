@@ -1033,7 +1033,7 @@ impl Execution for ECALL {
 struct EBREAK(InsnT);
 
 impl Execution for EBREAK {
-    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+    fn execute(&self, _: &Processor) -> Result<(), Exception> {
         return Err(Exception::Breakpoint)
     }
 }
