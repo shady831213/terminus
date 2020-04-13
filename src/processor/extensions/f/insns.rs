@@ -78,6 +78,46 @@ impl Execution for FSW {
     }
 }
 
+trait F32Compute: FloatInsn {
+    fn opt(&self, frs1: f64, frs2: f64) -> f64;
+    fn nx(&self, _: f64, _: f64, fres: f64) -> bool {
+        (fres - (fres as f32) as f64) != 0_f64
+    }
+    fn dz(&self, _: f64, _: f64, _: f64) -> bool {
+        false
+    }
+    fn of(&self, _: f64, _: f64, fres: f64) -> bool {
+        fres > std::f32::MAX as f64
+    }
+    fn uf(&self, _: f64, _: f64, fres: f64) -> bool {
+        fres < std::f32::MIN as f64
+    }
+    fn nv(&self, frs1: f64, frs2: f64, _: f64) -> bool {
+        frs1.is_nan() || frs2.is_nan()
+    }
+    fn compute(&self, f: &ExtensionF, rs1: u32, rs2: u32) -> u32 {
+        let frs1: f64 = f32::from_bits(rs1) as f64;
+        let frs2: f64 = f32::from_bits(rs2) as f64;
+        let fres = self.opt(frs1, frs2);
+        if self.nv(frs1, frs2, fres) {
+            f.csrs.fcsr_mut().set_nv(1)
+        } else if self.dz(frs1, frs2, fres) {
+            f.csrs.fcsr_mut().set_dz(1)
+        } else if self.of(frs1, frs2, fres) {
+            f.csrs.fcsr_mut().set_of(1)
+        } else if self.uf(frs1, frs2, fres) {
+            f.csrs.fcsr_mut().set_uf(1)
+        } else if self.nx(frs1, frs2, fres) {
+            f.csrs.fcsr_mut().set_nx(1)
+        }
+        if fres.is_nan() {
+            std::f32::NAN.to_bits()
+        } else {
+            (fres as f32).to_bits()
+        }
+    }
+}
+
 #[derive(Instruction)]
 #[format(R)]
 #[code("0b0000000??????????????????1010011")]
@@ -86,19 +126,90 @@ struct FADDS(InsnT);
 
 impl FloatInsn for FADDS {}
 
+impl F32Compute for FADDS {
+    fn opt(&self, frs1: f64, frs2: f64) -> f64 {
+        frs1 + frs2
+    }
+    fn nv(&self, frs1: f64, frs2: f64, _: f64) -> bool {
+        frs1.is_nan() || frs2.is_nan() ||
+            frs1 == std::f64::INFINITY && frs2 == std::f64::NEG_INFINITY ||
+            frs2 == std::f64::INFINITY && frs1 == std::f64::NEG_INFINITY
+    }
+}
+
 impl Execution for FADDS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: FRegT = f.freg(self.rs1() as RegT).bit_range(31, 0);
-        let rs2: FRegT = f.freg(self.rs2() as RegT).bit_range(31, 0);
-        let frs1 = rs1 as f32;
-        let frs2 = rs2 as f32;
-        f.set_freg(self.rd() as RegT, (frs1 + frs2) as FRegT & f.flen.mask());
+        let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
+        let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
+        let res = self.compute(f.deref(), rs1, rs2);
+        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
 }
 
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b0000100??????????????????1010011")]
+#[derive(Debug)]
+struct FSUBS(InsnT);
+
+impl FloatInsn for FSUBS {}
+
+impl F32Compute for FSUBS {
+    fn opt(&self, frs1: f64, frs2: f64) -> f64 {
+        frs1 - frs2
+    }
+    fn nv(&self, frs1: f64, frs2: f64, _: f64) -> bool {
+        frs1.is_nan() || frs2.is_nan() ||
+            frs1 == std::f64::INFINITY && frs2 == std::f64::INFINITY ||
+            frs2 == std::f64::NEG_INFINITY && frs1 == std::f64::NEG_INFINITY
+    }
+}
+
+impl Execution for FSUBS {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        let f = self.get_f_ext(p)?;
+        let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
+        let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
+        let res = self.compute(f.deref(), rs1, rs2);
+        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b0001000??????????????????1010011")]
+#[derive(Debug)]
+struct FMULS(InsnT);
+
+impl FloatInsn for FMULS {}
+
+impl F32Compute for FMULS {
+    fn opt(&self, frs1: f64, frs2: f64) -> f64 {
+        frs1 * frs2
+    }
+    fn nv(&self, frs1: f64, frs2: f64, _: f64) -> bool {
+        frs1.is_nan() || frs2.is_nan() ||
+            frs1.is_infinite() && frs2 == 0_f64 ||
+            frs1 == 0_f64 && frs2.is_infinite()
+    }
+}
+
+impl Execution for FMULS {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        let f = self.get_f_ext(p)?;
+        let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
+        let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
+        let res = self.compute(f.deref(), rs1, rs2);
+        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
 
 #[derive(Instruction)]
 #[format(R)]
@@ -111,7 +222,7 @@ impl FloatInsn for FMVXW {}
 impl Execution for FMVXW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let data:RegT = f.freg(self.rs1() as RegT).bit_range(31, 0);
+        let data: RegT = f.freg(self.rs1() as RegT).bit_range(31, 0);
         p.state().set_xreg(self.rd() as RegT, sext(data, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -129,7 +240,7 @@ impl FloatInsn for FMVWX {}
 impl Execution for FMVWX {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let data:RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
+        let data: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
         f.set_freg(self.rd() as RegT, data as FRegT);
         p.state().set_pc(p.state().pc() + 4);
         Ok(())

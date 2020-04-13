@@ -51,7 +51,7 @@ pub struct ExtensionF {
 }
 
 impl ExtensionF {
-    pub fn new(state:&ProcessorState) -> ExtensionF {
+    pub fn new(state: &ProcessorState) -> ExtensionF {
         let mut e = ExtensionF {
             flen: FLen::F32,
             freg: RefCell::new([0 as FRegT; 32]),
@@ -123,19 +123,13 @@ impl ExtensionF {
 
     pub fn freg(&self, id: RegT) -> FRegT {
         let trip_id = id & 0x1f;
-        if trip_id == 0 {
-            0
-        } else {
-            (*self.freg.borrow())[trip_id as usize]
-        }
+        (*self.freg.borrow())[trip_id as usize]
     }
 
     pub fn set_freg(&self, id: RegT, value: FRegT) {
         let trip_id = id & 0x1f;
-        if trip_id != 0 {
-            *self.dirty.borrow_mut() = 0x3;
-            (*self.freg.borrow_mut())[trip_id as usize] = value
-        }
+        *self.dirty.borrow_mut() = 0x3;
+        (*self.freg.borrow_mut())[trip_id as usize] = value
     }
 
     pub fn dirty(&self) -> RegT {
