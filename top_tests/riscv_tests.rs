@@ -241,11 +241,24 @@ fn main() {
     riscv_test!(XLen::X64, "rv64uf-p-fcmp");
     riscv_test!(XLen::X64, "rv64uf-p-fcvt");
     riscv_test!(XLen::X64, "rv64uf-p-fcvt_w");
-    riscv_test!(XLen::X64, "rv64uf-p-move");
+    riscv_test!(XLen::X64, "rv64uf-p-fdiv");
+    riscv_test!(XLen::X64, "rv64uf-p-fmadd");
+    riscv_test!(XLen::X64, "rv64uf-p-fmin");
     riscv_test!(XLen::X64, "rv64uf-p-ldst");
+    riscv_test!(XLen::X64, "rv64uf-p-move");
+    riscv_test!(XLen::X64, "rv64uf-p-recoding");
 
     riscv_test!(XLen::X32, "rv32uf-p-fadd");
+    riscv_test!(XLen::X32, "rv32uf-p-fclass");
+    riscv_test!(XLen::X32, "rv32uf-p-fcmp");
+    riscv_test!(XLen::X32, "rv32uf-p-fcvt");
+    riscv_test!(XLen::X32, "rv32uf-p-fcvt_w");
+    riscv_test!(XLen::X32, "rv32uf-p-fdiv");
+    riscv_test!(XLen::X32, "rv32uf-p-fmadd");
+    riscv_test!(XLen::X32, "rv32uf-p-fmin");
     riscv_test!(XLen::X32, "rv32uf-p-ldst");
+    riscv_test!(XLen::X32, "rv32uf-p-move");
+    riscv_test!(XLen::X32, "rv32uf-p-recoding");
 
     term_exit()
 }

@@ -91,9 +91,9 @@ impl Execution for FSW {
 trait F32Compute: F32Insn {
     fn opt(&self, frs1: f64, frs2: f64) -> f64;
     fn nx(&self, fres: f64) -> bool {
-        (fres - (fres as f32) as f64) != 0_f64
+        (fres - (fres as f32) as f64) != 0_f64 && !fres.is_nan()
     }
-    fn dz(&self, _: f64, _: f64) -> bool {
+    fn dz(&self, _: f32, _: f32) -> bool {
         false
     }
     fn of(&self, fres: f64) -> bool {
@@ -102,7 +102,7 @@ trait F32Compute: F32Insn {
     fn uf(&self, fres: f64) -> bool {
         fres < std::f32::MIN as f64
     }
-    fn nv(&self, frs1: f64, frs2: f64) -> bool {
+    fn nv(&self, frs1: f32, frs2: f32) -> bool {
         frs1.is_nan() || frs2.is_nan()
     }
     fn round(&self, rm: RegT, fres: f64) -> Result<f64, Exception> {
@@ -147,15 +147,18 @@ trait F32Compute: F32Insn {
         }
     }
     fn compute(&self, f: &ExtensionF, rs1: u32, rs2: u32) -> Result<u32, Exception> {
-        let frs1: f64 = f32::from_bits(rs1) as f64;
-        let frs2: f64 = f32::from_bits(rs2) as f64;
+        let frs1_32 = f32::from_bits(rs1);
+        let frs2_32 = f32::from_bits(rs2);
+        if self.nv(frs1_32, frs2_32) {
+            f.csrs.fcsr_mut().set_nv(1)
+        } else if self.dz(frs1_32, frs2_32) {
+            f.csrs.fcsr_mut().set_dz(1)
+        }
+        let frs1: f64 = frs1_32 as f64;
+        let frs2: f64 = frs2_32 as f64;
         let fres = self.opt(frs1, frs2);
         let need_round = self.nx(fres);
-        if self.nv(frs1, frs2) {
-            f.csrs.fcsr_mut().set_nv(1)
-        } else if self.dz(frs1, frs2) {
-            f.csrs.fcsr_mut().set_dz(1)
-        } else if need_round {
+        if need_round {
             f.csrs.fcsr_mut().set_nx(1)
         }
         let rounded = if need_round {
@@ -188,10 +191,10 @@ impl F32Compute for FADDS {
     fn opt(&self, frs1: f64, frs2: f64) -> f64 {
         frs1 + frs2
     }
-    fn nv(&self, frs1: f64, frs2: f64) -> bool {
+    fn nv(&self, frs1: f32, frs2: f32) -> bool {
         frs1.is_nan() || frs2.is_nan() ||
-            frs1 == std::f64::INFINITY && frs2 == std::f64::NEG_INFINITY ||
-            frs2 == std::f64::INFINITY && frs1 == std::f64::NEG_INFINITY
+            frs1 == std::f32::INFINITY && frs2 == std::f32::NEG_INFINITY ||
+            frs2 == std::f32::INFINITY && frs1 == std::f32::NEG_INFINITY
     }
 }
 
@@ -219,10 +222,10 @@ impl F32Compute for FSUBS {
     fn opt(&self, frs1: f64, frs2: f64) -> f64 {
         frs1 - frs2
     }
-    fn nv(&self, frs1: f64, frs2: f64) -> bool {
+    fn nv(&self, frs1: f32, frs2: f32) -> bool {
         frs1.is_nan() || frs2.is_nan() ||
-            frs1 == std::f64::INFINITY && frs2 == std::f64::INFINITY ||
-            frs2 == std::f64::NEG_INFINITY && frs1 == std::f64::NEG_INFINITY
+            frs1 == std::f32::INFINITY && frs2 == std::f32::INFINITY ||
+            frs2 == std::f32::NEG_INFINITY && frs1 == std::f32::NEG_INFINITY
     }
 }
 
@@ -250,10 +253,10 @@ impl F32Compute for FMULS {
     fn opt(&self, frs1: f64, frs2: f64) -> f64 {
         frs1 * frs2
     }
-    fn nv(&self, frs1: f64, frs2: f64) -> bool {
+    fn nv(&self, frs1: f32, frs2: f32) -> bool {
         frs1.is_nan() || frs2.is_nan() ||
-            frs1.is_infinite() && frs2 == 0_f64 ||
-            frs1 == 0_f64 && frs2.is_infinite()
+            frs1.is_infinite() && frs2 == 0_f32 ||
+            frs1 == 0_f32 && frs2.is_infinite()
     }
 }
 
@@ -281,13 +284,13 @@ impl F32Compute for FDIVS {
     fn opt(&self, frs1: f64, frs2: f64) -> f64 {
         frs1 / frs2
     }
-    fn nv(&self, frs1: f64, frs2: f64) -> bool {
+    fn nv(&self, frs1: f32, frs2: f32) -> bool {
         frs1.is_nan() || frs2.is_nan() ||
             frs1.is_infinite() && frs2.is_infinite() ||
-            frs1 == 0_f64 && frs2 == 0_f64
+            frs1 == 0_f32 && frs2 == 0_f32
     }
-    fn dz(&self, _: f64, frs2: f64) -> bool {
-        frs2 == 0_f64
+    fn dz(&self, _: f32, frs2: f32) -> bool {
+        frs2 == 0_f32
     }
 }
 
@@ -315,8 +318,8 @@ impl F32Compute for FSQRTS {
     fn opt(&self, frs1: f64, _: f64) -> f64 {
         frs1.sqrt()
     }
-    fn nv(&self, frs1: f64, _: f64) -> bool {
-        frs1.is_nan() || frs1 < 0_f64
+    fn nv(&self, frs1: f32, _: f32) -> bool {
+        frs1.is_nan() || frs1 < 0_f32
     }
 }
 
@@ -341,7 +344,14 @@ impl F32Insn for FMINS {}
 
 impl F32Compute for FMINS {
     fn opt(&self, frs1: f64, frs2: f64) -> f64 {
-        frs1.min(frs2)
+        if frs1 == frs2 && frs1.is_sign_negative() {
+            frs1.min(frs2)
+        } else {
+            frs2.min(frs1)
+        }
+    }
+    fn nv(&self, frs1: f32, frs2: f32) -> bool {
+        Self::is_signaling_nan(frs1) || Self::is_signaling_nan(frs2)
     }
 }
 
@@ -367,7 +377,14 @@ impl F32Insn for FMAXS {}
 
 impl F32Compute for FMAXS {
     fn opt(&self, frs1: f64, frs2: f64) -> f64 {
-        frs1.max(frs2)
+        if frs1 == frs2 && frs1.is_sign_positive() {
+            frs1.max(frs2)
+        } else {
+            frs2.max(frs1)
+        }
+    }
+    fn nv(&self, frs1: f32, frs2: f32) -> bool {
+        Self::is_signaling_nan(frs1) || Self::is_signaling_nan(frs2)
     }
 }
 
@@ -389,7 +406,7 @@ trait F32FMA: F32Insn {
         self.ir().bit_range(31, 27)
     }
     fn nx(&self, fres: f64) -> bool {
-        (fres - (fres as f32) as f64) != 0_f64
+        (fres - (fres as f32) as f64) != 0_f64 && !fres.is_nan()
     }
     fn of(&self, fres: f64) -> bool {
         fres > std::f32::MAX as f64
@@ -400,7 +417,7 @@ trait F32FMA: F32Insn {
     fn nv(&self, frs1: f64, frs2: f64, frs3: f64) -> bool {
         frs3.is_nan() && (frs1.is_infinite() && frs2 == 0_f64 || frs1 == 0_f64 && frs2.is_infinite())
     }
-    fn round(&self, rm: RegT, fres: f64) -> Result<f64,Exception> {
+    fn round(&self, rm: RegT, fres: f64) -> Result<f64, Exception> {
         let rounded = (fres as f32) as f64;
         match rm {
             0 => {
