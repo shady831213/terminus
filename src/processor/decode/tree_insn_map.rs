@@ -73,14 +73,27 @@ impl<T> TreeNode<T> {
         if self.level == insn_len() {
             return self.value.iter().find(|(v, m)| { (*m)(key, v) }).map(|(v, _)|{v});
         } else {
-            if let Some(n) = self.left {
-                if let Some(v) = unsafe { n.as_ref().unwrap().get(key) } {
-                    return Some(v);
+            if key & ((1 as InsnT) << self.level as InsnT) == 0 {
+                if let Some(n) = self.left {
+                    if let Some(v) = unsafe { n.as_ref().unwrap().get(key) } {
+                        return Some(v);
+                    }
                 }
-            }
-            if let Some(n) = self.right {
-                if let Some(v) = unsafe { n.as_ref().unwrap().get(key) } {
-                    return Some(v);
+                if let Some(n) = self.right {
+                    if let Some(v) = unsafe { n.as_ref().unwrap().get(key) } {
+                        return Some(v);
+                    }
+                }
+            } else {
+                if let Some(n) = self.right {
+                    if let Some(v) = unsafe { n.as_ref().unwrap().get(key) } {
+                        return Some(v);
+                    }
+                }
+                if let Some(n) = self.left {
+                    if let Some(v) = unsafe { n.as_ref().unwrap().get(key) } {
+                        return Some(v);
+                    }
                 }
             }
         }
