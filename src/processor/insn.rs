@@ -11,9 +11,6 @@ pub trait Format {
     fn rs2(&self) -> InsnT {
         0
     }
-    fn rs3(&self) -> InsnT {
-        0
-    }
     fn rd(&self) -> InsnT {
         0
     }
