@@ -37,7 +37,7 @@ Fflags {
 define_csr! {
 Frm {
     fields{
-        frm(RW):7,5;
+        frm(RW):2,0;
     }
 }
 }

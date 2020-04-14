@@ -786,7 +786,7 @@ impl Execution for FCVTSW {
         let f = self.get_f_ext(p)?;
         let rs1: RegT = sext(p.state().xreg(self.rs1() as RegT), 32);
         let fres = self.convert(f.deref(), rs1, true);
-        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, fres.to_bits() as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -807,7 +807,7 @@ impl Execution for FCVTSWU {
         let f = self.get_f_ext(p)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
         let fres = self.convert(f.deref(), rs1, false);
-        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, fres.to_bits() as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -829,7 +829,7 @@ impl Execution for FCVTSL {
         let f = self.get_f_ext(p)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT);
         let fres = self.convert(f.deref(), rs1, true);
-        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, fres.to_bits() as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -851,7 +851,7 @@ impl Execution for FCVTSLU {
         let f = self.get_f_ext(p)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT);
         let fres = self.convert(f.deref(), rs1, false);
-        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, fres.to_bits() as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -870,10 +870,8 @@ impl Execution for FSGNJS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
-        let frs1 = f32::from_bits(rs1);
-        let frs2 = f32::from_bits(rs2);
-        let fres = frs1.copysign(frs2);
-        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        let res = rs1 & ((1 << 31) - 1) | rs2 & (1 << 31);
+        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -892,10 +890,8 @@ impl Execution for FSGNJNS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
-        let frs1 = f32::from_bits(rs1);
-        let frs2 = f32::from_bits(rs2);
-        let fres = frs1.copysign(-frs2);
-        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        let res = rs1 & ((1 << 31) - 1) | !rs2 & (1 << 31);
+        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -914,17 +910,8 @@ impl Execution for FSGNJXS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
-        let frs1 = f32::from_bits(rs1);
-        let frs2 = f32::from_bits(rs2);
-        let sign1 = frs1.signum();
-        let sign2 = frs2.signum();
-        let sign = if sign1 == sign2 {
-            -1_f32
-        } else {
-            1_f32
-        };
-        let fres = frs1.copysign(sign);
-        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        let res = rs1 & ((1 << 31) - 1) | (rs1 ^ rs2)  & (1 << 31);
+        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }

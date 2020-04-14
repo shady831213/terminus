@@ -237,6 +237,7 @@ fn main() {
 
     //uf-p-*
     riscv_test!(XLen::X64, "rv64uf-p-fadd");
+    riscv_test!(XLen::X64, "rv64uf-p-move");
     riscv_test!(XLen::X64, "rv64uf-p-ldst");
 
     riscv_test!(XLen::X32, "rv32uf-p-fadd");

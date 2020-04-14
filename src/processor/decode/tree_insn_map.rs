@@ -6,8 +6,7 @@ struct TreeNode<T> {
     left: Option<*mut TreeNode<T>>,
     right: Option<*mut TreeNode<T>>,
     level: usize,
-    mask: bool,
-    value: Option<T>,
+    value: Option<(T, Box<dyn Fn(InsnT, &T) -> bool + 'static>)>,
 }
 
 impl<T> TreeNode<T> {
@@ -16,26 +15,24 @@ impl<T> TreeNode<T> {
             left: None,
             right: None,
             level: level,
-            mask: false,
             value: None,
         }
     }
 
-    fn insert(&mut self, key: InsnT, mask: InsnT, value: T) {
+    fn insert<F: Fn(InsnT, &T) -> bool + 'static>(&mut self, key: InsnT, value: T, f:F) {
         if self.level == insn_len() {
             if self.value.is_some() {
                 panic!(format!("duplicate definition! 0x{:x}", key))
             }
-            self.value = Some(value)
+            self.value = Some((value, Box::new(f)))
         } else {
-            self.mask = mask & ((1 as InsnT) << self.level as InsnT) != 0;
             let node = if key & ((1 as InsnT) << self.level as InsnT) == 0 {
                 self.left.get_or_insert(Box::into_raw(Box::new(Self::new(self.level + 1))))
             } else {
                 self.right.get_or_insert(Box::into_raw(Box::new(Self::new(self.level + 1))))
             };
             unsafe {
-                (*node).as_mut().unwrap().insert(key, mask, value)
+                (*node).as_mut().unwrap().insert(key, value, f)
             }
         }
     }
@@ -74,20 +71,20 @@ impl<T> TreeNode<T> {
 
     fn get(&self, key: InsnT) -> Option<&T> {
         if self.level == insn_len() {
-            self.value.as_ref()
+            return self.value.iter().find(|(v, m)| { (*m)(key, v) }).map(|(v, _)|{v});
         } else {
-            if let Some(node) = if (key & ((1 as InsnT) << self.level as InsnT) == 0) || !self.mask {
-                self.left
-            } else {
-                self.right
-            } {
-                unsafe {
-                    node.as_mut().unwrap().get(key)
+            if let Some(n) = self.left {
+                if let Some(v) = unsafe { n.as_ref().unwrap().get(key) } {
+                    return Some(v);
                 }
-            } else {
-                None
+            }
+            if let Some(n) = self.right {
+                if let Some(v) = unsafe { n.as_ref().unwrap().get(key) } {
+                    return Some(v);
+                }
             }
         }
+        None
     }
 }
 
@@ -101,16 +98,12 @@ impl TreeInsnMap {
 
 impl InsnMap for TreeInsnMap {
     fn registery<T: 'static + Decoder>(&mut self, decoder: T) {
-        self.0.insert(decoder.code(), decoder.mask(), Box::new(decoder))
+        self.0.insert(decoder.code(), Box::new(decoder), |key, dec| { key & dec.mask() == dec.code() })
     }
 
     fn decode(&self, ir: InsnT) -> Result<Instruction, Exception> {
         if let Some(decoder) = self.0.get(ir) {
-            if ir & decoder.mask() != decoder.code() {
-                Err(Exception::IllegalInsn(ir))
-            } else {
-                Ok(decoder.decode(ir))
-            }
+            Ok(decoder.decode(ir))
         } else {
             Err(Exception::IllegalInsn(ir))
         }
@@ -129,7 +122,7 @@ unsafe impl Send for TreeInsnMap {}
 #[test]
 fn test_insert() {
     let mut tree: TreeNode<u32> = TreeNode::new(0);
-    tree.insert(7, 7, 7);
+    tree.insert(7, 7, |k, v| { k == *v });
     tree.compress();
     assert_eq!(*tree.get(7).unwrap(), 7);
     assert_eq!(tree.get(8), None);
