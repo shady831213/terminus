@@ -11,7 +11,7 @@ use crate::processor::extensions::f::{ExtensionF, FRegT};
 use crate::processor::extensions::Extension;
 use std::rc::Rc;
 
-trait FloatInsn: InstructionImp {
+trait F32Insn: InstructionImp {
     fn get_f_ext(&self, p: &Processor) -> Result<Rc<ExtensionF>, Exception> {
         p.state().check_extension('f')?;
         if let Some(Extension::F(f)) = p.state().extensions().get(&'f') {
@@ -27,6 +27,12 @@ trait FloatInsn: InstructionImp {
     fn rm(&self) -> RegT {
         self.ir().bit_range(14, 12)
     }
+    fn is_signaling_nan(f: f32) -> bool {
+        let uf: u32 = f.to_bits();
+        let signal_bit = 1 << 22;
+        let signal_bit_clear = (uf & signal_bit) == 0;
+        f.is_nan() && signal_bit_clear
+    }
 }
 
 #[derive(Instruction)]
@@ -35,7 +41,7 @@ trait FloatInsn: InstructionImp {
 #[derive(Debug)]
 struct FLW(InsnT);
 
-impl FloatInsn for FLW {}
+impl F32Insn for FLW {}
 
 impl Execution for FLW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -49,7 +55,7 @@ impl Execution for FLW {
     }
 }
 
-trait FStore: FloatInsn {
+trait FStore: F32Insn {
     fn offset(&self) -> Wrapping<RegT> {
         let high: RegT = self.imm().bit_range(11, 5);
         let low = self.rd() as RegT;
@@ -66,7 +72,7 @@ trait FStore: FloatInsn {
 #[derive(Debug)]
 struct FSW(InsnT);
 
-impl FloatInsn for FSW {}
+impl F32Insn for FSW {}
 
 impl FStore for FSW {}
 
@@ -81,7 +87,7 @@ impl Execution for FSW {
     }
 }
 
-trait F32Compute: FloatInsn {
+trait F32Compute: F32Insn {
     fn opt(&self, frs1: f64, frs2: f64) -> f64;
     fn nx(&self, fres: f64) -> bool {
         (fres - (fres as f32) as f64) != 0_f64
@@ -168,7 +174,7 @@ trait F32Compute: FloatInsn {
 #[derive(Debug)]
 struct FADDS(InsnT);
 
-impl FloatInsn for FADDS {}
+impl F32Insn for FADDS {}
 
 impl F32Compute for FADDS {
     fn opt(&self, frs1: f64, frs2: f64) -> f64 {
@@ -199,7 +205,7 @@ impl Execution for FADDS {
 #[derive(Debug)]
 struct FSUBS(InsnT);
 
-impl FloatInsn for FSUBS {}
+impl F32Insn for FSUBS {}
 
 impl F32Compute for FSUBS {
     fn opt(&self, frs1: f64, frs2: f64) -> f64 {
@@ -230,7 +236,7 @@ impl Execution for FSUBS {
 #[derive(Debug)]
 struct FMULS(InsnT);
 
-impl FloatInsn for FMULS {}
+impl F32Insn for FMULS {}
 
 impl F32Compute for FMULS {
     fn opt(&self, frs1: f64, frs2: f64) -> f64 {
@@ -261,7 +267,7 @@ impl Execution for FMULS {
 #[derive(Debug)]
 struct FDIVS(InsnT);
 
-impl FloatInsn for FDIVS {}
+impl F32Insn for FDIVS {}
 
 impl F32Compute for FDIVS {
     fn opt(&self, frs1: f64, frs2: f64) -> f64 {
@@ -295,7 +301,7 @@ impl Execution for FDIVS {
 #[derive(Debug)]
 struct FSQRTS(InsnT);
 
-impl FloatInsn for FSQRTS {}
+impl F32Insn for FSQRTS {}
 
 impl F32Compute for FSQRTS {
     fn opt(&self, frs1: f64, _: f64) -> f64 {
@@ -323,7 +329,7 @@ impl Execution for FSQRTS {
 #[derive(Debug)]
 struct FMINS(InsnT);
 
-impl FloatInsn for FMINS {}
+impl F32Insn for FMINS {}
 
 impl F32Compute for FMINS {
     fn opt(&self, frs1: f64, frs2: f64) -> f64 {
@@ -349,7 +355,7 @@ impl Execution for FMINS {
 #[derive(Debug)]
 struct FMAXS(InsnT);
 
-impl FloatInsn for FMAXS {}
+impl F32Insn for FMAXS {}
 
 impl F32Compute for FMAXS {
     fn opt(&self, frs1: f64, frs2: f64) -> f64 {
@@ -369,7 +375,7 @@ impl Execution for FMAXS {
     }
 }
 
-trait F32ToInt: FloatInsn {
+trait F32ToInt: F32Insn {
     fn round(&self, rm: RegT, fres: f64) -> f64 {
         match rm {
             0 => {
@@ -415,7 +421,7 @@ trait F32ToInt: FloatInsn {
 #[derive(Debug)]
 struct FCVTWS(InsnT);
 
-impl FloatInsn for FCVTWS {}
+impl F32Insn for FCVTWS {}
 
 impl F32ToInt for FCVTWS {}
 
@@ -443,7 +449,7 @@ impl Execution for FCVTWS {
 #[derive(Debug)]
 struct FCVTWUS(InsnT);
 
-impl FloatInsn for FCVTWUS {}
+impl F32Insn for FCVTWUS {}
 
 impl F32ToInt for FCVTWUS {}
 
@@ -471,7 +477,7 @@ impl Execution for FCVTWUS {
 #[derive(Debug)]
 struct FCVTLS(InsnT);
 
-impl FloatInsn for FCVTLS {}
+impl F32Insn for FCVTLS {}
 
 impl F32ToInt for FCVTLS {}
 
@@ -500,7 +506,7 @@ impl Execution for FCVTLS {
 #[derive(Debug)]
 struct FCVTLUS(InsnT);
 
-impl FloatInsn for FCVTLUS {}
+impl F32Insn for FCVTLUS {}
 
 impl F32ToInt for FCVTLUS {}
 
@@ -523,7 +529,7 @@ impl Execution for FCVTLUS {
     }
 }
 
-trait IntToF32: FloatInsn {
+trait IntToF32: F32Insn {
     fn round(&self, rm: RegT, fres: f64) -> f64 {
         let rounded = (fres as f32) as f64;
         match rm {
@@ -558,8 +564,8 @@ trait IntToF32: FloatInsn {
             _ => unreachable!()
         }
     }
-    fn convert(&self, f: &ExtensionF, rs1: RegT, signed:bool) -> f32 {
-        let fres = if signed {rs1 as SRegT as f64} else {rs1 as f64};
+    fn convert(&self, f: &ExtensionF, rs1: RegT, signed: bool) -> f32 {
+        let fres = if signed { rs1 as SRegT as f64 } else { rs1 as f64 };
         let rounded = self.round(if f.csrs.fcsr().frm() == 0x7 { self.rm() } else { f.csrs.fcsr().frm() }, fres);
         if rounded > std::f32::MAX as f64 {
             f.csrs.fcsr_mut().set_of(1)
@@ -580,7 +586,7 @@ trait IntToF32: FloatInsn {
 #[derive(Debug)]
 struct FCVTSW(InsnT);
 
-impl FloatInsn for FCVTSW {}
+impl F32Insn for FCVTSW {}
 
 impl IntToF32 for FCVTSW {}
 
@@ -601,7 +607,7 @@ impl Execution for FCVTSW {
 #[derive(Debug)]
 struct FCVTSWU(InsnT);
 
-impl FloatInsn for FCVTSWU {}
+impl F32Insn for FCVTSWU {}
 
 impl IntToF32 for FCVTSWU {}
 
@@ -622,7 +628,7 @@ impl Execution for FCVTSWU {
 #[derive(Debug)]
 struct FCVTSL(InsnT);
 
-impl FloatInsn for FCVTSL {}
+impl F32Insn for FCVTSL {}
 
 impl IntToF32 for FCVTSL {}
 
@@ -644,7 +650,7 @@ impl Execution for FCVTSL {
 #[derive(Debug)]
 struct FCVTSLU(InsnT);
 
-impl FloatInsn for FCVTSLU {}
+impl F32Insn for FCVTSLU {}
 
 impl IntToF32 for FCVTSLU {}
 
@@ -666,7 +672,7 @@ impl Execution for FCVTSLU {
 #[derive(Debug)]
 struct FSGNJS(InsnT);
 
-impl FloatInsn for FSGNJS {}
+impl F32Insn for FSGNJS {}
 
 impl Execution for FSGNJS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -688,7 +694,7 @@ impl Execution for FSGNJS {
 #[derive(Debug)]
 struct FSGNJNS(InsnT);
 
-impl FloatInsn for FSGNJNS {}
+impl F32Insn for FSGNJNS {}
 
 impl Execution for FSGNJNS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -710,7 +716,7 @@ impl Execution for FSGNJNS {
 #[derive(Debug)]
 struct FSGNJXS(InsnT);
 
-impl FloatInsn for FSGNJXS {}
+impl F32Insn for FSGNJXS {}
 
 impl Execution for FSGNJXS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -733,13 +739,98 @@ impl Execution for FSGNJXS {
     }
 }
 
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b1010000??????????010?????1010011")]
+#[derive(Debug)]
+struct FEQS(InsnT);
+
+impl F32Insn for FEQS {}
+
+impl Execution for FEQS {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        let f = self.get_f_ext(p)?;
+        let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
+        let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
+        let frs1 = f32::from_bits(rs1);
+        let frs2 = f32::from_bits(rs2);
+        if Self::is_signaling_nan(frs1) || Self::is_signaling_nan(frs2) {
+            f.csrs.fcsr_mut().set_nv(1)
+        }
+        if frs1 == frs2 {
+            f.set_freg(self.rd() as RegT, 1_f32 as FRegT & f.flen.mask());
+        } else {
+            f.set_freg(self.rd() as RegT, 0_f32 as FRegT & f.flen.mask());
+        }
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b1010000??????????001?????1010011")]
+#[derive(Debug)]
+struct FLTS(InsnT);
+
+impl F32Insn for FLTS {}
+
+impl Execution for FLTS {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        let f = self.get_f_ext(p)?;
+        let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
+        let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
+        let frs1 = f32::from_bits(rs1);
+        let frs2 = f32::from_bits(rs2);
+        if frs1.is_nan() || frs1.is_nan() {
+            f.csrs.fcsr_mut().set_nv(1)
+        }
+        if frs1 < frs2 {
+            f.set_freg(self.rd() as RegT, 1_f32 as FRegT & f.flen.mask());
+        } else {
+            f.set_freg(self.rd() as RegT, 0_f32 as FRegT & f.flen.mask());
+        }
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b1010000??????????000?????1010011")]
+#[derive(Debug)]
+struct FLES(InsnT);
+
+impl F32Insn for FLES {}
+
+impl Execution for FLES {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        let f = self.get_f_ext(p)?;
+        let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
+        let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
+        let frs1 = f32::from_bits(rs1);
+        let frs2 = f32::from_bits(rs2);
+        if frs1.is_nan() || frs1.is_nan() {
+            f.csrs.fcsr_mut().set_nv(1)
+        }
+        if frs1 <= frs2 {
+            f.set_freg(self.rd() as RegT, 1_f32 as FRegT & f.flen.mask());
+        } else {
+            f.set_freg(self.rd() as RegT, 0_f32 as FRegT & f.flen.mask());
+        }
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
 #[derive(Instruction)]
 #[format(R)]
 #[code("0b111000000000?????000?????1010011")]
 #[derive(Debug)]
 struct FMVXW(InsnT);
 
-impl FloatInsn for FMVXW {}
+impl F32Insn for FMVXW {}
 
 impl Execution for FMVXW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -757,7 +848,7 @@ impl Execution for FMVXW {
 #[derive(Debug)]
 struct FMVWX(InsnT);
 
-impl FloatInsn for FMVWX {}
+impl F32Insn for FMVWX {}
 
 impl Execution for FMVWX {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
