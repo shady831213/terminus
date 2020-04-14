@@ -369,7 +369,7 @@ impl Execution for FMAXS {
     }
 }
 
-trait F32Cvt: FloatInsn {
+trait F32ToInt: FloatInsn {
     fn round(&self, rm: RegT, fres: f64) -> f64 {
         match rm {
             0 => {
@@ -389,6 +389,9 @@ trait F32Cvt: FloatInsn {
     }
     fn convert(&self, f: &ExtensionF, rs1: u32) -> f64 {
         let fres: f64 = f32::from_bits(rs1) as f64;
+        if fres.is_nan() || fres.is_infinite() {
+            f.csrs.fcsr_mut().set_nv(1)
+        }
         let need_round = fres.fract() != 0_f64;
         let rounded = if need_round {
             f.csrs.fcsr_mut().set_nx(1);
@@ -414,7 +417,7 @@ struct FCVTWS(InsnT);
 
 impl FloatInsn for FCVTWS {}
 
-impl F32Cvt for FCVTWS {}
+impl F32ToInt for FCVTWS {}
 
 impl Execution for FCVTWS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -442,7 +445,7 @@ struct FCVTWUS(InsnT);
 
 impl FloatInsn for FCVTWUS {}
 
-impl F32Cvt for FCVTWUS {}
+impl F32ToInt for FCVTWUS {}
 
 impl Execution for FCVTWUS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -470,7 +473,7 @@ struct FCVTLS(InsnT);
 
 impl FloatInsn for FCVTLS {}
 
-impl F32Cvt for FCVTLS {}
+impl F32ToInt for FCVTLS {}
 
 impl Execution for FCVTLS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -499,7 +502,7 @@ struct FCVTLUS(InsnT);
 
 impl FloatInsn for FCVTLUS {}
 
-impl F32Cvt for FCVTLUS {}
+impl F32ToInt for FCVTLUS {}
 
 impl Execution for FCVTLUS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -515,6 +518,216 @@ impl Execution for FCVTLUS {
             fres as u64
         };
         p.state().set_xreg(self.rd() as RegT, res as RegT & p.state().config().xlen.mask());
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+trait IntToF32: FloatInsn {
+    fn round(&self, rm: RegT, fres: f64) -> f64 {
+        let rounded = (fres as f32) as f64;
+        match rm {
+            0 => {
+                fres
+            }
+            1 => {
+                if fres.abs() < rounded.abs() {
+                    if fres.is_sign_positive() {
+                        (fres - std::f64::EPSILON)
+                    } else {
+                        (fres + std::f64::EPSILON)
+                    }
+                } else {
+                    fres
+                }
+            }
+            2 => {
+                if fres < rounded {
+                    (fres - std::f64::EPSILON)
+                } else {
+                    fres
+                }
+            }
+            3 => {
+                if fres > rounded {
+                    (fres + std::f64::EPSILON)
+                } else {
+                    fres
+                }
+            }
+            _ => unreachable!()
+        }
+    }
+    fn convert(&self, f: &ExtensionF, rs1: RegT, signed:bool) -> f32 {
+        let fres = if signed {rs1 as SRegT as f64} else {rs1 as f64};
+        let rounded = self.round(if f.csrs.fcsr().frm() == 0x7 { self.rm() } else { f.csrs.fcsr().frm() }, fres);
+        if rounded > std::f32::MAX as f64 {
+            f.csrs.fcsr_mut().set_of(1)
+        } else if rounded < std::f32::MIN as f64 {
+            f.csrs.fcsr_mut().set_uf(1)
+        }
+        if rounded.is_nan() {
+            std::f32::NAN
+        } else {
+            rounded as f32
+        }
+    }
+}
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b110100000000?????????????1010011")]
+#[derive(Debug)]
+struct FCVTSW(InsnT);
+
+impl FloatInsn for FCVTSW {}
+
+impl IntToF32 for FCVTSW {}
+
+impl Execution for FCVTSW {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        let f = self.get_f_ext(p)?;
+        let rs1: RegT = sext(p.state().xreg(self.rs1() as RegT), 32);
+        let fres = self.convert(f.deref(), rs1, true);
+        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b110100000001?????????????1010011")]
+#[derive(Debug)]
+struct FCVTSWU(InsnT);
+
+impl FloatInsn for FCVTSWU {}
+
+impl IntToF32 for FCVTSWU {}
+
+impl Execution for FCVTSWU {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        let f = self.get_f_ext(p)?;
+        let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
+        let fres = self.convert(f.deref(), rs1, false);
+        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b110100000010?????????????1010011")]
+#[derive(Debug)]
+struct FCVTSL(InsnT);
+
+impl FloatInsn for FCVTSL {}
+
+impl IntToF32 for FCVTSL {}
+
+impl Execution for FCVTSL {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_xlen(XLen::X64)?;
+        let f = self.get_f_ext(p)?;
+        let rs1: RegT = p.state().xreg(self.rs1() as RegT);
+        let fres = self.convert(f.deref(), rs1, true);
+        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b110100000011?????????????1010011")]
+#[derive(Debug)]
+struct FCVTSLU(InsnT);
+
+impl FloatInsn for FCVTSLU {}
+
+impl IntToF32 for FCVTSLU {}
+
+impl Execution for FCVTSLU {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_xlen(XLen::X64)?;
+        let f = self.get_f_ext(p)?;
+        let rs1: RegT = p.state().xreg(self.rs1() as RegT);
+        let fres = self.convert(f.deref(), rs1, false);
+        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b0010000??????????000?????1010011")]
+#[derive(Debug)]
+struct FSGNJS(InsnT);
+
+impl FloatInsn for FSGNJS {}
+
+impl Execution for FSGNJS {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        let f = self.get_f_ext(p)?;
+        let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
+        let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
+        let frs1 = f32::from_bits(rs1);
+        let frs2 = f32::from_bits(rs2);
+        let fres = frs1.copysign(frs2);
+        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b0010000??????????001?????1010011")]
+#[derive(Debug)]
+struct FSGNJNS(InsnT);
+
+impl FloatInsn for FSGNJNS {}
+
+impl Execution for FSGNJNS {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        let f = self.get_f_ext(p)?;
+        let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
+        let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
+        let frs1 = f32::from_bits(rs1);
+        let frs2 = f32::from_bits(rs2);
+        let fres = frs1.copysign(-frs2);
+        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b0010000??????????010?????1010011")]
+#[derive(Debug)]
+struct FSGNJXS(InsnT);
+
+impl FloatInsn for FSGNJXS {}
+
+impl Execution for FSGNJXS {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        let f = self.get_f_ext(p)?;
+        let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
+        let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
+        let frs1 = f32::from_bits(rs1);
+        let frs2 = f32::from_bits(rs2);
+        let sign1 = frs1.signum();
+        let sign2 = frs2.signum();
+        let sign = if sign1 == sign2 {
+            -1_f32
+        } else {
+            1_f32
+        };
+        let fres = frs1.copysign(sign);
+        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
