@@ -1,9 +1,11 @@
 use crate::processor::insn_define::*;
 use std::num::Wrapping;
-use crate::processor::extensions::f::{ExtensionF, FRegT};
+use crate::processor::extensions::f::{ExtensionF, FRegT, rm_from_bits, status_flags_to_bits};
 use crate::processor::extensions::Extension;
 use std::rc::Rc;
 use std::num::FpCategory;
+use simple_soft_float::{F32, FPState, RoundingMode};
+use std::cmp::Ordering;
 
 trait F32Insn: InstructionImp {
     fn get_f_ext(&self, p: &Processor) -> Result<Rc<ExtensionF>, Exception> {
@@ -82,93 +84,19 @@ impl Execution for FSW {
 }
 
 trait F32Compute: F32Insn {
-    fn opt(&self, frs1: f64, frs2: f64) -> f64;
-    fn nx(&self, fres: f64) -> bool {
-        (fres - (fres as f32) as f64) != 0_f64 && !fres.is_nan()
-    }
-    fn dz(&self, _: f32, _: f32) -> bool {
-        false
-    }
-    fn of(&self, fres: f64) -> bool {
-        fres > std::f32::MAX as f64
-    }
-    fn uf(&self, fres: f64) -> bool {
-        fres < std::f32::MIN as f64
-    }
-    fn nv(&self, frs1: f32, frs2: f32) -> bool {
-        frs1.is_nan() || frs2.is_nan()
-    }
-    fn round(&self, rm: RegT, fres: f64) -> Result<f64, Exception> {
-        let rounded = (fres as f32) as f64;
-        match rm {
-            0 => {
-                Ok(fres)
-            }
-            1 => {
-                Ok(if fres.abs() < rounded.abs() {
-                    if fres.is_sign_positive() {
-                        (fres - std::f64::EPSILON)
-                    } else {
-                        (fres + std::f64::EPSILON)
-                    }
-                } else {
-                    fres
-                })
-            }
-            2 => {
-                Ok(if fres < rounded {
-                    (fres - std::f64::EPSILON)
-                } else {
-                    fres
-                })
-            }
-            3 => {
-                Ok(if fres > rounded {
-                    (fres + std::f64::EPSILON)
-                } else {
-                    fres
-                })
-            }
-            4 => {
-                Ok(if (fres - std::f32::MAX as f64).abs() > (fres - std::f32::MIN as f64).abs() {
-                    std::f32::MIN as f64
-                } else {
-                    std::f32::MAX as f64
-                })
-            }
-            _ => Err(Exception::IllegalInsn(self.ir()))
-        }
-    }
+    fn opt(&self, frs1: F32, frs2: F32, fp_state: &mut FPState) -> F32;
     fn compute(&self, f: &ExtensionF, rs1: u32, rs2: u32) -> Result<u32, Exception> {
-        let frs1_32 = f32::from_bits(rs1);
-        let frs2_32 = f32::from_bits(rs2);
-        if self.nv(frs1_32, frs2_32) {
-            f.csrs.fcsr_mut().set_nv(1)
-        } else if self.dz(frs1_32, frs2_32) {
-            f.csrs.fcsr_mut().set_dz(1)
-        }
-        let frs1: f64 = frs1_32 as f64;
-        let frs2: f64 = frs2_32 as f64;
-        let fres = self.opt(frs1, frs2);
-        let need_round = self.nx(fres);
-        if need_round {
-            f.csrs.fcsr_mut().set_nx(1)
-        }
-        let rounded = if need_round {
-            self.round(if self.rm() == 0x7 { f.csrs.fcsr().frm() } else { self.rm() }, fres)?
+        let mut fp_state = FPState::default();
+        fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
+            rm
         } else {
-            fres
+            if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
         };
-        if self.of(rounded) {
-            f.csrs.fcsr_mut().set_of(1)
-        } else if self.uf(rounded) {
-            f.csrs.fcsr_mut().set_uf(1)
-        }
-        Ok(if rounded.is_nan() {
-            std::f32::NAN.to_bits()
-        } else {
-            (rounded as f32).to_bits()
-        })
+        let frs1 = F32::from_bits(rs1);
+        let frs2 = F32::from_bits(rs2);
+        let fres = self.opt(frs1, frs2, &mut fp_state);
+        f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
+        Ok(*fres.bits())
     }
 }
 
@@ -181,13 +109,8 @@ struct FADDS(InsnT);
 impl F32Insn for FADDS {}
 
 impl F32Compute for FADDS {
-    fn opt(&self, frs1: f64, frs2: f64) -> f64 {
-        frs1 + frs2
-    }
-    fn nv(&self, frs1: f32, frs2: f32) -> bool {
-        frs1.is_nan() || frs2.is_nan() ||
-            frs1 == std::f32::INFINITY && frs2 == std::f32::NEG_INFINITY ||
-            frs2 == std::f32::INFINITY && frs1 == std::f32::NEG_INFINITY
+    fn opt(&self, frs1: F32, frs2: F32, fp_state: &mut FPState) -> F32 {
+        frs1.add(&frs2, rm_from_bits(self.rm()), Some(fp_state))
     }
 }
 
@@ -212,13 +135,8 @@ struct FSUBS(InsnT);
 impl F32Insn for FSUBS {}
 
 impl F32Compute for FSUBS {
-    fn opt(&self, frs1: f64, frs2: f64) -> f64 {
-        frs1 - frs2
-    }
-    fn nv(&self, frs1: f32, frs2: f32) -> bool {
-        frs1.is_nan() || frs2.is_nan() ||
-            frs1 == std::f32::INFINITY && frs2 == std::f32::INFINITY ||
-            frs2 == std::f32::NEG_INFINITY && frs1 == std::f32::NEG_INFINITY
+    fn opt(&self, frs1: F32, frs2: F32, fp_state: &mut FPState) -> F32 {
+        frs1.sub(&frs2, rm_from_bits(self.rm()), Some(fp_state))
     }
 }
 
@@ -243,13 +161,8 @@ struct FMULS(InsnT);
 impl F32Insn for FMULS {}
 
 impl F32Compute for FMULS {
-    fn opt(&self, frs1: f64, frs2: f64) -> f64 {
-        frs1 * frs2
-    }
-    fn nv(&self, frs1: f32, frs2: f32) -> bool {
-        frs1.is_nan() || frs2.is_nan() ||
-            frs1.is_infinite() && frs2 == 0_f32 ||
-            frs1 == 0_f32 && frs2.is_infinite()
+    fn opt(&self, frs1: F32, frs2: F32, fp_state: &mut FPState) -> F32 {
+        frs1.mul(&frs2, rm_from_bits(self.rm()), Some(fp_state))
     }
 }
 
@@ -274,16 +187,8 @@ struct FDIVS(InsnT);
 impl F32Insn for FDIVS {}
 
 impl F32Compute for FDIVS {
-    fn opt(&self, frs1: f64, frs2: f64) -> f64 {
-        frs1 / frs2
-    }
-    fn nv(&self, frs1: f32, frs2: f32) -> bool {
-        frs1.is_nan() || frs2.is_nan() ||
-            frs1.is_infinite() && frs2.is_infinite() ||
-            frs1 == 0_f32 && frs2 == 0_f32
-    }
-    fn dz(&self, _: f32, frs2: f32) -> bool {
-        frs2 == 0_f32
+    fn opt(&self, frs1: F32, frs2: F32, fp_state: &mut FPState) -> F32 {
+        frs1.div(&frs2, rm_from_bits(self.rm()), Some(fp_state))
     }
 }
 
@@ -308,11 +213,8 @@ struct FSQRTS(InsnT);
 impl F32Insn for FSQRTS {}
 
 impl F32Compute for FSQRTS {
-    fn opt(&self, frs1: f64, _: f64) -> f64 {
-        frs1.sqrt()
-    }
-    fn nv(&self, frs1: f32, _: f32) -> bool {
-        frs1.is_nan() || frs1 < 0_f32
+    fn opt(&self, frs1: F32, _: F32, fp_state: &mut FPState) -> F32 {
+        frs1.sqrt(rm_from_bits(self.rm()), Some(fp_state))
     }
 }
 
@@ -336,15 +238,18 @@ struct FMINS(InsnT);
 impl F32Insn for FMINS {}
 
 impl F32Compute for FMINS {
-    fn opt(&self, frs1: f64, frs2: f64) -> f64 {
-        if frs1 == frs2 && frs1.is_sign_negative() {
-            frs1.min(frs2)
-        } else {
-            frs2.min(frs1)
+    fn opt(&self, frs1: F32, frs2: F32, fp_state: &mut FPState) -> F32 {
+        if frs1.is_nan() && frs2.is_nan() {
+            return F32::quiet_nan();
         }
-    }
-    fn nv(&self, frs1: f32, frs2: f32) -> bool {
-        Self::is_signaling_nan(frs1) || Self::is_signaling_nan(frs2)
+        if frs1.is_negative_zero() && frs2.is_zero() {
+            return frs1;
+        }
+        if let Some(Ordering::Less) = frs1.compare_quiet(&frs2, Some(fp_state)) {
+            frs1
+        } else {
+            frs2
+        }
     }
 }
 
@@ -369,15 +274,18 @@ struct FMAXS(InsnT);
 impl F32Insn for FMAXS {}
 
 impl F32Compute for FMAXS {
-    fn opt(&self, frs1: f64, frs2: f64) -> f64 {
-        if frs1 == frs2 && frs1.is_sign_positive() {
-            frs1.max(frs2)
-        } else {
-            frs2.max(frs1)
+    fn opt(&self, frs1: F32, frs2: F32, fp_state: &mut FPState) -> F32 {
+        if frs1.is_nan() && frs2.is_nan() {
+            return F32::quiet_nan();
         }
-    }
-    fn nv(&self, frs1: f32, frs2: f32) -> bool {
-        Self::is_signaling_nan(frs1) || Self::is_signaling_nan(frs2)
+        if frs1.is_positive_zero() && frs2.is_zero() {
+            return frs1;
+        }
+        if let Some(Ordering::Greater) = frs1.compare_quiet(&frs2, Some(fp_state)) {
+            frs1
+        } else {
+            frs2
+        }
     }
 }
 

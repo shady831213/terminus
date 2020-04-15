@@ -5,6 +5,7 @@ use crate::processor::extensions::HasCsr;
 use std::any::Any;
 use terminus_global::RegT;
 use crate::processor::extensions::i::csrs::*;
+use simple_soft_float::{RoundingMode, StatusFlags};
 
 mod insns;
 pub mod csrs;
@@ -12,10 +13,10 @@ pub mod csrs;
 use csrs::FCsrs;
 use std::ops::Deref;
 
-type FRegT = u128;
+pub type FRegT = u128;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-enum FLen {
+pub enum FLen {
     F32,
     F64,
     F128,
@@ -44,7 +45,7 @@ impl FLen {
 }
 
 pub struct ExtensionF {
-    flen: FLen,
+    pub flen: FLen,
     freg: RefCell<[FRegT; 32]>,
     csrs: Rc<FCsrs>,
     dirty: Rc<RefCell<RegT>>,
@@ -156,4 +157,20 @@ impl HasCsr for ExtensionF {
             self.csrs.read(addr)
         }
     }
+}
+
+
+pub fn rm_from_bits(bits: RegT) -> Option<RoundingMode> {
+    match bits {
+        0 => Some(RoundingMode::TiesToEven),
+        1 => Some(RoundingMode::TowardZero),
+        2 => Some(RoundingMode::TowardNegative),
+        3 => Some(RoundingMode::TowardPositive),
+        4 => Some(RoundingMode::TiesToAway),
+        _ => None
+    }
+}
+
+pub fn status_flags_to_bits(s: &StatusFlags) -> RegT {
+    (s.bits() << 27).reverse_bits() as RegT
 }

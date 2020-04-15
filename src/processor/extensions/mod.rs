@@ -59,7 +59,7 @@ impl Extension {
         match id {
             'a' => Ok(Extension::A(Rc::new(ExtensionA {}))),
             'c' => Ok(Extension::C(Rc::new(ExtensionC::new(state)))),
-            'd' => Ok(Extension::D(Rc::new(ExtensionD {}))),
+            'd' => Ok(Extension::D(Rc::new(ExtensionD::new(state)))),
             'f' => Ok(Extension::F(Rc::new(ExtensionF::new(state)))),
             'i' => Ok(Extension::I(Rc::new(ExtensionI::new(state)))),
             'm' => Ok(Extension::M(Rc::new(ExtensionM::new(state)))),
