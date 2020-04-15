@@ -302,89 +302,23 @@ impl Execution for FMAXS {
 }
 
 trait F32FMA: F32Insn {
-    fn opt(&self, frs1: f64, frs2: f64, frs3: f64) -> f64;
+    fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state:&mut FPState) -> F32;
     fn rs3(&self) -> InsnT {
         self.ir().bit_range(31, 27)
     }
-    fn nx(&self, fres: f64) -> bool {
-        (fres - (fres as f32) as f64) != 0_f64 && !fres.is_nan()
-    }
-    fn of(&self, fres: f64) -> bool {
-        fres > std::f32::MAX as f64
-    }
-    fn uf(&self, fres: f64) -> bool {
-        fres < std::f32::MIN as f64
-    }
-    fn nv(&self, frs1: f64, frs2: f64, frs3: f64) -> bool {
-        frs3.is_nan() && (frs1.is_infinite() && frs2 == 0_f64 || frs1 == 0_f64 && frs2.is_infinite())
-    }
-    fn round(&self, rm: RegT, fres: f64) -> Result<f64, Exception> {
-        let rounded = (fres as f32) as f64;
-        match rm {
-            0 => {
-                Ok(fres)
-            }
-            1 => {
-                Ok(if fres.abs() < rounded.abs() {
-                    if fres.is_sign_positive() {
-                        (fres - std::f64::EPSILON)
-                    } else {
-                        (fres + std::f64::EPSILON)
-                    }
-                } else {
-                    fres
-                })
-            }
-            2 => {
-                Ok(if fres < rounded {
-                    (fres - std::f64::EPSILON)
-                } else {
-                    fres
-                })
-            }
-            3 => {
-                Ok(if fres > rounded {
-                    (fres + std::f64::EPSILON)
-                } else {
-                    fres
-                })
-            }
-            4 => {
-                Ok(if (fres - std::f32::MAX as f64).abs() > (fres - std::f32::MIN as f64).abs() {
-                    std::f32::MIN as f64
-                } else {
-                    std::f32::MAX as f64
-                })
-            }
-            _ => Err(Exception::IllegalInsn(self.ir()))
-        }
-    }
     fn compute(&self, f: &ExtensionF, rs1: u32, rs2: u32, rs3: u32) -> Result<u32, Exception> {
-        let frs1: f64 = f32::from_bits(rs1) as f64;
-        let frs2: f64 = f32::from_bits(rs2) as f64;
-        let frs3: f64 = f32::from_bits(rs3) as f64;
-        let fres = self.opt(frs1, frs2, frs3);
-        let need_round = self.nx(fres);
-        if self.nv(frs1, frs2, frs3) {
-            f.csrs.fcsr_mut().set_nv(1)
-        } else if need_round {
-            f.csrs.fcsr_mut().set_nx(1)
-        }
-        let rounded = if need_round {
-            self.round(if self.rm() == 0x7 { f.csrs.fcsr().frm() } else { self.rm() }, fres)?
+        let mut fp_state = FPState::default();
+        fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
+            rm
         } else {
-            fres
+            if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
         };
-        if self.of(rounded) {
-            f.csrs.fcsr_mut().set_of(1)
-        } else if self.uf(rounded) {
-            f.csrs.fcsr_mut().set_uf(1)
-        }
-        Ok(if rounded.is_nan() {
-            std::f32::NAN.to_bits()
-        } else {
-            (rounded as f32).to_bits()
-        })
+        let frs1 = F32::from_bits(rs1);
+        let frs2 = F32::from_bits(rs2);
+        let frs3 = F32::from_bits(rs3);
+        let fres = self.opt(frs1, frs2, frs3, &mut fp_state);
+        f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
+        Ok(*fres.bits())
     }
 }
 
@@ -397,8 +331,8 @@ struct FMADDS(InsnT);
 impl F32Insn for FMADDS {}
 
 impl F32FMA for FMADDS {
-    fn opt(&self, frs1: f64, frs2: f64, frs3: f64) -> f64 {
-        frs1.mul_add(frs2, frs3)
+    fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state:&mut FPState) -> F32 {
+        frs1.fused_mul_add(&frs2, &frs3, rm_from_bits(self.rm()), Some(state))
     }
 }
 
@@ -424,8 +358,8 @@ struct FMSUBS(InsnT);
 impl F32Insn for FMSUBS {}
 
 impl F32FMA for FMSUBS {
-    fn opt(&self, frs1: f64, frs2: f64, frs3: f64) -> f64 {
-        frs1.mul_add(frs2, -frs3)
+    fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state:&mut FPState) -> F32 {
+        frs1.fused_mul_add(&frs2, &frs3.neg(), rm_from_bits(self.rm()), Some(state))
     }
 }
 
@@ -452,8 +386,8 @@ struct FMNSUBS(InsnT);
 impl F32Insn for FMNSUBS {}
 
 impl F32FMA for FMNSUBS {
-    fn opt(&self, frs1: f64, frs2: f64, frs3: f64) -> f64 {
-        -frs1.mul_add(frs2, -frs3)
+    fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state:&mut FPState) -> F32 {
+        frs1.fused_mul_add(&frs2, &frs3.neg(), rm_from_bits(self.rm()), Some(state)).neg()
     }
 }
 
@@ -479,8 +413,8 @@ struct FMNADDS(InsnT);
 impl F32Insn for FMNADDS {}
 
 impl F32FMA for FMNADDS {
-    fn opt(&self, frs1: f64, frs2: f64, frs3: f64) -> f64 {
-        -frs1.mul_add(frs2, frs3)
+    fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state:&mut FPState) -> F32 {
+        frs1.fused_mul_add(&frs2, &frs3, rm_from_bits(self.rm()), Some(state)).neg()
     }
 }
 
