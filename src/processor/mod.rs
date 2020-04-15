@@ -55,6 +55,13 @@ pub mod insn_define {
     pub use crate::processor::decode::*;
 }
 
+//export for csr define
+pub mod csr_define {
+    pub use terminus_global::*;
+    pub use terminus_proc_macros::{define_csr, csr_map};
+    pub use terminus_macros::*;
+}
+
 #[derive(IntoPrimitive, TryFromPrimitive, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
 pub enum PrivilegeLevel {

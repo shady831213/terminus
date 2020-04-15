@@ -1,6 +1,4 @@
-use terminus_global::*;
-use terminus_proc_macros::{define_csr, csr_map};
-use terminus_macros::*;
+use crate::processor::csr_define::*;
 use crate::processor::extensions::i::csrs::{Tvec, Scratch, Epc, Cause, Tval};
 csr_map! {
 pub SCsrs(0x0, 0xfff) {

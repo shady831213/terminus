@@ -1,6 +1,5 @@
-use terminus_global::*;
-use terminus_proc_macros::{define_csr, csr_map};
-use terminus_macros::*;
+use crate::processor::csr_define::*;
+
 csr_map! {
 pub ICsrs(0x0, 0xfff) {
     mstatus(RW):MStatus, 0x300;
