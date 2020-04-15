@@ -4,7 +4,7 @@ use crate::processor::extensions::f::{ExtensionF, FRegT, rm_from_bits, status_fl
 use crate::processor::extensions::Extension;
 use std::rc::Rc;
 use std::num::FpCategory;
-use simple_soft_float::{F32, FPState, RoundingMode, Sign, StatusFlags};
+use simple_soft_float::{F32, FPState, RoundingMode, Sign, StatusFlags, FloatClass};
 use std::cmp::Ordering;
 
 trait F32Insn: InstructionImp {
@@ -882,43 +882,18 @@ impl Execution for FCLASSS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
-        let frs1 = f32::from_bits(rs1);
-        match frs1.classify() {
-            FpCategory::Infinite => {
-                if frs1.is_sign_negative() {
-                    p.state().set_xreg(self.rd() as RegT, 1)
-                } else {
-                    p.state().set_xreg(self.rd() as RegT, 1 << 7)
-                }
-            }
-            FpCategory::Normal => {
-                if frs1.is_sign_negative() {
-                    p.state().set_xreg(self.rd() as RegT, 1 << 1)
-                } else {
-                    p.state().set_xreg(self.rd() as RegT, 1 << 6)
-                }
-            }
-            FpCategory::Subnormal => {
-                if frs1.is_sign_negative() {
-                    p.state().set_xreg(self.rd() as RegT, 1 << 2)
-                } else {
-                    p.state().set_xreg(self.rd() as RegT, 1 << 5)
-                }
-            }
-            FpCategory::Zero => {
-                if frs1.is_sign_negative() {
-                    p.state().set_xreg(self.rd() as RegT, 1 << 3)
-                } else {
-                    p.state().set_xreg(self.rd() as RegT, 1 << 4)
-                }
-            }
-            FpCategory::Nan => {
-                if Self::is_signaling_nan(frs1) {
-                    p.state().set_xreg(self.rd() as RegT, 1 << 8)
-                } else {
-                    p.state().set_xreg(self.rd() as RegT, 1 << 9)
-                }
-            }
+        let frs1 = F32::from_bits(rs1);
+        match frs1.class() {
+            FloatClass::NegativeInfinity => p.state().set_xreg(self.rd() as RegT, 1),
+            FloatClass::NegativeNormal => p.state().set_xreg(self.rd() as RegT, 1 << 1),
+            FloatClass::NegativeSubnormal => p.state().set_xreg(self.rd() as RegT, 1 << 2),
+            FloatClass::NegativeZero => p.state().set_xreg(self.rd() as RegT, 1 << 3),
+            FloatClass::PositiveZero => p.state().set_xreg(self.rd() as RegT, 1 << 4),
+            FloatClass::PositiveSubnormal => p.state().set_xreg(self.rd() as RegT, 1 << 5),
+            FloatClass::PositiveNormal => p.state().set_xreg(self.rd() as RegT, 1 << 6),
+            FloatClass::PositiveInfinity => p.state().set_xreg(self.rd() as RegT, 1 << 7),
+            FloatClass::SignalingNaN =>  p.state().set_xreg(self.rd() as RegT, 1 << 8),
+            FloatClass::QuietNaN => p.state().set_xreg(self.rd() as RegT, 1 << 9)
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
