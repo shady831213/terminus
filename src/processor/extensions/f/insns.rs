@@ -19,7 +19,7 @@ impl Execution for FLW {
         let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm() as RegT, self.imm_len()));
         let data = p.load_store().load_word((base + offset).0, p.mmu())?;
-        f.set_freg(self.rd() as RegT, data as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(data as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -40,7 +40,7 @@ impl Execution for FSW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
         let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
-        let data = f.freg(self.src());
+        let data = f.freg(self.src()) as u32;
         p.load_store().store_word((base + self.offset()).0, data as RegT, p.mmu())?;
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -67,7 +67,7 @@ impl Execution for FADDS {
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -93,7 +93,7 @@ impl Execution for FSUBS {
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -119,7 +119,7 @@ impl Execution for FMULS {
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -145,7 +145,7 @@ impl Execution for FDIVS {
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -170,7 +170,7 @@ impl Execution for FSQRTS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let res = self.compute(f.deref(), rs1, 0, 0)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -206,7 +206,7 @@ impl Execution for FMINS {
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -242,7 +242,7 @@ impl Execution for FMAXS {
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -269,7 +269,7 @@ impl Execution for FMADDS {
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
         let rs3: u32 = f.freg(self.rs3() as RegT).bit_range(31, 0);
         let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -296,7 +296,7 @@ impl Execution for FMSUBS {
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
         let rs3: u32 = f.freg(self.rs3() as RegT).bit_range(31, 0);
         let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -324,7 +324,7 @@ impl Execution for FMNSUBS {
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
         let rs3: u32 = f.freg(self.rs3() as RegT).bit_range(31, 0);
         let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -351,7 +351,7 @@ impl Execution for FMNADDS {
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
         let rs3: u32 = f.freg(self.rs3() as RegT).bit_range(31, 0);
         let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -516,7 +516,7 @@ impl Execution for FCVTSW {
         let f = self.get_f_ext(p)?;
         let rs1: RegT = sext(p.state().xreg(self.rs1() as RegT), 32);
         let fres = self.convert(f.deref(), rs1 as i32)?;
-        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(fres as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -542,7 +542,7 @@ impl Execution for FCVTSWU {
         let f = self.get_f_ext(p)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
         let fres = self.convert(f.deref(), rs1 as u32)?;
-        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(fres as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -569,7 +569,7 @@ impl Execution for FCVTSL {
         let f = self.get_f_ext(p)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT);
         let fres = self.convert(f.deref(), rs1 as i64)?;
-        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(fres as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -596,7 +596,7 @@ impl Execution for FCVTSLU {
         let f = self.get_f_ext(p)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT);
         let fres = self.convert(f.deref(), rs1 as u64)?;
-        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(fres as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -616,7 +616,7 @@ impl Execution for FSGNJS {
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
         let res = rs1 & ((1 << 31) - 1) | rs2 & (1 << 31);
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -636,7 +636,7 @@ impl Execution for FSGNJNS {
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
         let res = rs1 & ((1 << 31) - 1) | !rs2 & (1 << 31);
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -656,7 +656,7 @@ impl Execution for FSGNJXS {
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
         let res = rs1 & ((1 << 31) - 1) | (rs1 ^ rs2) & (1 << 31);
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }

@@ -5,6 +5,7 @@ use crate::processor::extensions::HasCsr;
 use std::any::Any;
 use terminus_global::RegT;
 use crate::processor::extensions::i::csrs::*;
+
 pub mod float;
 mod insns;
 pub mod csrs;
@@ -41,6 +42,14 @@ impl FLen {
             FLen::F128 => -1i128 as FRegT
         }
     }
+
+    pub fn padding(&self, v: FRegT, len: usize) -> FRegT {
+        let bit_len = std::mem::size_of::<FRegT>() << 3;
+        assert!(len > 0 && len <= bit_len);
+        let lower_mask = ((1 as FRegT) << (len as FRegT)) - 1;
+        v & lower_mask | self.mask() & !lower_mask
+    }
+
 }
 
 pub struct ExtensionF {

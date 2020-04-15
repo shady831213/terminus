@@ -19,7 +19,7 @@ impl Execution for FLD {
         let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm() as RegT, self.imm_len()));
         let data = p.load_store().load_double_word((base + offset).0, p.mmu())?;
-        f.set_freg(self.rd() as RegT, data as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(data as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -41,7 +41,7 @@ impl Execution for FSD {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
         let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
-        let data = f.freg(self.src());
+        let data = f.freg(self.src()) as u64;
         p.load_store().store_double_word((base + self.offset()).0, data as RegT, p.mmu())?;
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -69,7 +69,7 @@ impl Execution for FADDD {
         let rs1: u64 = f.freg(self.rs1() as RegT).bit_range(63, 0);
         let rs2: u64 = f.freg(self.rs2() as RegT).bit_range(63, 0);
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -96,7 +96,7 @@ impl Execution for FSUBD {
         let rs1: u64 = f.freg(self.rs1() as RegT).bit_range(63, 0);
         let rs2: u64 = f.freg(self.rs2() as RegT).bit_range(63, 0);
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -123,7 +123,7 @@ impl Execution for FMULD {
         let rs1: u64 = f.freg(self.rs1() as RegT).bit_range(63, 0);
         let rs2: u64 = f.freg(self.rs2() as RegT).bit_range(63, 0);
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -150,7 +150,7 @@ impl Execution for FDIVD {
         let rs1: u64 = f.freg(self.rs1() as RegT).bit_range(63, 0);
         let rs2: u64 = f.freg(self.rs2() as RegT).bit_range(63, 0);
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -176,7 +176,7 @@ impl Execution for FSQRTD {
         let f = self.get_f_ext(p)?;
         let rs1: u64 = f.freg(self.rs1() as RegT).bit_range(63, 0);
         let res = self.compute(f.deref(), rs1, 0, 0)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -213,7 +213,7 @@ impl Execution for FMIND {
         let rs1: u64 = f.freg(self.rs1() as RegT).bit_range(63, 0);
         let rs2: u64 = f.freg(self.rs2() as RegT).bit_range(63, 0);
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -250,7 +250,7 @@ impl Execution for FMAXD {
         let rs1: u64 = f.freg(self.rs1() as RegT).bit_range(63, 0);
         let rs2: u64 = f.freg(self.rs2() as RegT).bit_range(63, 0);
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -278,7 +278,7 @@ impl Execution for FMADDD {
         let rs2: u64 = f.freg(self.rs2() as RegT).bit_range(63, 0);
         let rs3: u64 = f.freg(self.rs3() as RegT).bit_range(63, 0);
         let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -306,7 +306,7 @@ impl Execution for FMSUBD {
         let rs2: u64 = f.freg(self.rs2() as RegT).bit_range(63, 0);
         let rs3: u64 = f.freg(self.rs3() as RegT).bit_range(63, 0);
         let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -335,7 +335,7 @@ impl Execution for FMNSUBD {
         let rs2: u64 = f.freg(self.rs2() as RegT).bit_range(63, 0);
         let rs3: u64 = f.freg(self.rs3() as RegT).bit_range(63, 0);
         let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -363,7 +363,7 @@ impl Execution for FMNADDD {
         let rs2: u64 = f.freg(self.rs2() as RegT).bit_range(63, 0);
         let rs3: u64 = f.freg(self.rs3() as RegT).bit_range(63, 0);
         let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -533,7 +533,7 @@ impl Execution for FCVTDW {
         let f = self.get_f_ext(p)?;
         let rs1: RegT = sext(p.state().xreg(self.rs1() as RegT), 32);
         let fres = self.convert(f.deref(), rs1 as i32)?;
-        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(fres as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -560,7 +560,7 @@ impl Execution for FCVTDWU {
         let f = self.get_f_ext(p)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
         let fres = self.convert(f.deref(), rs1 as u32)?;
-        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(fres as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -588,7 +588,7 @@ impl Execution for FCVTDL {
         let f = self.get_f_ext(p)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT);
         let fres = self.convert(f.deref(), rs1 as i64)?;
-        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(fres as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -616,7 +616,7 @@ impl Execution for FCVTDLU {
         let f = self.get_f_ext(p)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT);
         let fres = self.convert(f.deref(), rs1 as u64)?;
-        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(fres as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -643,7 +643,7 @@ impl Execution for FCVTSD {
         let f = self.get_f_ext(p)?;
         let rs1: u64 = f.freg(self.rs1() as RegT).bit_range(63, 0);
         let fres = self.convert(f.deref(), rs1)?;
-        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(fres as FRegT, 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -671,7 +671,7 @@ impl Execution for FCVTDS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let fres = self.convert(f.deref(), rs1)?;
-        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(fres as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -692,7 +692,7 @@ impl Execution for FSGNJD {
         let rs1: u64 = f.freg(self.rs1() as RegT).bit_range(63, 0);
         let rs2: u64 = f.freg(self.rs2() as RegT).bit_range(63, 0);
         let res = rs1 & ((1 << 63) - 1) | rs2 & (1 << 63);
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -713,7 +713,7 @@ impl Execution for FSGNJND {
         let rs1: u64 = f.freg(self.rs1() as RegT).bit_range(63, 0);
         let rs2: u64 = f.freg(self.rs2() as RegT).bit_range(63, 0);
         let res = rs1 & ((1 << 63) - 1) | !rs2 & (1 << 63);
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -734,7 +734,7 @@ impl Execution for FSGNJXD {
         let rs1: u64 = f.freg(self.rs1() as RegT).bit_range(63, 0);
         let rs2: u64 = f.freg(self.rs2() as RegT).bit_range(63, 0);
         let res = rs1 & ((1 << 63) - 1) | (rs1 ^ rs2) & (1 << 63);
-        f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
+        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, 64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
