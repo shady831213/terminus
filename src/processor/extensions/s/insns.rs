@@ -1,11 +1,4 @@
-use terminus_global::*;
-use terminus_macros::*;
-use terminus_proc_macros::Instruction;
-use crate::processor::{Processor, Privilege};
-use crate::processor::trap::Exception;
-use crate::processor::insn::*;
-use crate::processor::decode::*;
-use crate::linkme::*;
+use crate::processor::insn_define::*;
 use crate::processor::extensions::i::csrs::*;
 use crate::processor::extensions::s::csrs::*;
 use std::convert::TryFrom;

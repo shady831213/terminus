@@ -43,6 +43,18 @@ use crate::system::Bus;
 #[cfg(test)]
 mod test;
 
+//export for insn define
+pub mod insn_define {
+    pub use linkme::*;
+    pub use terminus_global::*;
+    pub use terminus_macros::*;
+    pub use terminus_proc_macros::Instruction;
+    pub use crate::processor::{Processor, Privilege, PrivilegeLevel};
+    pub use crate::processor::trap::Exception;
+    pub use crate::processor::insn::*;
+    pub use crate::processor::decode::*;
+}
+
 #[derive(IntoPrimitive, TryFromPrimitive, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
 pub enum PrivilegeLevel {
@@ -184,7 +196,7 @@ impl ProcessorState {
             Ok(())
         };
         add_one_extension('i')?;
-        for &ext in self.config().extensions.iter().filter(|&e|{*e != 'i'}) {
+        for &ext in self.config().extensions.iter().filter(|&e| { *e != 'i' }) {
             add_one_extension(ext)?
         }
         Ok(())

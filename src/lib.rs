@@ -8,8 +8,6 @@ extern crate xmas_elf;
 extern crate num_enum;
 extern crate num;
 
-pub use linkme::*;
-
 pub mod processor;
 
 pub mod elf;
@@ -17,4 +15,3 @@ pub mod elf;
 pub mod devices;
 
 pub mod system;
-
