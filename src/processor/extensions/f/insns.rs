@@ -23,12 +23,6 @@ trait F32Insn: InstructionImp {
     fn rm(&self) -> RegT {
         self.ir().bit_range(14, 12)
     }
-    fn is_signaling_nan(f: f32) -> bool {
-        let uf: u32 = f.to_bits();
-        let signal_bit = 1 << 22;
-        let signal_bit_clear = (uf & signal_bit) == 0;
-        f.is_nan() && signal_bit_clear
-    }
 }
 
 #[derive(Instruction)]
