@@ -1,5 +1,5 @@
 use std::rc::Rc;
-use crate::processor::ProcessorState;
+use crate::processor::{ProcessorState, Privilege};
 use crate::processor::extensions::HasCsr;
 use std::any::Any;
 use terminus_global::RegT;
@@ -166,10 +166,18 @@ impl HasCsr for ExtensionS {
     fn csrs(&self) -> Option<Rc<dyn Any>> {
         Some(self.csrs.clone() as Rc<dyn Any>)
     }
-    fn csr_write(&self, addr: RegT, value: RegT) -> Option<()> {
+    fn csr_write(&self, state:&ProcessorState, addr: RegT, value: RegT) -> Option<()> {
+        //stap
+        if addr == 0x180 && state.privilege() == Privilege::S && *self.tvm.borrow() {
+            return None;
+        }
         self.csrs.write(addr, value)
     }
-    fn csr_read(&self, addr: RegT) -> Option<RegT> {
+    fn csr_read(&self, state:&ProcessorState, addr: RegT) -> Option<RegT> {
+        //stap
+        if addr == 0x180 && state.privilege() == Privilege::S && *self.tvm.borrow() {
+            return None;
+        }
         self.csrs.read(addr)
     }
 }

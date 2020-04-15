@@ -145,11 +145,11 @@ impl HasCsr for ExtensionF {
     fn csrs(&self) -> Option<Rc<dyn Any>> {
         Some(self.csrs.clone() as Rc<dyn Any>)
     }
-    fn csr_write(&self, addr: RegT, value: RegT) -> Option<()> {
+    fn csr_write(&self, _: &ProcessorState, addr: RegT, value: RegT) -> Option<()> {
         *self.dirty.borrow_mut() = 0x3;
         self.csrs.write(addr, value)
     }
-    fn csr_read(&self, addr: RegT) -> Option<RegT> {
+    fn csr_read(&self, _: &ProcessorState, addr: RegT) -> Option<RegT> {
         if self.dirty() == 0 {
             None
         } else {

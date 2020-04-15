@@ -7,14 +7,15 @@ mod insns;
 pub mod csrs;
 
 use csrs::ICsrs;
-use crate::processor::{ProcessorCfg, PrivilegeLevel, Privilege};
+use crate::processor::{PrivilegeLevel, Privilege, ProcessorState};
 
 pub struct ExtensionI {
     csrs: Rc<ICsrs>,
 }
 
 impl ExtensionI {
-    pub fn new(cfg: &ProcessorCfg) -> ExtensionI {
+    pub fn new(state: &ProcessorState) -> ExtensionI {
+        let cfg = state.config();
         let e = ExtensionI {
             csrs: Rc::new(ICsrs::new(cfg.xlen))
         };
@@ -79,10 +80,10 @@ impl HasCsr for ExtensionI {
     fn csrs(&self) -> Option<Rc<dyn Any>> {
         Some(self.csrs.clone() as Rc<dyn Any>)
     }
-    fn csr_write(&self, addr: RegT, value: RegT) -> Option<()> {
+    fn csr_write(&self, _: &ProcessorState, addr: RegT, value: RegT) -> Option<()> {
         self.csrs.write(addr, value)
     }
-    fn csr_read(&self, addr: RegT) -> Option<RegT> {
+    fn csr_read(&self, _: &ProcessorState, addr: RegT) -> Option<RegT> {
         self.csrs.read(addr)
     }
 }

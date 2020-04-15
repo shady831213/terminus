@@ -1,11 +1,11 @@
 use crate::processor::extensions::NoCsr;
-use crate::processor::ProcessorCfg;
+use crate::processor::ProcessorState;
 
 mod insns;
 
 pub struct ExtensionM{}
 impl ExtensionM {
-    pub fn new(_: &ProcessorCfg) -> ExtensionM {
+    pub fn new(_: &ProcessorState) -> ExtensionM {
         ExtensionM{}
     }
 }

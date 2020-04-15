@@ -221,17 +221,13 @@ impl ProcessorState {
         if cur_priv < csr_priv {
             return Err(Exception::IllegalInsn(*self.ir.borrow()));
         }
-        //stap
-        if id == 0x180 && self.privilege() == Privilege::S && self.csrs::<ICsrs>().unwrap().mstatus().tvm() == 1 {
-            return Err(Exception::IllegalInsn(*self.ir.borrow()));
-        }
         Ok(())
     }
 
     pub fn csr(&self, id: RegT) -> Result<RegT, Exception> {
         let trip_id = id & 0xfff;
         self.csr_privilege_check(trip_id)?;
-        match self.extensions().values().find_map(|e| { e.csr_read(trip_id) }) {
+        match self.extensions().values().find_map(|e| { e.csr_read(self, trip_id) }) {
             Some(v) => Ok(v),
             None => Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
@@ -240,7 +236,7 @@ impl ProcessorState {
     pub fn set_csr(&self, id: RegT, value: RegT) -> Result<(), Exception> {
         let trip_id = id & 0xfff;
         self.csr_privilege_check(trip_id)?;
-        match self.extensions().values().find_map(|e| { e.csr_write(trip_id, value) }) {
+        match self.extensions().values().find_map(|e| { e.csr_write(self, trip_id, value) }) {
             Some(_) => Ok(()),
             None => Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
