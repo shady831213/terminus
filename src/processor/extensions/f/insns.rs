@@ -3,7 +3,6 @@ use std::num::Wrapping;
 use crate::processor::extensions::f::{ExtensionF, FRegT, rm_from_bits, status_flags_to_bits};
 use crate::processor::extensions::Extension;
 use std::rc::Rc;
-use std::num::FpCategory;
 use simple_soft_float::{F32, FPState, RoundingMode, Sign, StatusFlags, FloatClass};
 use std::cmp::Ordering;
 
@@ -22,6 +21,9 @@ trait F32Insn: InstructionImp {
     }
     fn rm(&self) -> RegT {
         self.ir().bit_range(14, 12)
+    }
+    fn rs3(&self) -> InsnT {
+        self.ir().bit_range(31, 27)
     }
 }
 
@@ -78,8 +80,8 @@ impl Execution for FSW {
 }
 
 trait F32Compute: F32Insn {
-    fn opt(&self, frs1: F32, frs2: F32, fp_state: &mut FPState) -> F32;
-    fn compute(&self, f: &ExtensionF, rs1: u32, rs2: u32) -> Result<u32, Exception> {
+    fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32;
+    fn compute(&self, f: &ExtensionF, rs1: u32, rs2: u32, rs3: u32) -> Result<u32, Exception> {
         let mut fp_state = FPState::default();
         fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
             rm
@@ -88,7 +90,8 @@ trait F32Compute: F32Insn {
         };
         let frs1 = F32::from_bits(rs1);
         let frs2 = F32::from_bits(rs2);
-        let fres = self.opt(frs1, frs2, &mut fp_state);
+        let frs3 = F32::from_bits(rs3);
+        let fres = self.opt(frs1, frs2, frs3, &mut fp_state);
         f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
         Ok(*fres.bits())
     }
@@ -103,7 +106,7 @@ struct FADDS(InsnT);
 impl F32Insn for FADDS {}
 
 impl F32Compute for FADDS {
-    fn opt(&self, frs1: F32, frs2: F32, fp_state: &mut FPState) -> F32 {
+    fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
         frs1.add(&frs2, rm_from_bits(self.rm()), Some(fp_state))
     }
 }
@@ -113,7 +116,7 @@ impl Execution for FADDS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
-        let res = self.compute(f.deref(), rs1, rs2)?;
+        let res = self.compute(f.deref(), rs1, rs2, 0)?;
         f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -129,7 +132,7 @@ struct FSUBS(InsnT);
 impl F32Insn for FSUBS {}
 
 impl F32Compute for FSUBS {
-    fn opt(&self, frs1: F32, frs2: F32, fp_state: &mut FPState) -> F32 {
+    fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
         frs1.sub(&frs2, rm_from_bits(self.rm()), Some(fp_state))
     }
 }
@@ -139,7 +142,7 @@ impl Execution for FSUBS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
-        let res = self.compute(f.deref(), rs1, rs2)?;
+        let res = self.compute(f.deref(), rs1, rs2, 0)?;
         f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -155,7 +158,7 @@ struct FMULS(InsnT);
 impl F32Insn for FMULS {}
 
 impl F32Compute for FMULS {
-    fn opt(&self, frs1: F32, frs2: F32, fp_state: &mut FPState) -> F32 {
+    fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
         frs1.mul(&frs2, rm_from_bits(self.rm()), Some(fp_state))
     }
 }
@@ -165,7 +168,7 @@ impl Execution for FMULS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
-        let res = self.compute(f.deref(), rs1, rs2)?;
+        let res = self.compute(f.deref(), rs1, rs2, 0)?;
         f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -181,7 +184,7 @@ struct FDIVS(InsnT);
 impl F32Insn for FDIVS {}
 
 impl F32Compute for FDIVS {
-    fn opt(&self, frs1: F32, frs2: F32, fp_state: &mut FPState) -> F32 {
+    fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
         frs1.div(&frs2, rm_from_bits(self.rm()), Some(fp_state))
     }
 }
@@ -191,7 +194,7 @@ impl Execution for FDIVS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
-        let res = self.compute(f.deref(), rs1, rs2)?;
+        let res = self.compute(f.deref(), rs1, rs2, 0)?;
         f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -207,7 +210,7 @@ struct FSQRTS(InsnT);
 impl F32Insn for FSQRTS {}
 
 impl F32Compute for FSQRTS {
-    fn opt(&self, frs1: F32, _: F32, fp_state: &mut FPState) -> F32 {
+    fn opt(&self, frs1: F32, _: F32, _: F32, fp_state: &mut FPState) -> F32 {
         frs1.sqrt(rm_from_bits(self.rm()), Some(fp_state))
     }
 }
@@ -216,7 +219,7 @@ impl Execution for FSQRTS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
-        let res = self.compute(f.deref(), rs1, 0)?;
+        let res = self.compute(f.deref(), rs1, 0, 0)?;
         f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -232,7 +235,7 @@ struct FMINS(InsnT);
 impl F32Insn for FMINS {}
 
 impl F32Compute for FMINS {
-    fn opt(&self, frs1: F32, frs2: F32, fp_state: &mut FPState) -> F32 {
+    fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
         if frs1.is_nan() && frs2.is_nan() {
             return F32::quiet_nan();
         }
@@ -252,7 +255,7 @@ impl Execution for FMINS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
-        let res = self.compute(f.deref(), rs1, rs2)?;
+        let res = self.compute(f.deref(), rs1, rs2, 0)?;
         f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -268,7 +271,7 @@ struct FMAXS(InsnT);
 impl F32Insn for FMAXS {}
 
 impl F32Compute for FMAXS {
-    fn opt(&self, frs1: F32, frs2: F32, fp_state: &mut FPState) -> F32 {
+    fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
         if frs1.is_nan() && frs2.is_nan() {
             return F32::quiet_nan();
         }
@@ -288,31 +291,10 @@ impl Execution for FMAXS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
-        let res = self.compute(f.deref(), rs1, rs2)?;
+        let res = self.compute(f.deref(), rs1, rs2, 0)?;
         f.set_freg(self.rd() as RegT, res as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
-    }
-}
-
-trait F32FMA: F32Insn {
-    fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32;
-    fn rs3(&self) -> InsnT {
-        self.ir().bit_range(31, 27)
-    }
-    fn compute(&self, f: &ExtensionF, rs1: u32, rs2: u32, rs3: u32) -> Result<u32, Exception> {
-        let mut fp_state = FPState::default();
-        fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
-            rm
-        } else {
-            if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
-        };
-        let frs1 = F32::from_bits(rs1);
-        let frs2 = F32::from_bits(rs2);
-        let frs3 = F32::from_bits(rs3);
-        let fres = self.opt(frs1, frs2, frs3, &mut fp_state);
-        f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
-        Ok(*fres.bits())
     }
 }
 
@@ -324,7 +306,7 @@ struct FMADDS(InsnT);
 
 impl F32Insn for FMADDS {}
 
-impl F32FMA for FMADDS {
+impl F32Compute for FMADDS {
     fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
         frs1.fused_mul_add(&frs2, &frs3, rm_from_bits(self.rm()), Some(state))
     }
@@ -351,7 +333,7 @@ struct FMSUBS(InsnT);
 
 impl F32Insn for FMSUBS {}
 
-impl F32FMA for FMSUBS {
+impl F32Compute for FMSUBS {
     fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
         frs1.fused_mul_add(&frs2, &frs3.neg(), rm_from_bits(self.rm()), Some(state))
     }
@@ -379,7 +361,7 @@ struct FMNSUBS(InsnT);
 
 impl F32Insn for FMNSUBS {}
 
-impl F32FMA for FMNSUBS {
+impl F32Compute for FMNSUBS {
     fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
         frs1.fused_mul_add(&frs2, &frs3.neg(), rm_from_bits(self.rm()), Some(state)).neg()
     }
@@ -406,7 +388,7 @@ struct FMNADDS(InsnT);
 
 impl F32Insn for FMNADDS {}
 
-impl F32FMA for FMNADDS {
+impl F32Compute for FMNADDS {
     fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
         frs1.fused_mul_add(&frs2, &frs3, rm_from_bits(self.rm()), Some(state)).neg()
     }
@@ -886,7 +868,7 @@ impl Execution for FCLASSS {
             FloatClass::PositiveSubnormal => p.state().set_xreg(self.rd() as RegT, 1 << 5),
             FloatClass::PositiveNormal => p.state().set_xreg(self.rd() as RegT, 1 << 6),
             FloatClass::PositiveInfinity => p.state().set_xreg(self.rd() as RegT, 1 << 7),
-            FloatClass::SignalingNaN =>  p.state().set_xreg(self.rd() as RegT, 1 << 8),
+            FloatClass::SignalingNaN => p.state().set_xreg(self.rd() as RegT, 1 << 8),
             FloatClass::QuietNaN => p.state().set_xreg(self.rd() as RegT, 1 << 9)
         }
         p.state().set_pc(p.state().pc() + 4);
