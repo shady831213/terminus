@@ -1,7 +1,7 @@
 use crate::processor::insn_define::*;
 use std::num::Wrapping;
 use crate::processor::extensions::f::FRegT;
-use crate::processor::extensions::f::float::{F32, FloatInsn, FStore, FCompute, F32Traits, FPState, FToInt, Sign, IntToF, FCompare, FClass};
+use crate::processor::extensions::f::float::{F32, FloatInsn, FStore, FCompute, F32Traits, FPState, FToX, Sign, XToF, FCompare, FClass};
 use std::cmp::Ordering;
 
 
@@ -366,7 +366,7 @@ struct FCVTWS(InsnT);
 
 impl FloatInsn for FCVTWS {}
 
-impl FToInt<u32, F32Traits> for FCVTWS {
+impl FToX<u32, F32Traits> for FCVTWS {
     type T = i32;
     fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T {
         if let Some(v) = frs1.to_i32(true, Self::rm_from_bits(self.rm()), Some(state)) {
@@ -400,7 +400,7 @@ struct FCVTWUS(InsnT);
 
 impl FloatInsn for FCVTWUS {}
 
-impl FToInt<u32, F32Traits> for FCVTWUS {
+impl FToX<u32, F32Traits> for FCVTWUS {
     type T = u32;
     fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T {
         if let Some(v) = frs1.to_u32(true, Self::rm_from_bits(self.rm()), Some(state)) {
@@ -434,7 +434,7 @@ struct FCVTLS(InsnT);
 
 impl FloatInsn for FCVTLS {}
 
-impl FToInt<u32, F32Traits> for FCVTLS {
+impl FToX<u32, F32Traits> for FCVTLS {
     type T = i64;
     fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T {
         if let Some(v) = frs1.to_i64(true, Self::rm_from_bits(self.rm()), Some(state)) {
@@ -469,7 +469,7 @@ struct FCVTLUS(InsnT);
 
 impl FloatInsn for FCVTLUS {}
 
-impl FToInt<u32, F32Traits> for FCVTLUS {
+impl FToX<u32, F32Traits> for FCVTLUS {
     type T = u64;
     fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T {
         if let Some(v) = frs1.to_u64(true, Self::rm_from_bits(self.rm()), Some(state)) {
@@ -504,7 +504,7 @@ struct FCVTSW(InsnT);
 
 impl FloatInsn for FCVTSW {}
 
-impl IntToF<u32, F32Traits> for FCVTSW {
+impl XToF<u32, F32Traits> for FCVTSW {
     type T = i32;
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
         F32::from_i32(rs1, Self::rm_from_bits(self.rm()), Some(state))
@@ -530,7 +530,7 @@ struct FCVTSWU(InsnT);
 
 impl FloatInsn for FCVTSWU {}
 
-impl IntToF<u32, F32Traits> for FCVTSWU {
+impl XToF<u32, F32Traits> for FCVTSWU {
     type T = u32;
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
         F32::from_u32(rs1, Self::rm_from_bits(self.rm()), Some(state))
@@ -556,7 +556,7 @@ struct FCVTSL(InsnT);
 
 impl FloatInsn for FCVTSL {}
 
-impl IntToF<u32, F32Traits> for FCVTSL {
+impl XToF<u32, F32Traits> for FCVTSL {
     type T = i64;
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
         F32::from_i64(rs1, Self::rm_from_bits(self.rm()), Some(state))
@@ -583,7 +583,7 @@ struct FCVTSLU(InsnT);
 
 impl FloatInsn for FCVTSLU {}
 
-impl IntToF<u32, F32Traits> for FCVTSLU {
+impl XToF<u32, F32Traits> for FCVTSLU {
     type T = u64;
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
         F32::from_u64(rs1, Self::rm_from_bits(self.rm()), Some(state))

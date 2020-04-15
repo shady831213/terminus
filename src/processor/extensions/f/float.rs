@@ -77,7 +77,7 @@ pub trait FCompute<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> +
 }
 
 
-pub trait FToInt<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + Default>: FloatInsn {
+pub trait FToX<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + Default>: FloatInsn {
     type T;
     fn opt(&self, frs1: Float<FpTrait>, state: &mut FPState) -> Self::T;
     fn convert(&self, f: &ExtensionF, rs1: Bits) -> Result<Self::T, Exception> {
@@ -94,7 +94,7 @@ pub trait FToInt<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + D
     }
 }
 
-pub trait IntToF<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + Default>: FloatInsn {
+pub trait XToF<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + Default>: FloatInsn {
     type T;
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> Float<FpTrait>;
     fn convert(&self, f: &ExtensionF, rs1: Self::T) -> Result<Bits, Exception> {

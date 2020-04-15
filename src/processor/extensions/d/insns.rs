@@ -61,6 +61,7 @@ impl FCompute<u64, F64Traits> for FADDD {
         frs1.add(&frs2, Self::rm_from_bits(self.rm()), Some(fp_state))
     }
 }
+
 impl Execution for FADDD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
@@ -377,7 +378,7 @@ struct FCVTWD(InsnT);
 
 impl FloatInsn for FCVTWD {}
 
-impl FToInt<u64, F64Traits> for FCVTWD {
+impl FToX<u64, F64Traits> for FCVTWD {
     type T = i32;
     fn opt(&self, frs1: F64, state: &mut FPState) -> Self::T {
         if let Some(v) = frs1.to_i32(true, Self::rm_from_bits(self.rm()), Some(state)) {
@@ -412,7 +413,7 @@ struct FCVTWUD(InsnT);
 
 impl FloatInsn for FCVTWUD {}
 
-impl FToInt<u64, F64Traits> for FCVTWUD {
+impl FToX<u64, F64Traits> for FCVTWUD {
     type T = u32;
     fn opt(&self, frs1: F64, state: &mut FPState) -> Self::T {
         if let Some(v) = frs1.to_u32(true, Self::rm_from_bits(self.rm()), Some(state)) {
@@ -447,7 +448,7 @@ struct FCVTLD(InsnT);
 
 impl FloatInsn for FCVTLD {}
 
-impl FToInt<u64, F64Traits> for FCVTLD {
+impl FToX<u64, F64Traits> for FCVTLD {
     type T = i64;
     fn opt(&self, frs1: F64, state: &mut FPState) -> Self::T {
         if let Some(v) = frs1.to_i64(true, Self::rm_from_bits(self.rm()), Some(state)) {
@@ -483,7 +484,7 @@ struct FCVTLUD(InsnT);
 
 impl FloatInsn for FCVTLUD {}
 
-impl FToInt<u64, F64Traits> for FCVTLUD {
+impl FToX<u64, F64Traits> for FCVTLUD {
     type T = u64;
     fn opt(&self, frs1: F64, state: &mut FPState) -> Self::T {
         if let Some(v) = frs1.to_u64(true, Self::rm_from_bits(self.rm()), Some(state)) {
@@ -519,7 +520,7 @@ struct FCVTDW(InsnT);
 
 impl FloatInsn for FCVTDW {}
 
-impl IntToF<u64, F64Traits> for FCVTDW {
+impl XToF<u64, F64Traits> for FCVTDW {
     type T = i32;
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> F64 {
         F64::from_i32(rs1, Self::rm_from_bits(self.rm()), Some(state))
@@ -546,7 +547,7 @@ struct FCVTDWU(InsnT);
 
 impl FloatInsn for FCVTDWU {}
 
-impl IntToF<u64, F64Traits> for FCVTDWU {
+impl XToF<u64, F64Traits> for FCVTDWU {
     type T = u32;
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> F64 {
         F64::from_u32(rs1, Self::rm_from_bits(self.rm()), Some(state))
@@ -573,7 +574,7 @@ struct FCVTDL(InsnT);
 
 impl FloatInsn for FCVTDL {}
 
-impl IntToF<u64, F64Traits> for FCVTDL {
+impl XToF<u64, F64Traits> for FCVTDL {
     type T = i64;
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> F64 {
         F64::from_i64(rs1, Self::rm_from_bits(self.rm()), Some(state))
@@ -601,7 +602,7 @@ struct FCVTDLU(InsnT);
 
 impl FloatInsn for FCVTDLU {}
 
-impl IntToF<u64, F64Traits> for FCVTDLU {
+impl XToF<u64, F64Traits> for FCVTDLU {
     type T = u64;
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> F64 {
         F64::from_u64(rs1, Self::rm_from_bits(self.rm()), Some(state))
@@ -615,6 +616,61 @@ impl Execution for FCVTDLU {
         let f = self.get_f_ext(p)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT);
         let fres = self.convert(f.deref(), rs1 as u64)?;
+        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b010000000001?????????????1010011")]
+#[derive(Debug)]
+struct FCVTSD(InsnT);
+
+impl FloatInsn for FCVTSD {}
+
+impl FToX<u64, F64Traits> for FCVTSD {
+    type T = u32;
+    fn opt(&self, frs1: F64, state: &mut FPState) -> Self::T {
+        *frs1.convert_to_float::<F32Traits>(Self::rm_from_bits(self.rm()), Some(state)).bits()
+    }
+}
+
+impl Execution for FCVTSD {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('d')?;
+        let f = self.get_f_ext(p)?;
+        let rs1: u64 = f.freg(self.rs1() as RegT).bit_range(63, 0);
+        let fres = self.convert(f.deref(), rs1)?;
+        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
+        p.state().set_pc(p.state().pc() + 4);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(R)]
+#[code("0b010000100000?????????????1010011")]
+#[derive(Debug)]
+struct FCVTDS(InsnT);
+
+impl FloatInsn for FCVTDS {}
+
+impl XToF<u64, F64Traits> for FCVTDS {
+    type T = u32;
+    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F64 {
+        let frs1 = F32::from_bits(rs1);
+        F64::convert_from_float::<F32Traits>(&frs1, Self::rm_from_bits(self.rm()), Some(state))
+    }
+}
+
+impl Execution for FCVTDS {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('d')?;
+        let f = self.get_f_ext(p)?;
+        let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
+        let fres = self.convert(f.deref(), rs1)?;
         f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
