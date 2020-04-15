@@ -5,7 +5,7 @@ use crate::processor::extensions::HasCsr;
 use std::any::Any;
 use terminus_global::RegT;
 use crate::processor::extensions::i::csrs::*;
-
+pub mod float;
 mod insns;
 pub mod csrs;
 
