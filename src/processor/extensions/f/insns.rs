@@ -1,6 +1,6 @@
 use crate::processor::insn_define::*;
 use std::num::Wrapping;
-use crate::processor::extensions::f::{ExtensionF, FRegT, rm_from_bits, status_flags_to_bits};
+use crate::processor::extensions::f::{ExtensionF, FRegT};
 use crate::processor::extensions::Extension;
 use std::rc::Rc;
 use simple_soft_float::{F32, FPState, RoundingMode, Sign, StatusFlags, FloatClass};
@@ -22,8 +22,24 @@ trait F32Insn: InstructionImp {
     fn rm(&self) -> RegT {
         self.ir().bit_range(14, 12)
     }
+
     fn rs3(&self) -> InsnT {
         self.ir().bit_range(31, 27)
+    }
+
+    fn rm_from_bits(bits: RegT) -> Option<RoundingMode> {
+        match bits {
+            0 => Some(RoundingMode::TiesToEven),
+            1 => Some(RoundingMode::TowardZero),
+            2 => Some(RoundingMode::TowardNegative),
+            3 => Some(RoundingMode::TowardPositive),
+            4 => Some(RoundingMode::TiesToAway),
+            _ => None
+        }
+    }
+
+    fn status_flags_to_bits(s: &StatusFlags) -> RegT {
+        (s.bits() << 27).reverse_bits() as RegT
     }
 }
 
@@ -43,7 +59,7 @@ trait F32Compute: F32Insn {
     fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32;
     fn compute(&self, f: &ExtensionF, rs1: u32, rs2: u32, rs3: u32) -> Result<u32, Exception> {
         let mut fp_state = FPState::default();
-        fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
+        fp_state.rounding_mode = if let Some(rm) = Self::rm_from_bits(f.csrs.frm().get()) {
             rm
         } else {
             if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
@@ -52,7 +68,7 @@ trait F32Compute: F32Insn {
         let frs2 = F32::from_bits(rs2);
         let frs3 = F32::from_bits(rs3);
         let fres = self.opt(frs1, frs2, frs3, &mut fp_state);
-        f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
+        f.csrs.fflags_mut().set(Self::status_flags_to_bits(&fp_state.status_flags));
         Ok(*fres.bits())
     }
 }
@@ -63,14 +79,14 @@ trait F32ToInt: F32Insn {
     fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T;
     fn convert(&self, f: &ExtensionF, rs1: u32) -> Result<Self::T, Exception> {
         let mut fp_state = FPState::default();
-        fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
+        fp_state.rounding_mode = if let Some(rm) = Self::rm_from_bits(f.csrs.frm().get()) {
             rm
         } else {
             if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
         };
         let fres = F32::from_bits(rs1);
         let res: Self::T = self.opt(fres, &mut fp_state);
-        f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
+        f.csrs.fflags_mut().set(Self::status_flags_to_bits(&fp_state.status_flags));
         Ok(res)
     }
 }
@@ -80,13 +96,13 @@ trait IntToF32: F32Insn {
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32;
     fn convert(&self, f: &ExtensionF, rs1: Self::T) -> Result<u32, Exception> {
         let mut fp_state = FPState::default();
-        fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
+        fp_state.rounding_mode = if let Some(rm) = Self::rm_from_bits(f.csrs.frm().get()) {
             rm
         } else {
             if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
         };
         let res = self.opt(rs1, &mut fp_state);
-        f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
+        f.csrs.fflags_mut().set(Self::status_flags_to_bits(&fp_state.status_flags));
         Ok(*res.bits())
     }
 }
@@ -94,7 +110,7 @@ trait IntToF32: F32Insn {
 trait F32Compare: F32Insn {
     fn compare(&self, f: &ExtensionF, rs1: u32, rs2: u32, check_nan: bool) -> Result<Option<Ordering>, Exception> {
         let mut fp_state = FPState::default();
-        fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
+        fp_state.rounding_mode = if let Some(rm) = Self::rm_from_bits(f.csrs.frm().get()) {
             rm
         } else {
             if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
@@ -107,7 +123,7 @@ trait F32Compare: F32Insn {
                 fp_state.status_flags = StatusFlags::INVALID_OPERATION;
             }
         }
-        f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
+        f.csrs.fflags_mut().set(Self::status_flags_to_bits(&fp_state.status_flags));
         Ok(res)
     }
 }
@@ -183,7 +199,7 @@ impl F32Insn for FADDS {}
 
 impl F32Compute for FADDS {
     fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
-        frs1.add(&frs2, rm_from_bits(self.rm()), Some(fp_state))
+        frs1.add(&frs2, Self::rm_from_bits(self.rm()), Some(fp_state))
     }
 }
 
@@ -209,7 +225,7 @@ impl F32Insn for FSUBS {}
 
 impl F32Compute for FSUBS {
     fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
-        frs1.sub(&frs2, rm_from_bits(self.rm()), Some(fp_state))
+        frs1.sub(&frs2, Self::rm_from_bits(self.rm()), Some(fp_state))
     }
 }
 
@@ -235,7 +251,7 @@ impl F32Insn for FMULS {}
 
 impl F32Compute for FMULS {
     fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
-        frs1.mul(&frs2, rm_from_bits(self.rm()), Some(fp_state))
+        frs1.mul(&frs2, Self::rm_from_bits(self.rm()), Some(fp_state))
     }
 }
 
@@ -261,7 +277,7 @@ impl F32Insn for FDIVS {}
 
 impl F32Compute for FDIVS {
     fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
-        frs1.div(&frs2, rm_from_bits(self.rm()), Some(fp_state))
+        frs1.div(&frs2, Self::rm_from_bits(self.rm()), Some(fp_state))
     }
 }
 
@@ -287,7 +303,7 @@ impl F32Insn for FSQRTS {}
 
 impl F32Compute for FSQRTS {
     fn opt(&self, frs1: F32, _: F32, _: F32, fp_state: &mut FPState) -> F32 {
-        frs1.sqrt(rm_from_bits(self.rm()), Some(fp_state))
+        frs1.sqrt(Self::rm_from_bits(self.rm()), Some(fp_state))
     }
 }
 
@@ -384,7 +400,7 @@ impl F32Insn for FMADDS {}
 
 impl F32Compute for FMADDS {
     fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
-        frs1.fused_mul_add(&frs2, &frs3, rm_from_bits(self.rm()), Some(state))
+        frs1.fused_mul_add(&frs2, &frs3, Self::rm_from_bits(self.rm()), Some(state))
     }
 }
 
@@ -411,7 +427,7 @@ impl F32Insn for FMSUBS {}
 
 impl F32Compute for FMSUBS {
     fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
-        frs1.fused_mul_add(&frs2, &frs3.neg(), rm_from_bits(self.rm()), Some(state))
+        frs1.fused_mul_add(&frs2, &frs3.neg(), Self::rm_from_bits(self.rm()), Some(state))
     }
 }
 
@@ -439,7 +455,7 @@ impl F32Insn for FMNSUBS {}
 
 impl F32Compute for FMNSUBS {
     fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
-        frs1.fused_mul_add(&frs2, &frs3.neg(), rm_from_bits(self.rm()), Some(state)).neg()
+        frs1.fused_mul_add(&frs2, &frs3.neg(), Self::rm_from_bits(self.rm()), Some(state)).neg()
     }
 }
 
@@ -466,7 +482,7 @@ impl F32Insn for FMNADDS {}
 
 impl F32Compute for FMNADDS {
     fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
-        frs1.fused_mul_add(&frs2, &frs3, rm_from_bits(self.rm()), Some(state)).neg()
+        frs1.fused_mul_add(&frs2, &frs3, Self::rm_from_bits(self.rm()), Some(state)).neg()
     }
 }
 
@@ -495,7 +511,7 @@ impl F32Insn for FCVTWS {}
 impl F32ToInt for FCVTWS {
     type T = i32;
     fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T {
-        if let Some(v) = frs1.to_i32(true, rm_from_bits(self.rm()), Some(state)) {
+        if let Some(v) = frs1.to_i32(true, Self::rm_from_bits(self.rm()), Some(state)) {
             v
         } else {
             if frs1.is_nan() || frs1.sign() == Sign::Positive {
@@ -529,7 +545,7 @@ impl F32Insn for FCVTWUS {}
 impl F32ToInt for FCVTWUS {
     type T = u32;
     fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T {
-        if let Some(v) = frs1.to_u32(true, rm_from_bits(self.rm()), Some(state)) {
+        if let Some(v) = frs1.to_u32(true, Self::rm_from_bits(self.rm()), Some(state)) {
             v
         } else {
             if frs1.is_nan() || frs1.sign() == Sign::Positive {
@@ -563,7 +579,7 @@ impl F32Insn for FCVTLS {}
 impl F32ToInt for FCVTLS {
     type T = i64;
     fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T {
-        if let Some(v) = frs1.to_i64(true, rm_from_bits(self.rm()), Some(state)) {
+        if let Some(v) = frs1.to_i64(true, Self::rm_from_bits(self.rm()), Some(state)) {
             v
         } else {
             if frs1.is_nan() || frs1.sign() == Sign::Positive {
@@ -598,7 +614,7 @@ impl F32Insn for FCVTLUS {}
 impl F32ToInt for FCVTLUS {
     type T = u64;
     fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T {
-        if let Some(v) = frs1.to_u64(true, rm_from_bits(self.rm()), Some(state)) {
+        if let Some(v) = frs1.to_u64(true, Self::rm_from_bits(self.rm()), Some(state)) {
             v
         } else {
             if frs1.is_nan() || frs1.sign() == Sign::Positive {
@@ -633,7 +649,7 @@ impl F32Insn for FCVTSW {}
 impl IntToF32 for FCVTSW {
     type T = i32;
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
-        F32::from_i32(rs1, rm_from_bits(self.rm()), Some(state))
+        F32::from_i32(rs1, Self::rm_from_bits(self.rm()), Some(state))
     }
 }
 
@@ -659,7 +675,7 @@ impl F32Insn for FCVTSWU {}
 impl IntToF32 for FCVTSWU {
     type T = u32;
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
-        F32::from_u32(rs1, rm_from_bits(self.rm()), Some(state))
+        F32::from_u32(rs1, Self::rm_from_bits(self.rm()), Some(state))
     }
 }
 
@@ -685,7 +701,7 @@ impl F32Insn for FCVTSL {}
 impl IntToF32 for FCVTSL {
     type T = i64;
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
-        F32::from_i64(rs1, rm_from_bits(self.rm()), Some(state))
+        F32::from_i64(rs1, Self::rm_from_bits(self.rm()), Some(state))
     }
 }
 
@@ -712,7 +728,7 @@ impl F32Insn for FCVTSLU {}
 impl IntToF32 for FCVTSLU {
     type T = u64;
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
-        F32::from_u64(rs1, rm_from_bits(self.rm()), Some(state))
+        F32::from_u64(rs1, Self::rm_from_bits(self.rm()), Some(state))
     }
 }
 

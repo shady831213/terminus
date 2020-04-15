@@ -5,7 +5,6 @@ use crate::processor::extensions::HasCsr;
 use std::any::Any;
 use terminus_global::RegT;
 use crate::processor::extensions::i::csrs::*;
-use simple_soft_float::{RoundingMode, StatusFlags};
 
 mod insns;
 pub mod csrs;
@@ -157,20 +156,4 @@ impl HasCsr for ExtensionF {
             self.csrs.read(addr)
         }
     }
-}
-
-
-pub fn rm_from_bits(bits: RegT) -> Option<RoundingMode> {
-    match bits {
-        0 => Some(RoundingMode::TiesToEven),
-        1 => Some(RoundingMode::TowardZero),
-        2 => Some(RoundingMode::TowardNegative),
-        3 => Some(RoundingMode::TowardPositive),
-        4 => Some(RoundingMode::TiesToAway),
-        _ => None
-    }
-}
-
-pub fn status_flags_to_bits(s: &StatusFlags) -> RegT {
-    (s.bits() << 27).reverse_bits() as RegT
 }
