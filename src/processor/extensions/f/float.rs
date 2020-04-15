@@ -7,7 +7,7 @@ use simple_soft_float::{RoundingMode, StatusFlags, FloatClass, FloatTraits, Floa
 use std::cmp::Ordering;
 use std::num::Wrapping;
 
-pub use simple_soft_float::{F32, Sign, F32Traits, FPState};
+pub use simple_soft_float::{F64, F32, Sign, F64Traits, F32Traits, FPState};
 
 pub trait FloatInsn: InstructionImp {
     fn get_f_ext(&self, p: &Processor) -> Result<Rc<ExtensionF>, Exception> {

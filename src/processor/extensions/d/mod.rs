@@ -1,7 +1,7 @@
 use crate::processor::extensions::NoCsr;
 use crate::processor::ProcessorState;
 
-// mod insns;
+mod insns;
 pub struct ExtensionD{}
 impl ExtensionD {
     pub fn new(_: &ProcessorState) -> ExtensionD {
