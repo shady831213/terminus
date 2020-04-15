@@ -27,6 +27,110 @@ trait F32Insn: InstructionImp {
     }
 }
 
+
+trait FStore: F32Insn {
+    fn offset(&self) -> Wrapping<RegT> {
+        let high: RegT = self.imm().bit_range(11, 5);
+        let low = self.rd() as RegT;
+        Wrapping(sext(high << 5 | low, self.imm_len()))
+    }
+    fn src(&self) -> RegT {
+        self.imm().bit_range(4, 0)
+    }
+}
+
+trait F32Compute: F32Insn {
+    fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32;
+    fn compute(&self, f: &ExtensionF, rs1: u32, rs2: u32, rs3: u32) -> Result<u32, Exception> {
+        let mut fp_state = FPState::default();
+        fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
+            rm
+        } else {
+            if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
+        };
+        let frs1 = F32::from_bits(rs1);
+        let frs2 = F32::from_bits(rs2);
+        let frs3 = F32::from_bits(rs3);
+        let fres = self.opt(frs1, frs2, frs3, &mut fp_state);
+        f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
+        Ok(*fres.bits())
+    }
+}
+
+
+trait F32ToInt: F32Insn {
+    type T;
+    fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T;
+    fn convert(&self, f: &ExtensionF, rs1: u32) -> Result<Self::T, Exception> {
+        let mut fp_state = FPState::default();
+        fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
+            rm
+        } else {
+            if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
+        };
+        let fres = F32::from_bits(rs1);
+        let res: Self::T = self.opt(fres, &mut fp_state);
+        f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
+        Ok(res)
+    }
+}
+
+trait IntToF32: F32Insn {
+    type T;
+    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32;
+    fn convert(&self, f: &ExtensionF, rs1: Self::T) -> Result<u32, Exception> {
+        let mut fp_state = FPState::default();
+        fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
+            rm
+        } else {
+            if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
+        };
+        let res = self.opt(rs1, &mut fp_state);
+        f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
+        Ok(*res.bits())
+    }
+}
+
+trait F32Compare: F32Insn {
+    fn compare(&self, f: &ExtensionF, rs1: u32, rs2: u32, check_nan: bool) -> Result<Option<Ordering>, Exception> {
+        let mut fp_state = FPState::default();
+        fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
+            rm
+        } else {
+            if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
+        };
+        let frs1 = F32::from_bits(rs1);
+        let frs2 = F32::from_bits(rs2);
+        let res = frs1.compare_quiet(&frs2, Some(&mut fp_state));
+        if check_nan {
+            if frs1.is_nan() || frs2.is_nan() {
+                fp_state.status_flags = StatusFlags::INVALID_OPERATION;
+            }
+        }
+        f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
+        Ok(res)
+    }
+}
+
+trait F32Class: F32Insn {
+    fn class(&self, rs1: u32) -> RegT {
+        let frs1 = F32::from_bits(rs1);
+        1 << match frs1.class() {
+            FloatClass::NegativeInfinity => 0,
+            FloatClass::NegativeNormal => 1,
+            FloatClass::NegativeSubnormal => 2,
+            FloatClass::NegativeZero => 3,
+            FloatClass::PositiveZero => 4,
+            FloatClass::PositiveSubnormal => 5,
+            FloatClass::PositiveNormal => 6,
+            FloatClass::PositiveInfinity => 7,
+            FloatClass::SignalingNaN => 8,
+            FloatClass::QuietNaN => 9
+        }
+    }
+}
+
+
 #[derive(Instruction)]
 #[format(I)]
 #[code("0b?????????????????010?????0000111")]
@@ -47,16 +151,6 @@ impl Execution for FLW {
     }
 }
 
-trait FStore: F32Insn {
-    fn offset(&self) -> Wrapping<RegT> {
-        let high: RegT = self.imm().bit_range(11, 5);
-        let low = self.rd() as RegT;
-        Wrapping(sext(high << 5 | low, self.imm_len()))
-    }
-    fn src(&self) -> RegT {
-        self.imm().bit_range(4, 0)
-    }
-}
 
 #[derive(Instruction)]
 #[format(I)]
@@ -76,24 +170,6 @@ impl Execution for FSW {
         p.load_store().store_word((base + self.offset()).0, data as RegT, p.mmu())?;
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
-    }
-}
-
-trait F32Compute: F32Insn {
-    fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32;
-    fn compute(&self, f: &ExtensionF, rs1: u32, rs2: u32, rs3: u32) -> Result<u32, Exception> {
-        let mut fp_state = FPState::default();
-        fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
-            rm
-        } else {
-            if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
-        };
-        let frs1 = F32::from_bits(rs1);
-        let frs2 = F32::from_bits(rs2);
-        let frs3 = F32::from_bits(rs3);
-        let fres = self.opt(frs1, frs2, frs3, &mut fp_state);
-        f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
-        Ok(*fres.bits())
     }
 }
 
@@ -408,24 +484,6 @@ impl Execution for FMNADDS {
 }
 
 
-trait F32ToInt: F32Insn {
-    type T;
-    fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T;
-    fn convert(&self, f: &ExtensionF, rs1: u32) -> Result<Self::T, Exception> {
-        let mut fp_state = FPState::default();
-        fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
-            rm
-        } else {
-            if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
-        };
-        let fres = F32::from_bits(rs1);
-        let res: Self::T = self.opt(fres, &mut fp_state);
-        f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
-        Ok(res)
-    }
-}
-
-
 #[derive(Instruction)]
 #[format(R)]
 #[code("0b110000000000?????????????1010011")]
@@ -561,22 +619,6 @@ impl Execution for FCVTLUS {
         p.state().set_xreg(self.rd() as RegT, res as RegT & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
-    }
-}
-
-trait IntToF32: F32Insn {
-    type T;
-    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32;
-    fn convert(&self, f: &ExtensionF, rs1: Self::T) -> Result<u32, Exception> {
-        let mut fp_state = FPState::default();
-        fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
-            rm
-        } else {
-            if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
-        };
-        let res = self.opt(rs1, &mut fp_state);
-        f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
-        Ok(*res.bits())
     }
 }
 
@@ -746,28 +788,6 @@ impl Execution for FSGNJXS {
     }
 }
 
-
-trait F32Compare: F32Insn {
-    fn compare(&self, f: &ExtensionF, rs1: u32, rs2: u32, check_nan: bool) -> Result<Option<Ordering>, Exception> {
-        let mut fp_state = FPState::default();
-        fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
-            rm
-        } else {
-            if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
-        };
-        let frs1 = F32::from_bits(rs1);
-        let frs2 = F32::from_bits(rs2);
-        let res = frs1.compare_quiet(&frs2, Some(&mut fp_state));
-        if check_nan {
-            if frs1.is_nan() || frs2.is_nan() {
-                fp_state.status_flags = StatusFlags::INVALID_OPERATION;
-            }
-        }
-        f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
-        Ok(res)
-    }
-}
-
 #[derive(Instruction)]
 #[format(R)]
 #[code("0b1010000??????????010?????1010011")]
@@ -846,6 +866,8 @@ impl Execution for FLES {
     }
 }
 
+
+
 #[derive(Instruction)]
 #[format(R)]
 #[code("0b111000000000?????001?????1010011")]
@@ -854,23 +876,13 @@ struct FCLASSS(InsnT);
 
 impl F32Insn for FCLASSS {}
 
+impl F32Class for FCLASSS {}
+
 impl Execution for FCLASSS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
-        let frs1 = F32::from_bits(rs1);
-        match frs1.class() {
-            FloatClass::NegativeInfinity => p.state().set_xreg(self.rd() as RegT, 1),
-            FloatClass::NegativeNormal => p.state().set_xreg(self.rd() as RegT, 1 << 1),
-            FloatClass::NegativeSubnormal => p.state().set_xreg(self.rd() as RegT, 1 << 2),
-            FloatClass::NegativeZero => p.state().set_xreg(self.rd() as RegT, 1 << 3),
-            FloatClass::PositiveZero => p.state().set_xreg(self.rd() as RegT, 1 << 4),
-            FloatClass::PositiveSubnormal => p.state().set_xreg(self.rd() as RegT, 1 << 5),
-            FloatClass::PositiveNormal => p.state().set_xreg(self.rd() as RegT, 1 << 6),
-            FloatClass::PositiveInfinity => p.state().set_xreg(self.rd() as RegT, 1 << 7),
-            FloatClass::SignalingNaN => p.state().set_xreg(self.rd() as RegT, 1 << 8),
-            FloatClass::QuietNaN => p.state().set_xreg(self.rd() as RegT, 1 << 9)
-        }
+        p.state().set_xreg(self.rd() as RegT, self.class(rs1));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
