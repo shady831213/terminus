@@ -4,7 +4,7 @@ use crate::processor::extensions::f::{ExtensionF, FRegT, rm_from_bits, status_fl
 use crate::processor::extensions::Extension;
 use std::rc::Rc;
 use std::num::FpCategory;
-use simple_soft_float::{F32, FPState, RoundingMode, Sign};
+use simple_soft_float::{F32, FPState, RoundingMode, Sign, StatusFlags};
 use std::cmp::Ordering;
 
 trait F32Insn: InstructionImp {
@@ -589,60 +589,18 @@ impl Execution for FCVTLUS {
 }
 
 trait IntToF32: F32Insn {
-    fn round(&self, rm: RegT, fres: f64) -> Result<f64, Exception> {
-        let rounded = (fres as f32) as f64;
-        match rm {
-            0 => {
-                Ok(fres)
-            }
-            1 => {
-                Ok(if fres.abs() < rounded.abs() {
-                    if fres.is_sign_positive() {
-                        (fres - std::f64::EPSILON)
-                    } else {
-                        (fres + std::f64::EPSILON)
-                    }
-                } else {
-                    fres
-                })
-            }
-            2 => {
-                Ok(if fres < rounded {
-                    (fres - std::f64::EPSILON)
-                } else {
-                    fres
-                })
-            }
-            3 => {
-                Ok(if fres > rounded {
-                    (fres + std::f64::EPSILON)
-                } else {
-                    fres
-                })
-            }
-            4 => {
-                Ok(if (fres - std::f32::MAX as f64).abs() > (fres - std::f32::MIN as f64).abs() {
-                    std::f32::MIN as f64
-                } else {
-                    std::f32::MAX as f64
-                })
-            }
-            _ => Err(Exception::IllegalInsn(self.ir()))
-        }
-    }
-    fn convert(&self, f: &ExtensionF, rs1: RegT, signed: bool) -> Result<f32, Exception> {
-        let fres = if signed { rs1 as SRegT as f64 } else { rs1 as f64 };
-        let rounded = self.round(if self.rm() == 0x7 { f.csrs.fcsr().frm() } else { self.rm() }, fres)?;
-        if rounded > std::f32::MAX as f64 {
-            f.csrs.fcsr_mut().set_of(1)
-        } else if rounded < std::f32::MIN as f64 {
-            f.csrs.fcsr_mut().set_uf(1)
-        }
-        Ok(if rounded.is_nan() {
-            std::f32::NAN
+    type T;
+    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32;
+    fn convert(&self, f: &ExtensionF, rs1: Self::T) -> Result<u32, Exception> {
+        let mut fp_state = FPState::default();
+        fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
+            rm
         } else {
-            rounded as f32
-        })
+            if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
+        };
+        let res = self.opt(rs1, &mut fp_state);
+        f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
+        Ok(*res.bits())
     }
 }
 
@@ -654,14 +612,19 @@ struct FCVTSW(InsnT);
 
 impl F32Insn for FCVTSW {}
 
-impl IntToF32 for FCVTSW {}
+impl IntToF32 for FCVTSW {
+    type T = i32;
+    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
+        F32::from_i32(rs1, rm_from_bits(self.rm()), Some(state))
+    }
+}
 
 impl Execution for FCVTSW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
         let rs1: RegT = sext(p.state().xreg(self.rs1() as RegT), 32);
-        let fres = self.convert(f.deref(), rs1, true)?;
-        f.set_freg(self.rd() as RegT, fres.to_bits() as FRegT & f.flen.mask());
+        let fres = self.convert(f.deref(), rs1 as i32)?;
+        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -675,14 +638,19 @@ struct FCVTSWU(InsnT);
 
 impl F32Insn for FCVTSWU {}
 
-impl IntToF32 for FCVTSWU {}
+impl IntToF32 for FCVTSWU {
+    type T = u32;
+    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
+        F32::from_u32(rs1, rm_from_bits(self.rm()), Some(state))
+    }
+}
 
 impl Execution for FCVTSWU {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
-        let fres = self.convert(f.deref(), rs1, false)?;
-        f.set_freg(self.rd() as RegT, fres.to_bits() as FRegT & f.flen.mask());
+        let fres = self.convert(f.deref(), rs1 as u32)?;
+        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -696,15 +664,20 @@ struct FCVTSL(InsnT);
 
 impl F32Insn for FCVTSL {}
 
-impl IntToF32 for FCVTSL {}
+impl IntToF32 for FCVTSL {
+    type T = i64;
+    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
+        F32::from_i64(rs1, rm_from_bits(self.rm()), Some(state))
+    }
+}
 
 impl Execution for FCVTSL {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         let f = self.get_f_ext(p)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT);
-        let fres = self.convert(f.deref(), rs1, true)?;
-        f.set_freg(self.rd() as RegT, fres.to_bits() as FRegT & f.flen.mask());
+        let fres = self.convert(f.deref(), rs1 as i64)?;
+        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -718,15 +691,20 @@ struct FCVTSLU(InsnT);
 
 impl F32Insn for FCVTSLU {}
 
-impl IntToF32 for FCVTSLU {}
+impl IntToF32 for FCVTSLU {
+    type T = u64;
+    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
+        F32::from_u64(rs1, rm_from_bits(self.rm()), Some(state))
+    }
+}
 
 impl Execution for FCVTSLU {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         let f = self.get_f_ext(p)?;
         let rs1: RegT = p.state().xreg(self.rs1() as RegT);
-        let fres = self.convert(f.deref(), rs1, false)?;
-        f.set_freg(self.rd() as RegT, fres.to_bits() as FRegT & f.flen.mask());
+        let fres = self.convert(f.deref(), rs1 as u64)?;
+        f.set_freg(self.rd() as RegT, fres as FRegT & f.flen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -793,6 +771,27 @@ impl Execution for FSGNJXS {
 }
 
 
+trait F32Compare: F32Insn {
+    fn compare(&self, f: &ExtensionF, rs1: u32, rs2: u32, check_nan: bool) -> Result<Option<Ordering>, Exception> {
+        let mut fp_state = FPState::default();
+        fp_state.rounding_mode = if let Some(rm) = rm_from_bits(f.csrs.frm().get()) {
+            rm
+        } else {
+            if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
+        };
+        let frs1 = F32::from_bits(rs1);
+        let frs2 = F32::from_bits(rs2);
+        let res = frs1.compare_quiet(&frs2, Some(&mut fp_state));
+        if check_nan {
+            if frs1.is_nan() || frs2.is_nan() {
+                fp_state.status_flags = StatusFlags::INVALID_OPERATION;
+            }
+        }
+        f.csrs.fflags_mut().set(status_flags_to_bits(&fp_state.status_flags));
+        Ok(res)
+    }
+}
+
 #[derive(Instruction)]
 #[format(R)]
 #[code("0b1010000??????????010?????1010011")]
@@ -801,17 +800,14 @@ struct FEQS(InsnT);
 
 impl F32Insn for FEQS {}
 
+impl F32Compare for FEQS {}
+
 impl Execution for FEQS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
-        let frs1 = f32::from_bits(rs1);
-        let frs2 = f32::from_bits(rs2);
-        if Self::is_signaling_nan(frs1) || Self::is_signaling_nan(frs2) {
-            f.csrs.fcsr_mut().set_nv(1)
-        }
-        if frs1 == frs2 {
+        if let Some(Ordering::Equal) = self.compare(f.deref(), rs1, rs2, false)? {
             p.state().set_xreg(self.rd() as RegT, 1);
         } else {
             p.state().set_xreg(self.rd() as RegT, 0);
@@ -829,17 +825,14 @@ struct FLTS(InsnT);
 
 impl F32Insn for FLTS {}
 
+impl F32Compare for FLTS {}
+
 impl Execution for FLTS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
-        let frs1 = f32::from_bits(rs1);
-        let frs2 = f32::from_bits(rs2);
-        if frs1.is_nan() || frs1.is_nan() {
-            f.csrs.fcsr_mut().set_nv(1)
-        }
-        if frs1 < frs2 {
+        if let Some(Ordering::Less) = self.compare(f.deref(), rs1, rs2, true)? {
             p.state().set_xreg(self.rd() as RegT, 1);
         } else {
             p.state().set_xreg(self.rd() as RegT, 0);
@@ -857,17 +850,17 @@ struct FLES(InsnT);
 
 impl F32Insn for FLES {}
 
+impl F32Compare for FLES {}
+
 impl Execution for FLES {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.freg(self.rs1() as RegT).bit_range(31, 0);
         let rs2: u32 = f.freg(self.rs2() as RegT).bit_range(31, 0);
-        let frs1 = f32::from_bits(rs1);
-        let frs2 = f32::from_bits(rs2);
-        if frs1.is_nan() || frs1.is_nan() {
-            f.csrs.fcsr_mut().set_nv(1)
-        }
-        if frs1 <= frs2 {
+        let res = self.compare(f.deref(), rs1, rs2, true)?;
+        if let Some(Ordering::Equal) = res {
+            p.state().set_xreg(self.rd() as RegT, 1);
+        } else if let Some(Ordering::Less) = res {
             p.state().set_xreg(self.rd() as RegT, 1);
         } else {
             p.state().set_xreg(self.rd() as RegT, 0);
