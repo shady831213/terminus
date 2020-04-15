@@ -3,10 +3,10 @@ use std::num::Wrapping;
 use crate::processor::extensions::f::{ExtensionF, FRegT};
 use crate::processor::extensions::Extension;
 use std::rc::Rc;
-use simple_soft_float::{F32, FPState, RoundingMode, Sign, StatusFlags, FloatClass};
+use simple_soft_float::{F32, FPState, RoundingMode, Sign, StatusFlags, FloatClass, FloatTraits, Float, F32Traits, FloatBitsType};
 use std::cmp::Ordering;
 
-trait F32Insn: InstructionImp {
+trait FloatInsn: InstructionImp {
     fn get_f_ext(&self, p: &Processor) -> Result<Rc<ExtensionF>, Exception> {
         p.state().check_extension('f')?;
         if let Some(Extension::F(f)) = p.state().extensions().get(&'f') {
@@ -44,7 +44,7 @@ trait F32Insn: InstructionImp {
 }
 
 
-trait FStore: F32Insn {
+trait FStore: FloatInsn {
     fn offset(&self) -> Wrapping<RegT> {
         let high: RegT = self.imm().bit_range(11, 5);
         let low = self.rd() as RegT;
@@ -55,18 +55,18 @@ trait FStore: F32Insn {
     }
 }
 
-trait F32Compute: F32Insn {
-    fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32;
-    fn compute(&self, f: &ExtensionF, rs1: u32, rs2: u32, rs3: u32) -> Result<u32, Exception> {
+trait FCompute<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + Default>: FloatInsn {
+    fn opt(&self, frs1: Float<FpTrait>, frs2: Float<FpTrait>, frs3: Float<FpTrait>, state: &mut FPState) -> Float<FpTrait>;
+    fn compute(&self, f: &ExtensionF, rs1: Bits, rs2: Bits, rs3: Bits) -> Result<Bits, Exception> {
         let mut fp_state = FPState::default();
         fp_state.rounding_mode = if let Some(rm) = Self::rm_from_bits(f.csrs.frm().get()) {
             rm
         } else {
             if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
         };
-        let frs1 = F32::from_bits(rs1);
-        let frs2 = F32::from_bits(rs2);
-        let frs3 = F32::from_bits(rs3);
+        let frs1 = Float::<FpTrait>::from_bits(rs1);
+        let frs2 = Float::<FpTrait>::from_bits(rs2);
+        let frs3 = Float::<FpTrait>::from_bits(rs3);
         let fres = self.opt(frs1, frs2, frs3, &mut fp_state);
         f.csrs.fflags_mut().set(Self::status_flags_to_bits(&fp_state.status_flags));
         Ok(*fres.bits())
@@ -74,27 +74,27 @@ trait F32Compute: F32Insn {
 }
 
 
-trait F32ToInt: F32Insn {
+trait FToInt<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + Default>: FloatInsn {
     type T;
-    fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T;
-    fn convert(&self, f: &ExtensionF, rs1: u32) -> Result<Self::T, Exception> {
+    fn opt(&self, frs1: Float<FpTrait>, state: &mut FPState) -> Self::T;
+    fn convert(&self, f: &ExtensionF, rs1: Bits) -> Result<Self::T, Exception> {
         let mut fp_state = FPState::default();
         fp_state.rounding_mode = if let Some(rm) = Self::rm_from_bits(f.csrs.frm().get()) {
             rm
         } else {
             if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
         };
-        let fres = F32::from_bits(rs1);
+        let fres = Float::<FpTrait>::from_bits(rs1);
         let res: Self::T = self.opt(fres, &mut fp_state);
         f.csrs.fflags_mut().set(Self::status_flags_to_bits(&fp_state.status_flags));
         Ok(res)
     }
 }
 
-trait IntToF32: F32Insn {
+trait IntToF<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + Default>: FloatInsn {
     type T;
-    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32;
-    fn convert(&self, f: &ExtensionF, rs1: Self::T) -> Result<u32, Exception> {
+    fn opt(&self, rs1: Self::T, state: &mut FPState) -> Float<FpTrait>;
+    fn convert(&self, f: &ExtensionF, rs1: Self::T) -> Result<Bits, Exception> {
         let mut fp_state = FPState::default();
         fp_state.rounding_mode = if let Some(rm) = Self::rm_from_bits(f.csrs.frm().get()) {
             rm
@@ -107,16 +107,16 @@ trait IntToF32: F32Insn {
     }
 }
 
-trait F32Compare: F32Insn {
-    fn compare(&self, f: &ExtensionF, rs1: u32, rs2: u32, check_nan: bool) -> Result<Option<Ordering>, Exception> {
+trait FCompare<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + Default>: FloatInsn {
+    fn compare(&self, f: &ExtensionF, rs1: Bits, rs2: Bits, check_nan: bool) -> Result<Option<Ordering>, Exception> {
         let mut fp_state = FPState::default();
         fp_state.rounding_mode = if let Some(rm) = Self::rm_from_bits(f.csrs.frm().get()) {
             rm
         } else {
             if self.rm() == 7 { return Err(Exception::IllegalInsn(self.ir())); } else { RoundingMode::default() }
         };
-        let frs1 = F32::from_bits(rs1);
-        let frs2 = F32::from_bits(rs2);
+        let frs1 =  Float::<FpTrait>::from_bits(rs1);
+        let frs2 = Float::<FpTrait>::from_bits(rs2);
         let res = frs1.compare_quiet(&frs2, Some(&mut fp_state));
         if check_nan {
             if frs1.is_nan() || frs2.is_nan() {
@@ -128,9 +128,9 @@ trait F32Compare: F32Insn {
     }
 }
 
-trait F32Class: F32Insn {
-    fn class(&self, rs1: u32) -> RegT {
-        let frs1 = F32::from_bits(rs1);
+trait FClass<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + Default>: FloatInsn {
+    fn class(&self, rs1: Bits) -> RegT {
+        let frs1 = Float::<FpTrait>::from_bits(rs1);
         1 << match frs1.class() {
             FloatClass::NegativeInfinity => 0,
             FloatClass::NegativeNormal => 1,
@@ -153,7 +153,7 @@ trait F32Class: F32Insn {
 #[derive(Debug)]
 struct FLW(InsnT);
 
-impl F32Insn for FLW {}
+impl FloatInsn for FLW {}
 
 impl Execution for FLW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -174,7 +174,7 @@ impl Execution for FLW {
 #[derive(Debug)]
 struct FSW(InsnT);
 
-impl F32Insn for FSW {}
+impl FloatInsn for FSW {}
 
 impl FStore for FSW {}
 
@@ -195,9 +195,9 @@ impl Execution for FSW {
 #[derive(Debug)]
 struct FADDS(InsnT);
 
-impl F32Insn for FADDS {}
+impl FloatInsn for FADDS {}
 
-impl F32Compute for FADDS {
+impl FCompute<u32, F32Traits> for FADDS {
     fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
         frs1.add(&frs2, Self::rm_from_bits(self.rm()), Some(fp_state))
     }
@@ -221,9 +221,9 @@ impl Execution for FADDS {
 #[derive(Debug)]
 struct FSUBS(InsnT);
 
-impl F32Insn for FSUBS {}
+impl FloatInsn for FSUBS {}
 
-impl F32Compute for FSUBS {
+impl FCompute<u32, F32Traits> for FSUBS {
     fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
         frs1.sub(&frs2, Self::rm_from_bits(self.rm()), Some(fp_state))
     }
@@ -247,9 +247,9 @@ impl Execution for FSUBS {
 #[derive(Debug)]
 struct FMULS(InsnT);
 
-impl F32Insn for FMULS {}
+impl FloatInsn for FMULS {}
 
-impl F32Compute for FMULS {
+impl FCompute<u32, F32Traits> for FMULS {
     fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
         frs1.mul(&frs2, Self::rm_from_bits(self.rm()), Some(fp_state))
     }
@@ -273,9 +273,9 @@ impl Execution for FMULS {
 #[derive(Debug)]
 struct FDIVS(InsnT);
 
-impl F32Insn for FDIVS {}
+impl FloatInsn for FDIVS {}
 
-impl F32Compute for FDIVS {
+impl FCompute<u32, F32Traits> for FDIVS {
     fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
         frs1.div(&frs2, Self::rm_from_bits(self.rm()), Some(fp_state))
     }
@@ -299,9 +299,9 @@ impl Execution for FDIVS {
 #[derive(Debug)]
 struct FSQRTS(InsnT);
 
-impl F32Insn for FSQRTS {}
+impl FloatInsn for FSQRTS {}
 
-impl F32Compute for FSQRTS {
+impl FCompute<u32, F32Traits> for FSQRTS {
     fn opt(&self, frs1: F32, _: F32, _: F32, fp_state: &mut FPState) -> F32 {
         frs1.sqrt(Self::rm_from_bits(self.rm()), Some(fp_state))
     }
@@ -324,9 +324,9 @@ impl Execution for FSQRTS {
 #[derive(Debug)]
 struct FMINS(InsnT);
 
-impl F32Insn for FMINS {}
+impl FloatInsn for FMINS {}
 
-impl F32Compute for FMINS {
+impl FCompute<u32, F32Traits> for FMINS {
     fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
         if frs1.is_nan() && frs2.is_nan() {
             return F32::quiet_nan();
@@ -360,9 +360,9 @@ impl Execution for FMINS {
 #[derive(Debug)]
 struct FMAXS(InsnT);
 
-impl F32Insn for FMAXS {}
+impl FloatInsn for FMAXS {}
 
-impl F32Compute for FMAXS {
+impl FCompute<u32, F32Traits> for FMAXS {
     fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
         if frs1.is_nan() && frs2.is_nan() {
             return F32::quiet_nan();
@@ -396,9 +396,9 @@ impl Execution for FMAXS {
 #[derive(Debug)]
 struct FMADDS(InsnT);
 
-impl F32Insn for FMADDS {}
+impl FloatInsn for FMADDS {}
 
-impl F32Compute for FMADDS {
+impl FCompute<u32, F32Traits> for FMADDS {
     fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
         frs1.fused_mul_add(&frs2, &frs3, Self::rm_from_bits(self.rm()), Some(state))
     }
@@ -423,9 +423,9 @@ impl Execution for FMADDS {
 #[derive(Debug)]
 struct FMSUBS(InsnT);
 
-impl F32Insn for FMSUBS {}
+impl FloatInsn for FMSUBS {}
 
-impl F32Compute for FMSUBS {
+impl FCompute<u32, F32Traits> for FMSUBS {
     fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
         frs1.fused_mul_add(&frs2, &frs3.neg(), Self::rm_from_bits(self.rm()), Some(state))
     }
@@ -451,9 +451,9 @@ impl Execution for FMSUBS {
 #[derive(Debug)]
 struct FMNSUBS(InsnT);
 
-impl F32Insn for FMNSUBS {}
+impl FloatInsn for FMNSUBS {}
 
-impl F32Compute for FMNSUBS {
+impl FCompute<u32, F32Traits> for FMNSUBS {
     fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
         frs1.fused_mul_add(&frs2, &frs3.neg(), Self::rm_from_bits(self.rm()), Some(state)).neg()
     }
@@ -478,9 +478,9 @@ impl Execution for FMNSUBS {
 #[derive(Debug)]
 struct FMNADDS(InsnT);
 
-impl F32Insn for FMNADDS {}
+impl FloatInsn for FMNADDS {}
 
-impl F32Compute for FMNADDS {
+impl FCompute<u32, F32Traits> for FMNADDS {
     fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
         frs1.fused_mul_add(&frs2, &frs3, Self::rm_from_bits(self.rm()), Some(state)).neg()
     }
@@ -506,9 +506,9 @@ impl Execution for FMNADDS {
 #[derive(Debug)]
 struct FCVTWS(InsnT);
 
-impl F32Insn for FCVTWS {}
+impl FloatInsn for FCVTWS {}
 
-impl F32ToInt for FCVTWS {
+impl FToInt<u32, F32Traits> for FCVTWS {
     type T = i32;
     fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T {
         if let Some(v) = frs1.to_i32(true, Self::rm_from_bits(self.rm()), Some(state)) {
@@ -540,9 +540,9 @@ impl Execution for FCVTWS {
 #[derive(Debug)]
 struct FCVTWUS(InsnT);
 
-impl F32Insn for FCVTWUS {}
+impl FloatInsn for FCVTWUS {}
 
-impl F32ToInt for FCVTWUS {
+impl FToInt<u32, F32Traits> for FCVTWUS {
     type T = u32;
     fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T {
         if let Some(v) = frs1.to_u32(true, Self::rm_from_bits(self.rm()), Some(state)) {
@@ -574,9 +574,9 @@ impl Execution for FCVTWUS {
 #[derive(Debug)]
 struct FCVTLS(InsnT);
 
-impl F32Insn for FCVTLS {}
+impl FloatInsn for FCVTLS {}
 
-impl F32ToInt for FCVTLS {
+impl FToInt<u32, F32Traits> for FCVTLS {
     type T = i64;
     fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T {
         if let Some(v) = frs1.to_i64(true, Self::rm_from_bits(self.rm()), Some(state)) {
@@ -609,9 +609,9 @@ impl Execution for FCVTLS {
 #[derive(Debug)]
 struct FCVTLUS(InsnT);
 
-impl F32Insn for FCVTLUS {}
+impl FloatInsn for FCVTLUS {}
 
-impl F32ToInt for FCVTLUS {
+impl FToInt<u32, F32Traits> for FCVTLUS {
     type T = u64;
     fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T {
         if let Some(v) = frs1.to_u64(true, Self::rm_from_bits(self.rm()), Some(state)) {
@@ -644,9 +644,9 @@ impl Execution for FCVTLUS {
 #[derive(Debug)]
 struct FCVTSW(InsnT);
 
-impl F32Insn for FCVTSW {}
+impl FloatInsn for FCVTSW {}
 
-impl IntToF32 for FCVTSW {
+impl IntToF<u32, F32Traits> for FCVTSW {
     type T = i32;
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
         F32::from_i32(rs1, Self::rm_from_bits(self.rm()), Some(state))
@@ -670,9 +670,9 @@ impl Execution for FCVTSW {
 #[derive(Debug)]
 struct FCVTSWU(InsnT);
 
-impl F32Insn for FCVTSWU {}
+impl FloatInsn for FCVTSWU {}
 
-impl IntToF32 for FCVTSWU {
+impl IntToF<u32, F32Traits> for FCVTSWU {
     type T = u32;
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
         F32::from_u32(rs1, Self::rm_from_bits(self.rm()), Some(state))
@@ -696,9 +696,9 @@ impl Execution for FCVTSWU {
 #[derive(Debug)]
 struct FCVTSL(InsnT);
 
-impl F32Insn for FCVTSL {}
+impl FloatInsn for FCVTSL {}
 
-impl IntToF32 for FCVTSL {
+impl IntToF<u32, F32Traits> for FCVTSL {
     type T = i64;
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
         F32::from_i64(rs1, Self::rm_from_bits(self.rm()), Some(state))
@@ -723,9 +723,9 @@ impl Execution for FCVTSL {
 #[derive(Debug)]
 struct FCVTSLU(InsnT);
 
-impl F32Insn for FCVTSLU {}
+impl FloatInsn for FCVTSLU {}
 
-impl IntToF32 for FCVTSLU {
+impl IntToF<u32, F32Traits> for FCVTSLU {
     type T = u64;
     fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
         F32::from_u64(rs1, Self::rm_from_bits(self.rm()), Some(state))
@@ -750,7 +750,7 @@ impl Execution for FCVTSLU {
 #[derive(Debug)]
 struct FSGNJS(InsnT);
 
-impl F32Insn for FSGNJS {}
+impl FloatInsn for FSGNJS {}
 
 impl Execution for FSGNJS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -770,7 +770,7 @@ impl Execution for FSGNJS {
 #[derive(Debug)]
 struct FSGNJNS(InsnT);
 
-impl F32Insn for FSGNJNS {}
+impl FloatInsn for FSGNJNS {}
 
 impl Execution for FSGNJNS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -790,7 +790,7 @@ impl Execution for FSGNJNS {
 #[derive(Debug)]
 struct FSGNJXS(InsnT);
 
-impl F32Insn for FSGNJXS {}
+impl FloatInsn for FSGNJXS {}
 
 impl Execution for FSGNJXS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -810,9 +810,9 @@ impl Execution for FSGNJXS {
 #[derive(Debug)]
 struct FEQS(InsnT);
 
-impl F32Insn for FEQS {}
+impl FloatInsn for FEQS {}
 
-impl F32Compare for FEQS {}
+impl FCompare<u32, F32Traits> for FEQS {}
 
 impl Execution for FEQS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -835,9 +835,9 @@ impl Execution for FEQS {
 #[derive(Debug)]
 struct FLTS(InsnT);
 
-impl F32Insn for FLTS {}
+impl FloatInsn for FLTS {}
 
-impl F32Compare for FLTS {}
+impl FCompare<u32, F32Traits> for FLTS {}
 
 impl Execution for FLTS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -860,9 +860,9 @@ impl Execution for FLTS {
 #[derive(Debug)]
 struct FLES(InsnT);
 
-impl F32Insn for FLES {}
+impl FloatInsn for FLES {}
 
-impl F32Compare for FLES {}
+impl FCompare<u32, F32Traits> for FLES {}
 
 impl Execution for FLES {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -883,16 +883,15 @@ impl Execution for FLES {
 }
 
 
-
 #[derive(Instruction)]
 #[format(R)]
 #[code("0b111000000000?????001?????1010011")]
 #[derive(Debug)]
 struct FCLASSS(InsnT);
 
-impl F32Insn for FCLASSS {}
+impl FloatInsn for FCLASSS {}
 
-impl F32Class for FCLASSS {}
+impl FClass<u32, F32Traits> for FCLASSS {}
 
 impl Execution for FCLASSS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -910,7 +909,7 @@ impl Execution for FCLASSS {
 #[derive(Debug)]
 struct FMVXW(InsnT);
 
-impl F32Insn for FMVXW {}
+impl FloatInsn for FMVXW {}
 
 impl Execution for FMVXW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -928,7 +927,7 @@ impl Execution for FMVXW {
 #[derive(Debug)]
 struct FMVWX(InsnT);
 
-impl F32Insn for FMVWX {}
+impl FloatInsn for FMVWX {}
 
 impl Execution for FMVWX {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
