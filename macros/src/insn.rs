@@ -289,6 +289,7 @@ macro_rules! insn_format {
         impl $name {
              bitfield_fields!{
                 InsnT;
+                _rd,_:9, 7;
                 _rs1,_:9, 7;
                 _imm1, _:12, 10;
                 _imm2, _:6,2;
@@ -304,6 +305,9 @@ macro_rules! insn_format {
              }
              fn ir(&self)->InsnT {
                 self._ir()
+             }
+             fn rd(&self)->InsnT {
+                self._rd() + 8
              }
              fn rs1(&self)->InsnT {
                 self._rs1() + 8

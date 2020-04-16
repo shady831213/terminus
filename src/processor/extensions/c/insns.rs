@@ -738,7 +738,7 @@ impl Execution for CSRLI {
         let shamt_4_0: RegT = self.imm().bit_range(4, 0);
         let shamt_5: RegT = self.imm().bit_range(7, 7);
         let shamt = shamt_4_0 | shamt_5 << 5;
-        if self.rd() == 0 || shamt == 0 {
+        if shamt == 0 {
             return Err(Exception::IllegalInsn(self.ir()));
         }
         if let Err(_) = p.state().check_xlen(XLen::X64) {
@@ -765,7 +765,7 @@ impl Execution for CSRAI {
         let shamt_4_0: RegT = self.imm().bit_range(4, 0);
         let shamt_5: RegT = self.imm().bit_range(7, 7);
         let shamt = shamt_4_0 | shamt_5 << 5;
-        if self.rd() == 0 || shamt == 0 {
+        if shamt == 0 {
             return Err(Exception::IllegalInsn(self.ir()));
         }
         if let Err(_) = p.state().check_xlen(XLen::X64) {
