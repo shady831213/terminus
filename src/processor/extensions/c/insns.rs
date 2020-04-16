@@ -779,5 +779,108 @@ impl Execution for CANDI {
     }
 }
 
+#[derive(Instruction)]
+#[format(CA)]
+#[code("0b????????????????100011???11???01")]
+#[derive(Debug)]
+struct CAND(InsnT);
+
+impl Execution for CAND {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('c')?;
+        let rs1 = p.state().xreg(self.rs1() as RegT);
+        let rs2 = p.state().xreg(self.rs2() as RegT);
+        p.state().set_xreg(self.rd() as RegT, (rs1 & rs2) & p.state().config().xlen.mask());
+        p.state().set_pc(p.state().pc() + 2);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(CA)]
+#[code("0b????????????????100011???10???01")]
+#[derive(Debug)]
+struct COR(InsnT);
+
+impl Execution for COR {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('c')?;
+        let rs1 = p.state().xreg(self.rs1() as RegT);
+        let rs2 = p.state().xreg(self.rs2() as RegT);
+        p.state().set_xreg(self.rd() as RegT, (rs1 | rs2) & p.state().config().xlen.mask());
+        p.state().set_pc(p.state().pc() + 2);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(CA)]
+#[code("0b????????????????100011???01???01")]
+#[derive(Debug)]
+struct CXOR(InsnT);
+
+impl Execution for CXOR {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('c')?;
+        let rs1 = p.state().xreg(self.rs1() as RegT);
+        let rs2 = p.state().xreg(self.rs2() as RegT);
+        p.state().set_xreg(self.rd() as RegT, (rs1 ^ rs2) & p.state().config().xlen.mask());
+        p.state().set_pc(p.state().pc() + 2);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(CA)]
+#[code("0b????????????????100011???00???01")]
+#[derive(Debug)]
+struct CSUB(InsnT);
+
+impl Execution for CSUB {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('c')?;
+        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
+        let rs2: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2() as RegT));
+        p.state().set_xreg(self.rd() as RegT, (rs1 - rs2).0 & p.state().config().xlen.mask());
+        p.state().set_pc(p.state().pc() + 2);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(CA)]
+#[code("0b????????????????100111???01???01")]
+#[derive(Debug)]
+struct CADDW(InsnT);
+
+impl Execution for CADDW {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('c')?;
+        p.state().check_xlen(XLen::X64)?;
+        let rs1: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs1() as RegT), 32));
+        let rs2: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs2() as RegT), 32));
+        p.state().set_xreg(self.rd() as RegT, sext((rs1 + rs2).0, 32) & p.state().config().xlen.mask());
+        p.state().set_pc(p.state().pc() + 2);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(CA)]
+#[code("0b????????????????100111???00???01")]
+#[derive(Debug)]
+struct CSUBW(InsnT);
+
+impl Execution for CSUBW {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('c')?;
+        p.state().check_xlen(XLen::X64)?;
+        let rs1: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs1() as RegT), 32));
+        let rs2: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs2() as RegT), 32));
+        p.state().set_xreg(self.rd() as RegT, sext((rs1 - rs2).0, 32) & p.state().config().xlen.mask());
+        p.state().set_pc(p.state().pc() + 2);
+        Ok(())
+    }
+}
 
 
