@@ -10,8 +10,9 @@ use std::ops::Deref;
 use super::devices::htif::HTIF;
 use std::fmt::{Display, Formatter};
 use crate::processor::{ProcessorCfg, Processor};
-use std::cmp::min;
+use std::cmp::{min, max};
 use crate::devices::clint::Timer;
+use std::num::Wrapping;
 
 #[derive_io(U8, U16, U32, U64)]
 pub struct Bus {
@@ -21,6 +22,128 @@ pub struct Bus {
 impl Bus {
     pub fn new(space: &Arc<Space>) -> Bus {
         Bus { space: space.clone() }
+    }
+    pub fn amo_swap32(&self, addr: u64, data: u32) -> region::Result<u32> {
+        let read = U32Access::read(self.space.deref(), addr)?;
+        U32Access::write(self.space.deref(), addr, data)?;
+        Ok(read)
+    }
+    pub fn amo_swap64(&self, addr: u64, data: u64) -> region::Result<u64> {
+        let read = U64Access::read(self.space.deref(), addr)?;
+        U64Access::write(self.space.deref(), addr, data)?;
+        Ok(read)
+    }
+
+    pub fn amo_add32(&self, addr: u64, data: u32) -> region::Result<u32> {
+        let read: Wrapping<u32> = Wrapping(U32Access::read(self.space.deref(), addr)?);
+        let write = (read + Wrapping(data)).0;
+        U32Access::write(self.space.deref(), addr, write)?;
+        Ok(write)
+    }
+
+    pub fn amo_add64(&self, addr: u64, data: u64) -> region::Result<u64> {
+        let read: Wrapping<u64> = Wrapping(U64Access::read(self.space.deref(), addr)?);
+        let write = (read + Wrapping(data)).0;
+        U64Access::write(self.space.deref(), addr, write)?;
+        Ok(write)
+    }
+
+    pub fn amo_and32(&self, addr: u64, data: u32) -> region::Result<u32> {
+        let read = U32Access::read(self.space.deref(), addr)?;
+        let write = read & data;
+        U32Access::write(self.space.deref(), addr, write)?;
+        Ok(write)
+    }
+
+    pub fn amo_and64(&self, addr: u64, data: u64) -> region::Result<u64> {
+        let read = U64Access::read(self.space.deref(), addr)?;
+        let write = read & data;
+        U64Access::write(self.space.deref(), addr, write)?;
+        Ok(write)
+    }
+
+    pub fn amo_or32(&self, addr: u64, data: u32) -> region::Result<u32> {
+        let read = U32Access::read(self.space.deref(), addr)?;
+        let write = read | data;
+        U32Access::write(self.space.deref(), addr, write)?;
+        Ok(write)
+    }
+
+    pub fn amo_or64(&self, addr: u64, data: u64) -> region::Result<u64> {
+        let read = U64Access::read(self.space.deref(), addr)?;
+        let write = read | data;
+        U64Access::write(self.space.deref(), addr, write)?;
+        Ok(write)
+    }
+
+    pub fn amo_xor32(&self, addr: u64, data: u32) -> region::Result<u32> {
+        let read = U32Access::read(self.space.deref(), addr)?;
+        let write = read ^ data;
+        U32Access::write(self.space.deref(), addr, write)?;
+        Ok(write)
+    }
+
+    pub fn amo_xor64(&self, addr: u64, data: u64) -> region::Result<u64> {
+        let read = U64Access::read(self.space.deref(), addr)?;
+        let write = read ^ data;
+        U64Access::write(self.space.deref(), addr, write)?;
+        Ok(write)
+    }
+
+    pub fn amo_maxi32(&self, addr: u64, data: i32) -> region::Result<i32> {
+        let read = U32Access::read(self.space.deref(), addr)? as i32;
+        let write = max(read, data);
+        U32Access::write(self.space.deref(), addr, write as u32)?;
+        Ok(write)
+    }
+
+    pub fn amo_maxi64(&self, addr: u64, data: i64) -> region::Result<i64> {
+        let read = U64Access::read(self.space.deref(), addr)? as i64;
+        let write = max(read, data);
+        U64Access::write(self.space.deref(), addr, write as u64)?;
+        Ok(write)
+    }
+
+    pub fn amo_mini32(&self, addr: u64, data: i32) -> region::Result<i32> {
+        let read = U32Access::read(self.space.deref(), addr)? as i32;
+        let write = min(read, data);
+        U32Access::write(self.space.deref(), addr, write as u32)?;
+        Ok(write)
+    }
+
+    pub fn amo_mini64(&self, addr: u64, data: i64) -> region::Result<i64> {
+        let read = U64Access::read(self.space.deref(), addr)? as i64;
+        let write = min(read, data);
+        U64Access::write(self.space.deref(), addr, write as u64)?;
+        Ok(write)
+    }
+
+    pub fn amo_maxu32(&self, addr: u64, data: u32) -> region::Result<u32> {
+        let read = U32Access::read(self.space.deref(), addr)? ;
+        let write = max(read, data);
+        U32Access::write(self.space.deref(), addr, write )?;
+        Ok(write)
+    }
+
+    pub fn amo_maxu64(&self, addr: u64, data: u64) -> region::Result<u64> {
+        let read = U64Access::read(self.space.deref(), addr)? ;
+        let write = max(read, data);
+        U64Access::write(self.space.deref(), addr, write )?;
+        Ok(write)
+    }
+
+    pub fn amo_minu32(&self, addr: u64, data: u32) -> region::Result<u32> {
+        let read = U32Access::read(self.space.deref(), addr)? ;
+        let write = min(read, data);
+        U32Access::write(self.space.deref(), addr, write )?;
+        Ok(write)
+    }
+
+    pub fn amo_minu64(&self, addr: u64, data: u64) -> region::Result<u64> {
+        let read = U64Access::read(self.space.deref(), addr)? ;
+        let write = min(read, data);
+        U64Access::write(self.space.deref(), addr, write )?;
+        Ok(write)
     }
 }
 
@@ -129,7 +252,7 @@ impl System {
         &self.mem_space
     }
 
-    pub fn register_device<D: IOAccess+'static>(&self, name: &str, base: u64, size: u64, device: D) -> Result<Arc<Region>, space::Error> {
+    pub fn register_device<D: IOAccess + 'static>(&self, name: &str, base: u64, size: u64, device: D) -> Result<Arc<Region>, space::Error> {
         self.register_region(name, base, &Region::io(base, size, Box::new(device)))
     }
 

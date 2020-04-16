@@ -57,7 +57,7 @@ pub enum Extension {
 impl Extension {
     pub fn new(state: &ProcessorState, id: char) -> Result<Extension, String> {
         match id {
-            'a' => Ok(Extension::A(Rc::new(ExtensionA {}))),
+            'a' => Ok(Extension::A(Rc::new(ExtensionA::new(state)))),
             'c' => Ok(Extension::C(Rc::new(ExtensionC::new(state)))),
             'd' => Ok(Extension::D(Rc::new(ExtensionD::new(state)))),
             'f' => Ok(Extension::F(Rc::new(ExtensionF::new(state)))),
@@ -65,8 +65,8 @@ impl Extension {
             'm' => Ok(Extension::M(Rc::new(ExtensionM::new(state)))),
             's' => Ok(Extension::S(Rc::new(ExtensionS::new(state)))),
             'u' => Ok(Extension::U(Rc::new(ExtensionU::new(state)))),
-            'v' => Ok(Extension::V(Rc::new(ExtensionV {}))),
-            _ => Err(format!("unsupported extension \'{}\', supported extension is a, c, d, f, i, m, s, u or v!", id))
+            // 'v' => Ok(Extension::V(Rc::new(ExtensionV {}))),
+            _ => Err(format!("unsupported extension \'{}\', supported extension is a, c, d, f, i, m, s, u!", id))
         }
     }
 }
