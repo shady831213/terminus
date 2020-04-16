@@ -288,7 +288,7 @@ macro_rules! insn_format {
                 InsnT;
                 _rs1,_:9, 7;
                 _imm1, _:12, 10;
-                _imm2, _:6,1;
+                _imm2, _:6,2;
              }
         }
         impl Format for $name {
@@ -297,13 +297,16 @@ macro_rules! insn_format {
                 op,_:1,0;
              }
              fn imm(&self)->InsnT {
-                self._imm1() << 6 | self._imm2()
+                self._imm1() << 5 | self._imm2()
              }
              fn ir(&self)->InsnT {
                 self._ir()
              }
              fn rs1(&self)->InsnT {
                 self._rs1() + 8
+             }
+             fn imm_len(&self)-> usize {
+                8
              }
         }
     };
