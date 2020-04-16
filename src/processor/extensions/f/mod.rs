@@ -43,13 +43,29 @@ impl FLen {
         }
     }
 
-    pub fn padding(&self, v: FRegT, len: usize) -> FRegT {
-        let bit_len = std::mem::size_of::<FRegT>() << 3;
-        assert!(len > 0 && len <= bit_len);
-        let lower_mask = ((1 as FRegT) << (len as FRegT)) - 1;
-        v & lower_mask | self.mask() & !lower_mask
+    pub fn padding(&self, v: FRegT, flen: FLen) -> FRegT {
+        self.mask() & if flen.len() < self.len() {
+            v & flen.mask() | self.mask() & !flen.mask()
+        } else {
+            v
+        }
     }
 
+    pub fn boxed(&self, v: FRegT, flen: FLen) -> FRegT {
+        flen.mask() & if flen.len() < self.len() {
+            if ((v | (-1i128 as FRegT) & !self.mask()) | flen.mask()) == -1i128 as FRegT {
+                v
+            } else {
+                match flen {
+                    FLen::F32 => *float::F32::quiet_nan().bits() as FRegT,
+                    FLen::F64 => *float::F64::quiet_nan().bits() as FRegT,
+                    _ => unreachable!()
+                }
+            }
+        } else {
+            v
+        }
+    }
 }
 
 pub struct ExtensionF {

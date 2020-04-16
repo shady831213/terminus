@@ -270,7 +270,20 @@ fn main() {
     riscv_test!(XLen::X64, "rv64ud-p-fmadd");
     riscv_test!(XLen::X64, "rv64ud-p-fmin");
     riscv_test!(XLen::X64, "rv64ud-p-ldst");
-    // riscv_test!(XLen::X64, "rv64ud-p-move");
+    riscv_test!(XLen::X64, "rv64ud-p-move");
+    riscv_test!(XLen::X64, "rv64ud-p-recoding");
+    riscv_test!(XLen::X64, "rv64ud-p-structural");
+
+    riscv_test!(XLen::X32, "rv32ud-p-fadd");
+    riscv_test!(XLen::X32, "rv32ud-p-fclass");
+    riscv_test!(XLen::X32, "rv32ud-p-fcmp");
+    riscv_test!(XLen::X32, "rv32ud-p-fcvt");
+    riscv_test!(XLen::X32, "rv32ud-p-fcvt_w");
+    riscv_test!(XLen::X32, "rv32ud-p-fdiv");
+    riscv_test!(XLen::X32, "rv32ud-p-fmadd");
+    riscv_test!(XLen::X32, "rv32ud-p-fmin");
+    riscv_test!(XLen::X32, "rv32ud-p-ldst");
+    riscv_test!(XLen::X32, "rv32ud-p-recoding");
 
     term_exit()
 }
