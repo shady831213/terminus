@@ -156,15 +156,23 @@ macro_rules! insn_format {
         }
     };
     ($name:ident, CIW) => {
+        impl $name {
+             bitfield_fields!{
+                InsnT;
+                _rd,_:4, 2;
+             }
+        }
         impl Format for $name {
              bitfield_fields!{
                 InsnT;
                 op,_:1,0;
-                rd,_:4, 2;
                 imm,_:12, 5;
              }
              fn ir(&self)->InsnT {
                 self._ir()
+             }
+             fn rd(&self)->InsnT {
+                self._rd() + 8
              }
         }
     };
@@ -186,6 +194,9 @@ macro_rules! insn_format {
              fn imm(&self)->InsnT {
                 self._imm1() << 5 | self._imm2()
              }
+             fn imm_len(&self)-> usize {
+                6
+             }
              fn ir(&self)->InsnT {
                 self._ir()
              }
@@ -202,12 +213,17 @@ macro_rules! insn_format {
              fn ir(&self)->InsnT {
                 self._ir()
              }
+             fn imm_len(&self)-> usize {
+                6
+             }
         }
     };
     ($name:ident, CL) => {
         impl $name {
              bitfield_fields!{
                 InsnT;
+                _rd,_:4, 2;
+                _rs1,_:9, 7;
                 _imm1, _:12, 10;
                 _imm2, _:6,5;
              }
@@ -216,14 +232,21 @@ macro_rules! insn_format {
              bitfield_fields!{
                 InsnT;
                 op,_:1,0;
-                rd,_:4, 2;
-                rs1,_:9, 7;
              }
              fn imm(&self)->InsnT {
                 self._imm1() << 2 | self._imm2()
              }
+             fn imm_len(&self)-> usize {
+                5
+             }
              fn ir(&self)->InsnT {
                 self._ir()
+             }
+             fn rd(&self)->InsnT {
+                self._rd() + 8
+             }
+             fn rs1(&self)->InsnT {
+                self._rs1() + 8
              }
         }
     };
@@ -231,6 +254,8 @@ macro_rules! insn_format {
         impl $name {
              bitfield_fields!{
                 InsnT;
+                _rs2,_:4, 2;
+                _rs1,_:9, 7;
                 _imm1, _:12, 10;
                 _imm2, _:6,5;
              }
@@ -239,8 +264,6 @@ macro_rules! insn_format {
              bitfield_fields!{
                 InsnT;
                 op,_:1,0;
-                rs2,_:4, 2;
-                rs1,_:9, 7;
              }
              fn imm(&self)->InsnT {
                 self._imm1() << 2 | self._imm2()
@@ -248,12 +271,19 @@ macro_rules! insn_format {
              fn ir(&self)->InsnT {
                 self._ir()
              }
+             fn rs2(&self)->InsnT {
+                self._rs2() + 8
+             }
+             fn rs1(&self)->InsnT {
+                self._rs1() + 8
+             }
         }
     };
     ($name:ident, CB) => {
         impl $name {
              bitfield_fields!{
                 InsnT;
+                _rs1,_:9, 7;
                 _imm1, _:12, 10;
                 _imm2, _:6,1;
              }
@@ -262,13 +292,43 @@ macro_rules! insn_format {
              bitfield_fields!{
                 InsnT;
                 op,_:1,0;
-                rs1,_:9, 7;
              }
              fn imm(&self)->InsnT {
                 self._imm1() << 6 | self._imm2()
              }
              fn ir(&self)->InsnT {
                 self._ir()
+             }
+             fn rs1(&self)->InsnT {
+                self._rs1() + 8
+             }
+        }
+    };
+    ($name:ident, CA) => {
+        impl $name {
+             bitfield_fields!{
+                InsnT;
+                _rs2,_:4, 2;
+                _rs1,_:9, 7;
+                _rd,_:9, 7;
+             }
+        }
+        impl Format for $name {
+             bitfield_fields!{
+                InsnT;
+                op,_:1,0;
+             }
+             fn ir(&self)->InsnT {
+                self._ir()
+             }
+             fn rs1(&self)->InsnT {
+                self._rs1() + 8
+             }
+             fn rs2(&self)->InsnT {
+                self._rs2() + 8
+             }
+             fn rd(&self)->InsnT {
+                self._rd() + 8
              }
         }
     };

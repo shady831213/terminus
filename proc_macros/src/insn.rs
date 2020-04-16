@@ -20,6 +20,7 @@ static ref VALID_FORMAT_TYPE:Vec<&'static str> = vec![
     "CL",
     "CS",
     "CB",
+    "CA",
     "CJ",
 ];
 }
