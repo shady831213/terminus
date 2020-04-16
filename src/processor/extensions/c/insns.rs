@@ -405,6 +405,19 @@ impl CJALADDIW {
         Ok(())
     }
     fn execute_c_addiw(&self, p: &Processor) -> Result<(), Exception> {
+        let rs1_addr: RegT = self.ir().bit_range(11, 7);
+        let rd_addr: RegT = self.ir().bit_range(11, 7);
+        let imm_1: RegT = self.ir().bit_range(6, 2);
+        let imm_2: RegT = self.ir().bit_range(12, 12);
+        let imm: RegT = imm_1 | imm_2 << 5;
+
+        if rd_addr == 0 {
+            return Err(Exception::IllegalInsn(self.ir()));
+        }
+        let rs1: Wrapping<RegT> = Wrapping(sext(p.state().xreg(rs1_addr), 32));
+        let rs2: Wrapping<RegT> = Wrapping(sext(imm, 6));
+        p.state().set_xreg(rd_addr, sext((rs1 + rs2).0, 32) & p.state().config().xlen.mask());
+        p.state().set_pc(p.state().pc() + 2);
         Ok(())
     }
 }
@@ -538,6 +551,7 @@ impl Execution for CLI {
             return Err(Exception::IllegalInsn(self.ir()));
         }
         p.state().set_xreg(self.rd() as RegT, sext(self.imm() as RegT, self.imm_len()) & p.state().config().xlen.mask());
+        p.state().set_pc(p.state().pc() + 2);
         Ok(())
     }
 }
@@ -546,15 +560,83 @@ impl Execution for CLI {
 #[format(CI)]
 #[code("0b????????????????011???????????01")]
 #[derive(Debug)]
-struct CLUI(InsnT);
+struct CLUIADDI16SP(InsnT);
 
-impl Execution for CLUI {
-    fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        p.state().check_extension('c')?;
-        if self.rd() == 0 || self.rd() == 2 || self.imm() == 0 {
-            return Err(Exception::IllegalInsn(self.ir()));
-        }
+impl CLUIADDI16SP {
+    fn execute_c_lui(&self, p: &Processor) -> Result<(), Exception> {
         p.state().set_xreg(self.rd() as RegT, sext((self.imm() as RegT) << (12 as RegT), self.imm_len() + 12) & p.state().config().xlen.mask());
         Ok(())
     }
+    fn execute_c_addi16sp(&self, p: &Processor) -> Result<(), Exception> {
+        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(2));
+        let imm_4: RegT = self.imm().bit_range(4, 4);
+        let imm_5: RegT = self.imm().bit_range(0, 0);
+        let imm_6: RegT = self.imm().bit_range(3, 3);
+        let imm_8_7: RegT = self.imm().bit_range(2, 1);
+        let imm_9: RegT = self.imm().bit_range(5, 5);
+        let rs2: Wrapping<RegT> = Wrapping(sext(imm_4 << 4 | imm_5 << 5 | imm_6 << 6 | imm_8_7 << 7 | imm_9 << 9, self.imm_len() + 4));
+        p.state().set_xreg(2, (rs1 + rs2).0 & p.state().config().xlen.mask());
+        Ok(())
+    }
 }
+
+impl Execution for CLUIADDI16SP {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('c')?;
+        if self.rd() == 0 || self.imm() == 0 {
+            return Err(Exception::IllegalInsn(self.ir()));
+        }
+        if self.rd() == 2 {
+            self.execute_c_addi16sp(p)?
+        } else {
+            self.execute_c_lui(p)?
+        }
+        p.state().set_pc(p.state().pc() + 2);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(CI)]
+#[code("0b????????????????000???????????01")]
+#[derive(Debug)]
+struct CADDI(InsnT);
+
+impl Execution for CADDI {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('c')?;
+        if self.rd() == 0 || self.imm() == 0 {
+            return Err(Exception::IllegalInsn(self.ir()));
+        }
+        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
+        let rs2: Wrapping<RegT> = Wrapping(sext(self.imm() as RegT, self.imm_len()));
+        p.state().set_xreg(self.rd() as RegT, (rs1 + rs2).0 & p.state().config().xlen.mask());
+        p.state().set_pc(p.state().pc() + 2);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(CIW)]
+#[code("0b????????????????000???????????00")]
+#[derive(Debug)]
+struct CADDI14SPN(InsnT);
+
+impl Execution for CADDI14SPN {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('c')?;
+        if self.imm() == 0 {
+            return Err(Exception::IllegalInsn(self.ir()));
+        }
+        let imm_2: RegT = self.imm().bit_range(1,1);
+        let imm_3: RegT = self.imm().bit_range(0,0);
+        let imm_5_4: RegT = self.imm().bit_range(7,6);
+        let imm_9_6: RegT = self.imm().bit_range(5,2);
+        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(2));
+        let rs2: Wrapping<RegT> = Wrapping(imm_2 << 2 | imm_3 << 3 | imm_5_4 << 4 | imm_9_6 << 6);
+        p.state().set_xreg(self.rd() as RegT, (rs1 + rs2).0 & p.state().config().xlen.mask());
+        p.state().set_pc(p.state().pc() + 2);
+        Ok(())
+    }
+}
+

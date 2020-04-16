@@ -171,6 +171,9 @@ macro_rules! insn_format {
              fn ir(&self)->InsnT {
                 self._ir()
              }
+             fn imm_len(&self)-> usize {
+                8
+             }
              fn rd(&self)->InsnT {
                 self._rd() + 8
              }
