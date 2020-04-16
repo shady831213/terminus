@@ -277,6 +277,9 @@ macro_rules! insn_format {
              fn rs1(&self)->InsnT {
                 self._rs1() + 8
              }
+             fn imm_len(&self)-> usize {
+                5
+             }
         }
     };
     ($name:ident, CB) => {
@@ -341,6 +344,9 @@ macro_rules! insn_format {
              }
              fn ir(&self)->InsnT {
                 self._ir()
+             }
+             fn imm_len(&self)-> usize {
+                11
              }
         }
     };
