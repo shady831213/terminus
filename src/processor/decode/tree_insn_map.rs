@@ -19,12 +19,14 @@ impl<T> TreeNode<T> {
         }
     }
 
-    fn insert<F: Fn(InsnT, &T) -> bool + 'static>(&mut self, key: InsnT, value: T, f:F) {
+    fn insert<F: Fn(InsnT, &T) -> bool + 'static>(&mut self, key: InsnT, value: T, f:F) -> Option<&T> {
         if self.level == insn_len() {
-            if self.value.is_some() {
-                panic!(format!("duplicate definition! 0x{:x}", key))
+            if let Some((ref v,_)) = self.value {
+                Some(v)
+            } else {
+                self.value = Some((value, Box::new(f)));
+                None
             }
-            self.value = Some((value, Box::new(f)))
         } else {
             let node = if key & ((1 as InsnT) << self.level as InsnT) == 0 {
                 self.left.get_or_insert(Box::into_raw(Box::new(Self::new(self.level + 1))))
@@ -111,7 +113,12 @@ impl TreeInsnMap {
 
 impl InsnMap for TreeInsnMap {
     fn registery<T: 'static + Decoder>(&mut self, decoder: T) {
-        self.0.insert(decoder.code(), Box::new(decoder), |key, dec| { key & dec.mask() == dec.code() })
+        let name = decoder.name();
+        let code = decoder.code();
+        let mask = decoder.mask();
+        if let Some(v) = self.0.insert(decoder.code(), Box::new(decoder), |key, dec| { key & dec.mask() == dec.code() }) {
+            panic!(format!("inst {}(code = {:#x}; mask = {:#x}) is duplicated with inst {}(code = {:#x}; mask = {:#x})!", name, code, mask,v.name(), v.code(), v.mask()))
+        }
     }
 
     fn decode(&self, ir: InsnT) -> Result<Instruction, Exception> {
@@ -135,7 +142,7 @@ unsafe impl Send for TreeInsnMap {}
 #[test]
 fn test_insert() {
     let mut tree: TreeNode<u32> = TreeNode::new(0);
-    tree.insert(7, 7, |k, v| { k == *v });
+    tree.insert(7, 7, |k, v| { k == *v }).unwrap();
     tree.compress();
     assert_eq!(*tree.get(7).unwrap(), 7);
     assert_eq!(tree.get(8), None);

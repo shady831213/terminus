@@ -453,36 +453,76 @@ trait CJumpR: InstructionImp {
 
 #[derive(Instruction)]
 #[format(CR)]
-#[code("0b????????????????1000?????0000010")]
+#[code("0b????????????????1000??????????10")]
 #[derive(Debug)]
-struct CJR(InsnT);
+struct CJRMV(InsnT);
 
-impl CJumpR for CJR {}
+impl CJRMV {
+    fn execute_c_jr(&self, p: &Processor) -> Result<(), Exception> {
+        self.jump(p)
+    }
+    fn execute_c_mv(&self, p: &Processor) -> Result<(), Exception> {
+        if self.rd() == 0 {
+            return Err(Exception::IllegalInsn(self.ir()));
+        }
+        let rs2 = p.state().xreg(self.rs2() as RegT);
+        p.state().set_xreg(self.rd() as RegT, rs2 & p.state().config().xlen.mask());
+        p.state().set_pc(p.state().pc() + 2);
+        Ok(())
+    }
+}
 
-impl Execution for CJR {
+impl CJumpR for CJRMV {}
+
+impl Execution for CJRMV {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        self.jump(p)
+        if self.rs2() == 0 {
+            self.execute_c_jr(p)?
+        } else {
+            self.execute_c_mv(p)?
+        }
+        Ok(())
     }
 }
 
 #[derive(Instruction)]
 #[format(CR)]
-#[code("0b????????????????1001?????0000010")]
+#[code("0b????????????????1001??????????10")]
 #[derive(Debug)]
-struct CJALR(InsnT);
+struct CJALRADD(InsnT);
 
-impl CJumpR for CJALR {}
-
-impl Execution for CJALR {
-    fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        p.state().check_extension('c')?;
+impl CJALRADD {
+    fn execute_c_jalr(&self, p: &Processor) -> Result<(), Exception> {
         self.jump(p)?;
         p.state().set_xreg(1, p.state().pc() + 2);
         Ok(())
     }
+    fn execute_c_add(&self, p: &Processor) -> Result<(), Exception> {
+        if self.rd() == 0 {
+            return Err(Exception::IllegalInsn(self.ir()));
+        }
+        let rs1:Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
+        let rs2:Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2() as RegT));
+        p.state().set_xreg(self.rd() as RegT, (rs1 + rs2).0 & p.state().config().xlen.mask());
+        p.state().set_pc(p.state().pc() + 2);
+        Ok(())
+    }
 }
 
+impl CJumpR for CJALRADD {}
+
+impl Execution for CJALRADD {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('c')?;
+        if self.rs2() == 0 {
+            self.execute_c_jalr(p)?
+        } else {
+            self.execute_c_add(p)?
+        }
+        Ok(())
+    }
+}
 
 trait CBranch: InstructionImp {
     fn branch<F: Fn(RegT) -> bool>(&self, p: &Processor, condition: F) -> Result<(), Exception> {
@@ -738,4 +778,6 @@ impl Execution for CANDI {
         Ok(())
     }
 }
+
+
 

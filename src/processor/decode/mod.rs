@@ -18,6 +18,7 @@ pub trait Decoder:Send+Sync {
     fn mask(&self) -> InsnT;
     fn matched(&self, ir: InsnT) -> bool;
     fn decode(&self, ir: InsnT) -> Instruction;
+    fn name(&self) -> String;
 }
 
 pub trait InsnMap {

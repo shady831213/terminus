@@ -35,6 +35,7 @@ pub fn expand(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2::TokenStrea
         let format = parse_format_attr(ast)?;
         let decoder_ident = format_ident!("{}Decoder", name);
         let registery_ident = format_ident!("REGISTERY_{}", Ident::new(&name.to_string().to_uppercase(), name.span()));
+        let name_string = name.to_string();
         check_fields(data, name)?;
         Ok(quote!(
             bitfield_bitrange!{struct #name(InsnT)}
@@ -65,6 +66,9 @@ pub fn expand(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2::TokenStrea
                 }
                 fn decode(&self, ir:InsnT) -> Instruction {
                     #name::new(ir)
+                }
+                fn name(&self) -> String{
+                    #name_string.to_string()
                 }
             }
 
