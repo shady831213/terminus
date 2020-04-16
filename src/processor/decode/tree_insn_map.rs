@@ -142,7 +142,7 @@ unsafe impl Send for TreeInsnMap {}
 #[test]
 fn test_insert() {
     let mut tree: TreeNode<u32> = TreeNode::new(0);
-    tree.insert(7, 7, |k, v| { k == *v }).unwrap();
+    tree.insert(7, 7, |k, v| { k == *v });
     tree.compress();
     assert_eq!(*tree.get(7).unwrap(), 7);
     assert_eq!(tree.get(8), None);
