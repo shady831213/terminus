@@ -628,13 +628,112 @@ impl Execution for CADDI14SPN {
         if self.imm() == 0 {
             return Err(Exception::IllegalInsn(self.ir()));
         }
-        let imm_2: RegT = self.imm().bit_range(1,1);
-        let imm_3: RegT = self.imm().bit_range(0,0);
-        let imm_5_4: RegT = self.imm().bit_range(7,6);
-        let imm_9_6: RegT = self.imm().bit_range(5,2);
+        let imm_2: RegT = self.imm().bit_range(1, 1);
+        let imm_3: RegT = self.imm().bit_range(0, 0);
+        let imm_5_4: RegT = self.imm().bit_range(7, 6);
+        let imm_9_6: RegT = self.imm().bit_range(5, 2);
         let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(2));
         let rs2: Wrapping<RegT> = Wrapping(imm_2 << 2 | imm_3 << 3 | imm_5_4 << 4 | imm_9_6 << 6);
         p.state().set_xreg(self.rd() as RegT, (rs1 + rs2).0 & p.state().config().xlen.mask());
+        p.state().set_pc(p.state().pc() + 2);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(CI)]
+#[code("0b????????????????000???????????10")]
+#[derive(Debug)]
+struct CSLLI(InsnT);
+
+impl Execution for CSLLI {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('c')?;
+        if self.rd() == 0 || self.imm() == 0 {
+            return Err(Exception::IllegalInsn(self.ir()));
+        }
+        if let Err(_) = p.state().check_xlen(XLen::X64) {
+            if self.imm() & (1 << 5) != 0 {
+                return Err(Exception::IllegalInsn(self.ir()));
+            }
+        }
+        let rs1 = p.state().xreg(self.rs1() as RegT);
+        let shamt: RegT = (self.imm() as RegT).bit_range(p.state().config().xlen.len().trailing_zeros() as usize - 1, 0);
+        p.state().set_xreg(self.rd() as RegT, rs1.wrapping_shl(shamt as u32) & p.state().config().xlen.mask());
+        p.state().set_pc(p.state().pc() + 2);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(CB)]
+#[code("0b????????????????100?00????????01")]
+#[derive(Debug)]
+struct CSRLI(InsnT);
+
+impl Execution for CSRLI {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('c')?;
+        let shamt_4_0:RegT = self.imm().bit_range(4,0);
+        let shamt_5:RegT = self.imm().bit_range(7,7);
+        let shamt = shamt_4_0 | shamt_5 << 5;
+        if self.rd() == 0 || shamt == 0 {
+            return Err(Exception::IllegalInsn(self.ir()));
+        }
+        if let Err(_) = p.state().check_xlen(XLen::X64) {
+            if shamt_5 != 0 {
+                return Err(Exception::IllegalInsn(self.ir()));
+            }
+        }
+        let rs1 = p.state().xreg(self.rs1() as RegT);
+        p.state().set_xreg(self.rd() as RegT, rs1 >> shamt);
+        p.state().set_pc(p.state().pc() + 2);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(CB)]
+#[code("0b????????????????100?01????????01")]
+#[derive(Debug)]
+struct CSRAI(InsnT);
+
+impl Execution for CSRAI {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('c')?;
+        let shamt_4_0:RegT = self.imm().bit_range(4,0);
+        let shamt_5:RegT = self.imm().bit_range(7,7);
+        let shamt = shamt_4_0 | shamt_5 << 5;
+        if self.rd() == 0 || shamt == 0 {
+            return Err(Exception::IllegalInsn(self.ir()));
+        }
+        if let Err(_) = p.state().check_xlen(XLen::X64) {
+            if shamt_5 != 0 {
+                return Err(Exception::IllegalInsn(self.ir()));
+            }
+        }
+        let rs1 = p.state().xreg(self.rs1() as RegT);
+        p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shr(shamt as u32), p.state().config().xlen.len() - shamt as usize) & p.state().config().xlen.mask());
+        p.state().set_pc(p.state().pc() + 2);
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(CB)]
+#[code("0b????????????????100?10????????01")]
+#[derive(Debug)]
+struct CANDI(InsnT);
+
+impl Execution for CANDI {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('c')?;
+        let imm_4_0:RegT = self.imm().bit_range(4,0);
+        let imm_5:RegT = self.imm().bit_range(7,7);
+        let imm = imm_4_0 | imm_5 << 5;
+        let rs1 = p.state().xreg(self.rs1() as RegT);
+        let rs2 = sext(imm, 6) & p.state().config().xlen.mask();
+        p.state().set_xreg(self.rd() as RegT, (rs1 & rs2) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 2);
         Ok(())
     }
