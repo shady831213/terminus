@@ -490,9 +490,9 @@ impl Execution for CJRMV {
 #[format(CR)]
 #[code("0b????????????????1001??????????10")]
 #[derive(Debug)]
-struct CJALRADD(InsnT);
+struct CJALRADDEBREAK(InsnT);
 
-impl CJALRADD {
+impl CJALRADDEBREAK {
     fn execute_c_jalr(&self, p: &Processor) -> Result<(), Exception> {
         self.jump(p)?;
         p.state().set_xreg(1, p.state().pc() + 2);
@@ -502,20 +502,25 @@ impl CJALRADD {
         if self.rd() == 0 {
             return Err(Exception::IllegalInsn(self.ir()));
         }
-        let rs1:Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
-        let rs2:Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2() as RegT));
+        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
+        let rs2: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2() as RegT));
         p.state().set_xreg(self.rd() as RegT, (rs1 + rs2).0 & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 2);
         Ok(())
     }
+    fn execute_c_ebreak(&self, _: &Processor) -> Result<(), Exception> {
+        Err(Exception::Breakpoint)
+    }
 }
 
-impl CJumpR for CJALRADD {}
+impl CJumpR for CJALRADDEBREAK {}
 
-impl Execution for CJALRADD {
+impl Execution for CJALRADDEBREAK {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        if self.rs2() == 0 {
+        if self.rs2() == 0 && self.rd() == 0 {
+            self.execute_c_ebreak(p)?
+        } else if self.rs2() == 0 {
             self.execute_c_jalr(p)?
         } else {
             self.execute_c_add(p)?
@@ -640,17 +645,33 @@ impl Execution for CLUIADDI16SP {
 #[format(CI)]
 #[code("0b????????????????000???????????01")]
 #[derive(Debug)]
-struct CADDI(InsnT);
+struct CADDINOP(InsnT);
 
-impl Execution for CADDI {
-    fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        p.state().check_extension('c')?;
+impl CADDINOP {
+    fn execute_c_addi(&self, p: &Processor) -> Result<(), Exception> {
         if self.rd() == 0 || self.imm() == 0 {
             return Err(Exception::IllegalInsn(self.ir()));
         }
         let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
         let rs2: Wrapping<RegT> = Wrapping(sext(self.imm() as RegT, self.imm_len()));
         p.state().set_xreg(self.rd() as RegT, (rs1 + rs2).0 & p.state().config().xlen.mask());
+        Ok(())
+    }
+    fn execute_c_nop(&self, _: &Processor) -> Result<(), Exception> {
+        Ok(())
+    }
+}
+
+impl Execution for CADDINOP {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('c')?;
+        //cnop
+        if self.rd() == 0 && self.imm() == 0 {
+            self.execute_c_nop(p)?
+        } else {
+            self.execute_c_addi(p)?
+        }
+
         p.state().set_pc(p.state().pc() + 2);
         Ok(())
     }
@@ -714,8 +735,8 @@ struct CSRLI(InsnT);
 impl Execution for CSRLI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        let shamt_4_0:RegT = self.imm().bit_range(4,0);
-        let shamt_5:RegT = self.imm().bit_range(7,7);
+        let shamt_4_0: RegT = self.imm().bit_range(4, 0);
+        let shamt_5: RegT = self.imm().bit_range(7, 7);
         let shamt = shamt_4_0 | shamt_5 << 5;
         if self.rd() == 0 || shamt == 0 {
             return Err(Exception::IllegalInsn(self.ir()));
@@ -741,8 +762,8 @@ struct CSRAI(InsnT);
 impl Execution for CSRAI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        let shamt_4_0:RegT = self.imm().bit_range(4,0);
-        let shamt_5:RegT = self.imm().bit_range(7,7);
+        let shamt_4_0: RegT = self.imm().bit_range(4, 0);
+        let shamt_5: RegT = self.imm().bit_range(7, 7);
         let shamt = shamt_4_0 | shamt_5 << 5;
         if self.rd() == 0 || shamt == 0 {
             return Err(Exception::IllegalInsn(self.ir()));
@@ -768,8 +789,8 @@ struct CANDI(InsnT);
 impl Execution for CANDI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        let imm_4_0:RegT = self.imm().bit_range(4,0);
-        let imm_5:RegT = self.imm().bit_range(7,7);
+        let imm_4_0: RegT = self.imm().bit_range(4, 0);
+        let imm_5: RegT = self.imm().bit_range(7, 7);
         let imm = imm_4_0 | imm_5 << 5;
         let rs1 = p.state().xreg(self.rs1() as RegT);
         let rs2 = sext(imm, 6) & p.state().config().xlen.mask();
