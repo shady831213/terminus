@@ -13,7 +13,7 @@ impl Execution for CLWSP {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
         if self.rd() == 0 {
-            return Err(Exception::IllegalInsn(self.ir()))
+            return Err(Exception::IllegalInsn(self.ir()));
         }
         let base: Wrapping<RegT> = Wrapping(p.state().xreg(2));
         let offset_7_6: RegT = self.imm().bit_range(1, 0);
@@ -36,7 +36,7 @@ struct CLDSPCFLWSP(InsnT);
 impl CLDSPCFLWSP {
     fn execute_c_ldsp(&self, p: &Processor, base: Wrapping<RegT>) -> Result<(), Exception> {
         if self.rd() == 0 {
-            return Err(Exception::IllegalInsn(self.ir()))
+            return Err(Exception::IllegalInsn(self.ir()));
         }
         let offset_8_6: RegT = self.imm().bit_range(2, 0);
         let offset_5: RegT = self.imm().bit_range(5, 5);
@@ -427,7 +427,7 @@ impl Execution for CJALADDIW {
 trait CJumpR: InstructionImp {
     fn jump(&self, p: &Processor) -> Result<(), Exception> {
         if self.rs1() == 0 {
-            return Err(Exception::IllegalInsn(self.ir()))
+            return Err(Exception::IllegalInsn(self.ir()));
         }
         let t = p.state().xreg(self.rs1() as RegT);
         if t.trailing_zeros() < 1 {
@@ -473,11 +473,11 @@ impl Execution for CJALR {
 
 trait CBranch: InstructionImp {
     fn branch<F: Fn(RegT) -> bool>(&self, p: &Processor, condition: F) -> Result<(), Exception> {
-        let offset_2_1:RegT = self.imm().bit_range(2, 1);
-        let offset_4_3:RegT = self.imm().bit_range(6, 5);
-        let offset_5:RegT = self.imm().bit_range(0, 0);
-        let offset_7_6:RegT = self.imm().bit_range(4, 3);
-        let offset_8:RegT = self.imm().bit_range(7, 7);
+        let offset_2_1: RegT = self.imm().bit_range(2, 1);
+        let offset_4_3: RegT = self.imm().bit_range(6, 5);
+        let offset_5: RegT = self.imm().bit_range(0, 0);
+        let offset_7_6: RegT = self.imm().bit_range(4, 3);
+        let offset_8: RegT = self.imm().bit_range(7, 7);
 
         let offset: Wrapping<RegT> = Wrapping(sext(offset_2_1 << 1 | offset_4_3 << 3 | offset_5 << 5 | offset_7_6 << 6 | offset_8 << 8, self.imm_len() + 1));
         let pc: Wrapping<RegT> = Wrapping(p.state().pc());
@@ -535,9 +535,26 @@ impl Execution for CLI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
         if self.rd() == 0 {
-            return Err(Exception::IllegalInsn(self.ir()))
+            return Err(Exception::IllegalInsn(self.ir()));
         }
         p.state().set_xreg(self.rd() as RegT, sext(self.imm() as RegT, self.imm_len()) & p.state().config().xlen.mask());
+        Ok(())
+    }
+}
+
+#[derive(Instruction)]
+#[format(CI)]
+#[code("0b????????????????011???????????01")]
+#[derive(Debug)]
+struct CLUI(InsnT);
+
+impl Execution for CLUI {
+    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+        p.state().check_extension('c')?;
+        if self.rd() == 0 || self.rd() == 2 || self.imm() == 0 {
+            return Err(Exception::IllegalInsn(self.ir()));
+        }
+        p.state().set_xreg(self.rd() as RegT, sext((self.imm() as RegT) << (12 as RegT), self.imm_len() + 12) & p.state().config().xlen.mask());
         Ok(())
     }
 }
