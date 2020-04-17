@@ -46,7 +46,7 @@ impl NoCsr for ExtensionA {}
 impl HasStepCb for ExtensionA {
     fn step_cb(&self, p: &Processor) {
         if let Some(lc_res) = self.lc_res().deref() {
-            if p.state().insns_cnt() > lc_res.timestamp + 32 {
+            if p.state().insns_cnt() > lc_res.timestamp + 16 {
                 self.clr_lc_res();
                 p.load_store().release()
             }
