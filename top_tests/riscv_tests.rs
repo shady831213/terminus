@@ -13,7 +13,7 @@ fn riscv_test(xlen: XLen, name: &str, debug: bool) -> bool {
     let processor_cfg = ProcessorCfg {
         xlen,
         enable_dirty: true,
-        extensions: vec!['m', 'f', 'd', 's', 'u', 'c'].into_boxed_slice(),
+        extensions: vec!['m', 'f', 'd', 's', 'u', 'c', 'a'].into_boxed_slice(),
     };
     let sys = System::new(name, Path::new("top_tests/elf").join(Path::new(name)).to_str().expect(&format!("{} not existed!", name)), vec![processor_cfg], 100);
     sys.register_memory("main_memory", 0x80000000, &GHEAP.alloc(0x10000000, 1).expect("main_memory alloc fail!"));
@@ -289,6 +289,28 @@ fn main() {
     riscv_test!(XLen::X64, "rv64uc-p-rvc");
 
     riscv_test!(XLen::X32, "rv32uc-p-rvc");
+
+    //ua-p-*
+    riscv_test!(XLen::X64, "rv64ua-p-amoadd_d");
+    riscv_test!(XLen::X64, "rv64ua-p-amoadd_w");
+    riscv_test!(XLen::X64, "rv64ua-p-amoand_d");
+    riscv_test!(XLen::X64, "rv64ua-p-amoand_w");
+    riscv_test!(XLen::X64, "rv64ua-p-amomax_d");
+    riscv_test!(XLen::X64, "rv64ua-p-amomax_w");
+    riscv_test!(XLen::X64, "rv64ua-p-amomaxu_d");
+    riscv_test!(XLen::X64, "rv64ua-p-amomaxu_w");
+    riscv_test!(XLen::X64, "rv64ua-p-amomin_d");
+    riscv_test!(XLen::X64, "rv64ua-p-amomin_w");
+    riscv_test!(XLen::X64, "rv64ua-p-amominu_d");
+    riscv_test!(XLen::X64, "rv64ua-p-amominu_w");
+    riscv_test!(XLen::X64, "rv64ua-p-amoor_d");
+    riscv_test!(XLen::X64, "rv64ua-p-amoor_w");
+    riscv_test!(XLen::X64, "rv64ua-p-amoswap_d");
+    riscv_test!(XLen::X64, "rv64ua-p-amoswap_w");
+    riscv_test!(XLen::X64, "rv64ua-p-amoxor_d");
+    riscv_test!(XLen::X64, "rv64ua-p-amoxor_w");
+    riscv_test!(XLen::X64, "rv64ua-p-lrsc");
+
 
     term_exit()
 }

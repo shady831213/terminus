@@ -104,13 +104,13 @@ impl Bus {
         let read = U32Access::read(self.space.deref(), addr)?;
         let write = f(read);
         U32Access::write(self.space.deref(), addr, write)?;
-        Ok(write)
+        Ok(read)
     }
     pub fn amo_u64<F: Fn(u64) -> u64>(&self, addr: u64, f: F) -> region::Result<u64> {
         let read = U64Access::read(self.space.deref(), addr)?;
         let write = f(read);
         U64Access::write(self.space.deref(), addr, write)?;
-        Ok(write)
+        Ok(read)
     }
 }
 
