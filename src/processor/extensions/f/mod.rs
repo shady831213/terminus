@@ -1,7 +1,7 @@
 use crate::processor::ProcessorState;
 use std::cell::{RefCell, Ref};
 use std::rc::Rc;
-use crate::processor::extensions::HasCsr;
+use crate::processor::extensions::{HasCsr, NoStepCb};
 use std::any::Any;
 use terminus_global::RegT;
 use crate::processor::extensions::i::csrs::*;
@@ -182,3 +182,5 @@ impl HasCsr for ExtensionF {
         }
     }
 }
+
+impl NoStepCb for ExtensionF{}

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use crate::processor::{ProcessorState, Privilege};
-use crate::processor::extensions::HasCsr;
+use crate::processor::extensions::{HasCsr, NoStepCb};
 use std::any::Any;
 use terminus_global::RegT;
 use crate::processor::extensions::i::csrs::*;
@@ -181,3 +181,6 @@ impl HasCsr for ExtensionS {
         self.csrs.read(addr)
     }
 }
+
+impl NoStepCb for ExtensionS{}
+

@@ -1,4 +1,4 @@
-use crate::processor::extensions::NoCsr;
+use crate::processor::extensions::{NoCsr, NoStepCb};
 use crate::processor::ProcessorState;
 
 pub struct ExtensionU {}
@@ -11,3 +11,5 @@ impl ExtensionU {
 }
 
 impl NoCsr for ExtensionU {}
+
+impl NoStepCb for ExtensionU{}

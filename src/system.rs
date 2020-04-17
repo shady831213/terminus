@@ -3,7 +3,7 @@ use terminus_spaceport::memory::{MemInfo, region};
 use terminus_spaceport::space::{Space, SPACE_TABLE};
 use terminus_spaceport::space;
 use terminus_spaceport::derive_io;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::fmt;
 use super::elf::ElfLoader;
 use std::ops::Deref;
@@ -13,22 +13,104 @@ use crate::processor::{ProcessorCfg, Processor};
 use std::cmp::min;
 use crate::devices::clint::Timer;
 
+#[derive(Debug)]
+struct LockEntry {
+    addr: u64,
+    len: u64,
+    data: Vec<u8>,
+    holder: usize,
+}
+
+impl LockEntry {
+    fn lock_holder(&self, addr: u64, len: u64) -> Option<usize> {
+        if addr >= self.addr && addr < self.addr + self.len || addr + len - 1 >= self.addr && addr + len - 1 < self.addr + self.len ||
+            self.addr >= addr && self.addr < addr + len || self.addr + self.len - 1 >= addr && self.addr + self.len - 1 < addr + len {
+            Some(self.holder)
+        } else {
+            None
+        }
+    }
+}
+
 #[derive_io(U8, U16, U32, U64)]
 pub struct Bus {
-    space: Arc<Space>
+    space: Arc<Space>,
+    lock_table: Mutex<Vec<LockEntry>>,
 }
 
 impl Bus {
     pub fn new(space: &Arc<Space>) -> Bus {
-        Bus { space: space.clone() }
+        Bus {
+            space: space.clone(),
+            lock_table: Mutex::new(vec![]),
+        }
     }
-    pub fn amo_u32<F:Fn(u32)->u32>(&self, addr: u64, f:F) -> region::Result<u32> {
+    pub fn acquire(&self, addr: u64, len: u64, who: usize) -> region::Result<bool> {
+        let mut lock_table = self.lock_table.lock().unwrap();
+        if lock_table.iter().find(|entry| {
+            if let Some(lock_owner) = entry.lock_holder(addr, len) {
+                if who == lock_owner {
+                    panic!(format!("master {} try to lock {:#x} - {:#x} twice!", who, addr, addr + len))
+                }
+                true
+            } else {
+                false
+            }
+        }).is_some() {
+            Ok(false)
+        } else {
+            let mut data = vec![0u8; len as usize];
+            BytesAccess::read(self.space.deref(), addr, &mut data)?;
+            lock_table.push(LockEntry {
+                addr,
+                len,
+                data,
+                holder: who,
+            });
+            Ok(true)
+        }
+    }
+
+    pub fn lock_holder(&self, addr: u64, len: u64) -> Option<usize> {
+        let lock_table = self.lock_table.lock().unwrap();
+        if let Some(e) = lock_table.iter().find_map(|entry| { entry.lock_holder(addr, len) }) {
+            Some(e)
+        } else {
+            None
+        }
+    }
+
+    pub fn release(&self, addr: u64, len: u64, who: usize) {
+        let mut lock_table = self.lock_table.lock().unwrap();
+        if let Some((i, _)) = lock_table.iter().enumerate().find(|(_, entry)| {
+            if let Some(lock_owner) = entry.lock_holder(addr, len) {
+                if who == lock_owner {
+                    true
+                } else {
+                    panic!(format!("master {} try to release {:#x} - {:#x} but haven't owned the lock! lock_table:{:?}", who, addr, addr + len, lock_table))
+                }
+            } else {
+                false
+            }
+        }) {
+            lock_table.remove(i);
+        } else {
+            panic!(format!("master {} try to release {:#x} - {:#x} but haven't owned the lock! lock_table:{:?}", who, addr, addr + len, lock_table))
+        }
+    }
+
+    pub fn release_all_of_mine(&self, who: usize) {
+        let mut lock_table = self.lock_table.lock().unwrap();
+        lock_table.retain(|e|{e.holder != who})
+    }
+
+    pub fn amo_u32<F: Fn(u32) -> u32>(&self, addr: u64, f: F) -> region::Result<u32> {
         let read = U32Access::read(self.space.deref(), addr)?;
         let write = f(read);
         U32Access::write(self.space.deref(), addr, write)?;
         Ok(write)
     }
-    pub fn amo_u64<F:Fn(u64)->u64>(&self, addr: u64, f:F) -> region::Result<u64> {
+    pub fn amo_u64<F: Fn(u64) -> u64>(&self, addr: u64, f: F) -> region::Result<u64> {
         let read = U64Access::read(self.space.deref(), addr)?;
         let write = f(read);
         U64Access::write(self.space.deref(), addr, write)?;

@@ -73,6 +73,16 @@ impl Exception {
             Exception::StorePageFault(addr) => *addr as RegT,
         }
     }
+
+    pub fn executed(&self) -> bool {
+        match self {
+            Exception::Breakpoint => true,
+            Exception::UCall => true,
+            Exception::SCall => true,
+            Exception::MCall => true,
+            _ => false
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone)]

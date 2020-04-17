@@ -23,11 +23,12 @@ use v::*;
 use std::rc::Rc;
 use std::any::Any;
 
-pub trait HasCsr {
+trait HasCsr {
     fn csrs(&self) -> Option<Rc<dyn Any>>;
     fn csr_write(&self, state:&ProcessorState, addr: RegT, value: RegT) -> Option<()>;
     fn csr_read(&self, state:&ProcessorState, addr: RegT) -> Option<RegT>;
 }
+
 
 trait NoCsr {
     fn csrs(&self) -> Option<Rc<dyn Any>> {
@@ -39,6 +40,14 @@ trait NoCsr {
     fn csr_read(&self,  _:&ProcessorState, _: RegT) -> Option<RegT> {
         None
     }
+}
+
+trait HasStepCb{
+    fn step_cb(&self, state: &ProcessorState);
+}
+
+trait NoStepCb{
+    fn step_cb(&self, _: &ProcessorState) {}
 }
 
 
@@ -69,10 +78,7 @@ impl Extension {
             _ => Err(format!("unsupported extension \'{}\', supported extension is a, c, d, f, i, m, s, u!", id))
         }
     }
-}
-
-impl HasCsr for Extension {
-    fn csrs(&self) -> Option<Rc<dyn Any>> {
+    pub fn csrs(&self) -> Option<Rc<dyn Any>> {
         match self {
             Extension::A(a) => a.csrs(),
             Extension::C(c) => c.csrs(),
@@ -85,7 +91,7 @@ impl HasCsr for Extension {
             Extension::V(v) => v.csrs(),
         }
     }
-    fn csr_write(&self, state:&ProcessorState, addr: RegT, value: RegT) -> Option<()> {
+    pub fn csr_write(&self, state:&ProcessorState, addr: RegT, value: RegT) -> Option<()> {
         match self {
             Extension::A(a) => a.csr_write(state, addr, value),
             Extension::C(c) => c.csr_write(state, addr, value),
@@ -98,7 +104,7 @@ impl HasCsr for Extension {
             Extension::V(v) => v.csr_write(state, addr, value),
         }
     }
-    fn csr_read(&self, state:&ProcessorState, addr: RegT) -> Option<RegT> {
+    pub fn csr_read(&self, state:&ProcessorState, addr: RegT) -> Option<RegT> {
         match self {
             Extension::A(a) => a.csr_read(state, addr),
             Extension::C(c) => c.csr_read(state, addr),
@@ -109,6 +115,20 @@ impl HasCsr for Extension {
             Extension::S(s) => s.csr_read(state, addr),
             Extension::U(u) => u.csr_read(state, addr),
             Extension::V(v) => v.csr_read(state, addr),
+        }
+    }
+
+    pub fn step_cb(&self, state:&ProcessorState) {
+        match self {
+            Extension::A(a) => a.step_cb(state),
+            Extension::C(c) => c.step_cb(state),
+            Extension::D(d) => d.step_cb(state),
+            Extension::F(f) => f.step_cb(state),
+            Extension::I(i) => i.step_cb(state),
+            Extension::M(m) => m.step_cb(state),
+            Extension::S(s) => s.step_cb(state),
+            Extension::U(u) => u.step_cb(state),
+            Extension::V(v) => v.step_cb(state),
         }
     }
 }

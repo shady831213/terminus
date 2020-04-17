@@ -1,4 +1,4 @@
-use crate::processor::extensions::NoCsr;
+use crate::processor::extensions::{NoCsr, NoStepCb};
 use crate::processor::ProcessorState;
 
 mod insns;
@@ -9,3 +9,4 @@ impl ExtensionD {
     }
 }
 impl NoCsr for ExtensionD {}
+impl NoStepCb for ExtensionD{}

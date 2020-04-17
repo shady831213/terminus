@@ -1,7 +1,7 @@
 use terminus_global::*;
 use std::rc::Rc;
 use std::any::Any;
-use crate::processor::extensions::HasCsr;
+use crate::processor::extensions::{HasCsr, NoStepCb};
 
 mod insns;
 pub mod csrs;
@@ -87,4 +87,6 @@ impl HasCsr for ExtensionI {
         self.csrs.read(addr)
     }
 }
+
+impl NoStepCb for ExtensionI{}
 

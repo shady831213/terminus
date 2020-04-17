@@ -111,11 +111,12 @@ pub struct ProcessorState {
     next_pc: RefCell<RegT>,
     ir: RefCell<InsnT>,
     clint: Arc<IrqVec>,
+    insns_cnt:RefCell<u64>,
 }
 
 impl ProcessorState {
     pub fn trace(&self) -> String {
-        format!("privilege = {:?};pc = {:#x}; ir = {:#x}; next_pc = {:#x};", self.privilege(), self.pc(), self.ir(), self.next_pc())
+        format!("privilege = {:?};pc = {:#x}; ir = {:#x}; next_pc = {:#x}; insns_cnt = {};", self.privilege(), self.pc(), self.ir(), self.next_pc(), *self.insns_cnt.borrow())
     }
 }
 
@@ -160,6 +161,7 @@ impl ProcessorState {
             next_pc: RefCell::new(start_address),
             ir: RefCell::new(0),
             clint: clint.clone(),
+            insns_cnt: RefCell::new(0),
         };
         state.reset()?;
         Ok(state)
@@ -343,6 +345,13 @@ impl ProcessorState {
             (*self.xreg.borrow_mut())[trip_id as usize] = value
         }
     }
+
+
+    fn end_steps(&self){
+        for ext in self.extensions().values() {
+            ext.step_cb(self)
+        }
+    }
 }
 
 pub struct Processor {
@@ -393,7 +402,18 @@ impl Processor {
         *self.state.pc.borrow_mut() = *self.state.next_pc.borrow();
         let inst = self.fetcher.fetch(*self.state.pc.borrow(), self.mmu())?;
         *self.state.ir.borrow_mut() = inst.ir();
-        inst.execute(self)
+        match inst.execute(self) {
+            Ok(_) => {
+                *self.state.insns_cnt.borrow_mut() += 1;
+                Ok(())
+            }
+            Err(e) => {
+                if e.executed() {
+                    *self.state.insns_cnt.borrow_mut() += 1;
+                }
+                Err(e)
+            }
+        }
     }
 
     fn take_interrupt(&self) -> Result<(), Interrupt> {
@@ -498,5 +518,6 @@ impl Processor {
         for _ in 0..n {
             self.step_one()
         }
+        self.state.end_steps()
     }
 }
