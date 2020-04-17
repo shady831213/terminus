@@ -69,7 +69,7 @@ impl LoadStore {
         let pa = mmu.translate(addr, 1, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 1) {
             if lock_holder != self.p.hartid {
-                self.bus.release(addr, 1, lock_holder);
+                self.bus.invalid_lock(addr, 1, lock_holder);
             }
         }
         match U8Access::write(self.bus.deref(), pa, data as u8) {
@@ -84,7 +84,7 @@ impl LoadStore {
         let pa = mmu.translate(addr, 2, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 2) {
             if lock_holder != self.p.hartid {
-                self.bus.release(addr, 2, lock_holder);
+                self.bus.invalid_lock(addr, 2, lock_holder);
             }
         }
         match U16Access::write(self.bus.deref(), pa, data as u16) {
@@ -99,7 +99,7 @@ impl LoadStore {
         let pa = mmu.translate(addr, 4, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 4) {
             if lock_holder != self.p.hartid {
-                self.bus.release(addr, 4, lock_holder);
+                self.bus.invalid_lock(addr, 4, lock_holder);
             }
         }
         match U32Access::write(self.bus.deref(), pa, data as u32) {
@@ -114,7 +114,7 @@ impl LoadStore {
         let pa = mmu.translate(addr, 8, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 8) {
             if lock_holder != self.p.hartid {
-                self.bus.release(addr, 8, lock_holder);
+                self.bus.invalid_lock(addr, 8, lock_holder);
             }
         }
         match U64Access::write(self.bus.deref(), pa, data as u64) {
@@ -130,7 +130,7 @@ impl LoadStore {
         let pa = mmu.translate(addr, 4, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 4) {
             if lock_holder != self.p.hartid {
-                self.bus.release(addr, 4, lock_holder);
+                self.bus.invalid_lock(addr, 4, lock_holder);
             }
         }
         match self.bus.amo_u32(pa, f) {
@@ -145,7 +145,7 @@ impl LoadStore {
         let pa = mmu.translate(addr, 8, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 8) {
             if lock_holder != self.p.hartid {
-                self.bus.release(addr, 8, lock_holder);
+                self.bus.invalid_lock(addr, 8, lock_holder);
             }
         }
         match self.bus.amo_u64(pa, f) {
@@ -176,6 +176,6 @@ impl LoadStore {
     }
 
     pub fn release(&self) {
-        self.bus.release_all_of_mine(self.p.hartid)
+        self.bus.release(self.p.hartid)
     }
 }

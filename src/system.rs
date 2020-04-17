@@ -76,7 +76,7 @@ impl Bus {
         }
     }
 
-    pub fn release(&self, addr: u64, len: u64, who: usize) {
+    pub fn invalid_lock(&self, addr: u64, len: u64, who: usize) {
         let mut lock_table = self.lock_table.lock().unwrap();
         if let Some((i, _)) = lock_table.iter().enumerate().find(|(_, entry)| {
             if let Some(lock_owner) = entry.lock_holder(addr, len) {
@@ -95,7 +95,7 @@ impl Bus {
         }
     }
 
-    pub fn release_all_of_mine(&self, who: usize) {
+    pub fn release(&self, who: usize) {
         let mut lock_table = self.lock_table.lock().unwrap();
         lock_table.retain(|e|{e.holder != who})
     }
