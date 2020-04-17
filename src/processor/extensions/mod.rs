@@ -1,4 +1,4 @@
-use crate::processor::ProcessorState;
+use crate::processor::{ProcessorState, Processor};
 use terminus_global::*;
 
 pub mod a;
@@ -43,11 +43,11 @@ trait NoCsr {
 }
 
 trait HasStepCb{
-    fn step_cb(&self, state: &ProcessorState);
+    fn step_cb(&self, p: &Processor);
 }
 
 trait NoStepCb{
-    fn step_cb(&self, _: &ProcessorState) {}
+    fn step_cb(&self, _: &Processor) {}
 }
 
 
@@ -118,17 +118,17 @@ impl Extension {
         }
     }
 
-    pub fn step_cb(&self, state:&ProcessorState) {
+    pub fn step_cb(&self, p:&Processor) {
         match self {
-            Extension::A(a) => a.step_cb(state),
-            Extension::C(c) => c.step_cb(state),
-            Extension::D(d) => d.step_cb(state),
-            Extension::F(f) => f.step_cb(state),
-            Extension::I(i) => i.step_cb(state),
-            Extension::M(m) => m.step_cb(state),
-            Extension::S(s) => s.step_cb(state),
-            Extension::U(u) => u.step_cb(state),
-            Extension::V(v) => v.step_cb(state),
+            Extension::A(a) => a.step_cb(p),
+            Extension::C(c) => c.step_cb(p),
+            Extension::D(d) => d.step_cb(p),
+            Extension::F(f) => f.step_cb(p),
+            Extension::I(i) => i.step_cb(p),
+            Extension::M(m) => m.step_cb(p),
+            Extension::S(s) => s.step_cb(p),
+            Extension::U(u) => u.step_cb(p),
+            Extension::V(v) => v.step_cb(p),
         }
     }
 }

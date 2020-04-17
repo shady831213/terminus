@@ -21,6 +21,10 @@ impl LoadStore {
             bus: bus.clone(),
         }
     }
+    pub fn reset(&self) {
+        self.release()
+    }
+
     pub fn load_byte(&self, addr: RegT, mmu: &Mmu) -> Result<RegT, Exception> {
         let pa = mmu.translate(addr, 1, MmuOpt::Load)?;
         match U8Access::read(self.bus.deref(), pa) {
@@ -122,14 +126,14 @@ impl LoadStore {
         }
     }
 
-    pub fn amo_word<F:Fn(u32)->u32>(&self, addr: RegT, f:F, mmu: &Mmu) -> Result<RegT, Exception> {
+    pub fn amo_word<F: Fn(u32) -> u32>(&self, addr: RegT, f: F, mmu: &Mmu) -> Result<RegT, Exception> {
         let pa = mmu.translate(addr, 4, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 4) {
             if lock_holder != self.p.hartid {
                 self.bus.release(addr, 4, lock_holder);
             }
         }
-        match self.bus.amo_u32(pa , f) {
+        match self.bus.amo_u32(pa, f) {
             Ok(data) => Ok(data as RegT),
             Err(e) => match e {
                 region::Error::AccessErr(_, _) => return Err(Exception::StoreAccess(addr)),
@@ -137,7 +141,7 @@ impl LoadStore {
             }
         }
     }
-    pub fn amo_double_word<F:Fn(u64)->u64>(&self, addr: RegT, f:F, mmu: &Mmu) -> Result<RegT, Exception>  {
+    pub fn amo_double_word<F: Fn(u64) -> u64>(&self, addr: RegT, f: F, mmu: &Mmu) -> Result<RegT, Exception> {
         let pa = mmu.translate(addr, 8, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 8) {
             if lock_holder != self.p.hartid {
@@ -151,5 +155,27 @@ impl LoadStore {
                 region::Error::Misaligned(_) => return Err(Exception::StoreMisaligned(addr))
             }
         }
+    }
+
+    pub fn acquire(&self, addr: RegT, len: u64, mmu: &Mmu) -> Result<bool, Exception> {
+        let pa = mmu.translate(addr, len, MmuOpt::Load)?;
+        Ok(self.bus.acquire(pa, len, self.p.hartid))
+    }
+
+    pub fn check_lock(&self, addr: RegT, len: u64, mmu: &Mmu) -> Result<bool, Exception> {
+        let pa = mmu.translate(addr, len, MmuOpt::Store)?;
+        if let Some(holder) = self.bus.lock_holder(pa, len) {
+            if holder == self.p.hartid {
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        } else {
+            Ok(false)
+        }
+    }
+
+    pub fn release(&self) {
+        self.bus.release_all_of_mine(self.p.hartid)
     }
 }

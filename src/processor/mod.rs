@@ -116,7 +116,7 @@ pub struct ProcessorState {
 
 impl ProcessorState {
     pub fn trace(&self) -> String {
-        format!("privilege = {:?};pc = {:#x}; ir = {:#x}; next_pc = {:#x}; insns_cnt = {};", self.privilege(), self.pc(), self.ir(), self.next_pc(), *self.insns_cnt.borrow())
+        format!("privilege = {:?};pc = {:#x}; ir = {:#x}; next_pc = {:#x}; insns_cnt = {};", self.privilege(), self.pc(), self.ir(), self.next_pc(), self.insns_cnt())
     }
 }
 
@@ -330,6 +330,10 @@ impl ProcessorState {
         *self.ir.borrow()
     }
 
+    pub fn insns_cnt(&self) -> u64 {
+        *self.insns_cnt.borrow()
+    }
+
     pub fn xreg(&self, id: RegT) -> RegT {
         let trip_id = id & 0x1f;
         if trip_id == 0 {
@@ -343,13 +347,6 @@ impl ProcessorState {
         let trip_id = id & 0x1f;
         if trip_id != 0 {
             (*self.xreg.borrow_mut())[trip_id as usize] = value
-        }
-    }
-
-
-    fn end_steps(&self){
-        for ext in self.extensions().values() {
-            ext.step_cb(self)
         }
     }
 }
@@ -383,6 +380,7 @@ impl Processor {
         if let Err(msg) = self.state.reset() {
             panic!(msg)
         }
+        self.load_store().reset()
     }
 
     pub fn mmu(&self) -> &Mmu {
@@ -518,6 +516,8 @@ impl Processor {
         for _ in 0..n {
             self.step_one()
         }
-        self.state.end_steps()
+        for ext in self.state().extensions().values() {
+            ext.step_cb(self)
+        }
     }
 }

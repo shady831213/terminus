@@ -17,7 +17,6 @@ use crate::devices::clint::Timer;
 struct LockEntry {
     addr: u64,
     len: u64,
-    data: Vec<u8>,
     holder: usize,
 }
 
@@ -45,7 +44,7 @@ impl Bus {
             lock_table: Mutex::new(vec![]),
         }
     }
-    pub fn acquire(&self, addr: u64, len: u64, who: usize) -> region::Result<bool> {
+    pub fn acquire(&self, addr: u64, len: u64, who: usize) -> bool {
         let mut lock_table = self.lock_table.lock().unwrap();
         if lock_table.iter().find(|entry| {
             if let Some(lock_owner) = entry.lock_holder(addr, len) {
@@ -57,17 +56,14 @@ impl Bus {
                 false
             }
         }).is_some() {
-            Ok(false)
+            false
         } else {
-            let mut data = vec![0u8; len as usize];
-            BytesAccess::read(self.space.deref(), addr, &mut data)?;
             lock_table.push(LockEntry {
                 addr,
                 len,
-                data,
                 holder: who,
             });
-            Ok(true)
+            true
         }
     }
 
