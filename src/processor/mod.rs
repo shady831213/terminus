@@ -21,7 +21,7 @@ pub mod trap;
 
 use trap::{Exception, Trap, Interrupt};
 
-mod extensions;
+pub mod extensions;
 
 use extensions::*;
 use extensions::i::csrs::*;
@@ -215,7 +215,7 @@ impl ProcessorState {
         self.extensions.borrow()
     }
 
-    fn csrs<T: 'static>(&self) -> Result<Rc<T>, String> {
+    pub fn csrs<T: 'static>(&self) -> Result<Rc<T>, String> {
         if let Some(t) = self.extensions().values().find_map(|extension| {
             if let Some(csrs) = extension.csrs() {
                 match csrs.downcast::<T>() {

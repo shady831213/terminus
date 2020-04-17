@@ -11,6 +11,9 @@ use terminus_spaceport::EXIT_CTRL;
 use terminus::devices::clint::Clint;
 use rand::thread_rng;
 use rand::seq::SliceRandom;
+use terminus::processor::extensions::i::csrs::*;
+use terminus::processor::extensions::s::csrs::*;
+
 
 fn riscv_test(xlen: XLen, name: &str, debug: bool, num_cores: usize) -> bool {
     EXIT_CTRL.reset();
@@ -120,8 +123,8 @@ fn main() {
             }
         };
     }
-    //ui-p
     let now = std::time::Instant::now();
+    //ui-p
     riscv_test!(XLen::X64, "rv64ui-p-add");
     riscv_test!(XLen::X64, "rv64ui-p-addi");
     riscv_test!(XLen::X64, "rv64ui-p-addiw");
@@ -453,6 +456,24 @@ fn main() {
 
     riscv_test_mp!(XLen::X64, "rv64ua-pm-lrsc" ,4);
     riscv_test_mp!(XLen::X32, "rv32ua-pm-lrsc" ,4);
+
+    //*-v-*
+    riscv_test!(XLen::X64, "rv64ui-v-add");
+    riscv_test!(XLen::X32, "rv32ui-v-jalr");
+    riscv_test!(XLen::X64, "rv64um-v-mul");
+    riscv_test!(XLen::X32, "rv32um-v-div");
+    riscv_test!(XLen::X64, "rv64uf-v-fmadd");
+    riscv_test!(XLen::X32, "rv32uf-v-fdiv");
+    riscv_test!(XLen::X64, "rv64ud-v-move");
+    riscv_test!(XLen::X32, "rv32ud-v-fcvt_w");
+    riscv_test!(XLen::X64, "rv64uc-v-rvc");
+    riscv_test!(XLen::X32, "rv32uc-v-rvc");
+    riscv_test!(XLen::X64, "rv64ua-v-amoadd_d");
+    riscv_test!(XLen::X32, "rv32ua-v-amoadd_w");
+    riscv_test!(XLen::X64, "rv64ua-v-lrsc");
+    riscv_test!(XLen::X32, "rv32ua-v-lrsc");
+
+
     term_exit();
     println!("{} tests Pass in {} seconds!", tests_cnt, now.elapsed().as_secs())
 }

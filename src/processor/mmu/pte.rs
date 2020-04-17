@@ -119,7 +119,7 @@ impl Sv32Paddr {
         }
     }
     fn value(&self) -> RegT {
-        self.0
+        self.0 & ((1 << 32) -1)
     }
 }
 
@@ -199,7 +199,7 @@ impl Sv39Paddr {
         }
     }
     fn value(&self) -> RegT {
-        self.0
+        self.0 & ((1 << 39) -1)
     }
 }
 
@@ -286,7 +286,7 @@ impl Sv48Paddr {
         }
     }
     fn value(&self) -> RegT {
-        self.0
+        self.0  & ((1 << 48) -1)
     }
 }
 
