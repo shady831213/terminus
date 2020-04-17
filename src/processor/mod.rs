@@ -116,7 +116,7 @@ pub struct ProcessorState {
 
 impl ProcessorState {
     pub fn trace(&self) -> String {
-        format!("privilege = {:?};pc = {:#x}; ir = {:#x}; next_pc = {:#x}; insns_cnt = {};", self.privilege(), self.pc(), self.ir(), self.next_pc(), self.insns_cnt())
+        format!("hartid = {}; privilege = {:?};pc = {:#x}; ir = {:#x}; next_pc = {:#x}; insns_cnt = {};", self.hartid,self.privilege(), self.pc(), self.ir(), self.next_pc(), self.insns_cnt())
     }
 }
 

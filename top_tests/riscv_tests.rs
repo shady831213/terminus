@@ -1,3 +1,5 @@
+extern crate rand;
+
 use terminus::processor::ProcessorCfg;
 use terminus::system::System;
 use terminus_global::XLen;
@@ -7,22 +9,27 @@ use std::ops::Deref;
 use std::path::Path;
 use terminus_spaceport::EXIT_CTRL;
 use terminus::devices::clint::Clint;
+use rand::thread_rng;
+use rand::seq::SliceRandom;
 
-fn riscv_test(xlen: XLen, name: &str, debug: bool) -> bool {
+fn riscv_test(xlen: XLen, name: &str, debug: bool, num_cores: usize) -> bool {
     EXIT_CTRL.reset();
-    let processor_cfg = ProcessorCfg {
+    let configs = vec![ProcessorCfg {
         xlen,
         enable_dirty: true,
         extensions: vec!['m', 'f', 'd', 's', 'u', 'c', 'a'].into_boxed_slice(),
-    };
-    let sys = System::new(name, Path::new("top_tests/elf").join(Path::new(name)).to_str().expect(&format!("{} not existed!", name)), vec![processor_cfg], 100);
+    }; num_cores];
+    let sys = System::new(name, Path::new("top_tests/elf").join(Path::new(name)).to_str().expect(&format!("{} not existed!", name)), configs, 100);
     sys.register_memory("main_memory", 0x80000000, &GHEAP.alloc(0x10000000, 1).expect("main_memory alloc fail!"));
     sys.register_memory("rom", 0x20000000, &GHEAP.alloc(0x10000000, 1).expect("rom alloc fail!"));
     sys.register_device("clint", 0x20000, 0x10000, Clint::new(sys.timer())).unwrap();
     sys.load_elf();
 
-
-    let p = sys.processor(0).unwrap();
+    let mut cores = vec![];
+    for p in sys.processors() {
+        cores.push(p)
+    }
+    let mut rng = thread_rng();
 
     let interval: u64 = 100;
     let mut interval_cnt: u64 = 0;
@@ -33,17 +40,22 @@ fn riscv_test(xlen: XLen, name: &str, debug: bool) -> bool {
             }
             break;
         }
-        p.step(1);
-        interval_cnt += 1;
-        if debug {
-            println!("{}", p.state().trace())
+        cores.shuffle(&mut rng);
+        for p in &cores {
+            p.step(1);
+            if debug {
+                println!("{}", p.state().trace())
+            }
         }
+        interval_cnt += 1;
         if interval_cnt % interval == interval - 1 {
             sys.timer().tick(interval)
         }
     }
     if debug {
-        println!("{}", p.state().to_string())
+        for p in sys.processors() {
+            println!("{}", p.state().to_string())
+        }
     }
 
     let htif = sys.mem_space().get_region("htif").unwrap();
@@ -69,14 +81,33 @@ fn main() {
         ($xlen:expr, $name:expr) => {
             if let Some(test_name) = &name {
                 if test_name == $name {
-                    if !riscv_test($xlen, $name, debug) {
+                    if !riscv_test($xlen, $name, debug, 1) {
                         term_exit();
                         assert!(false,format!("{} fail!",$name))
                     }
                     println!("{}", format!("{} pass!",$name));
                 }
             } else {
-                if !riscv_test($xlen, $name, debug) {
+                if !riscv_test($xlen, $name, debug, 1) {
+                    term_exit();
+                    assert!(false,format!("{} fail!",$name))
+                }
+                println!("{}", format!("{} pass!",$name));
+            }
+        };
+    }
+    macro_rules! riscv_test_mp {
+        ($xlen:expr, $name:expr, $num:expr) => {
+            if let Some(test_name) = &name {
+                if test_name == $name {
+                    if !riscv_test($xlen, $name, debug, $num) {
+                        term_exit();
+                        assert!(false,format!("{} fail!",$name))
+                    }
+                    println!("{}", format!("{} pass!",$name));
+                }
+            } else {
+                if !riscv_test($xlen, $name, debug, $num) {
                     term_exit();
                     assert!(false,format!("{} fail!",$name))
                 }
@@ -309,8 +340,18 @@ fn main() {
     riscv_test!(XLen::X64, "rv64ua-p-amoswap_w");
     riscv_test!(XLen::X64, "rv64ua-p-amoxor_d");
     riscv_test!(XLen::X64, "rv64ua-p-amoxor_w");
-    riscv_test!(XLen::X64, "rv64ua-p-lrsc");
+    riscv_test_mp!(XLen::X64, "rv64ua-p-lrsc", 2);
 
+    riscv_test!(XLen::X32, "rv32ua-p-amoadd_w");
+    riscv_test!(XLen::X32, "rv32ua-p-amoand_w");
+    riscv_test!(XLen::X32, "rv32ua-p-amomax_w");
+    riscv_test!(XLen::X32, "rv32ua-p-amomaxu_w");
+    riscv_test!(XLen::X32, "rv32ua-p-amomin_w");
+    riscv_test!(XLen::X32, "rv32ua-p-amominu_w");
+    riscv_test!(XLen::X32, "rv32ua-p-amoor_w");
+    riscv_test!(XLen::X32, "rv32ua-p-amoswap_w");
+    riscv_test!(XLen::X32, "rv32ua-p-amoxor_w");
+    riscv_test_mp!(XLen::X32, "rv32ua-p-lrsc", 2);
 
     term_exit()
 }

@@ -207,6 +207,10 @@ impl System {
         }
     }
 
+    pub fn processors(&self) -> &Vec<Processor> {
+        &self.processors
+    }
+
     pub fn bus(&self) -> &Arc<Bus> {
         &self.bus
     }
