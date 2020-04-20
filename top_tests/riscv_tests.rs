@@ -21,8 +21,8 @@ fn riscv_test(xlen: XLen, name: &str, debug: bool, num_cores: usize) -> bool {
         extensions: vec!['m', 'f', 'd', 's', 'u', 'c', 'a'].into_boxed_slice(),
     }; num_cores];
     let sys = System::new(name, Path::new("top_tests/elf").join(Path::new(name)).to_str().expect(&format!("{} not existed!", name)), configs, 100);
-    sys.register_memory("main_memory", 0x80000000, &GHEAP.alloc(0x10000000, 1).expect("main_memory alloc fail!"));
-    sys.register_memory("rom", 0x20000000, &GHEAP.alloc(0x10000000, 1).expect("rom alloc fail!"));
+    sys.register_main_memory("main_memory", 0x80000000, &GHEAP.alloc(0x10000000, 1).expect("main_memory alloc fail!")).unwrap();
+    sys.register_memory("rom", 0x20000000, &GHEAP.alloc(0x10000000, 1).expect("rom alloc fail!")).unwrap();
     sys.register_device("clint", 0x20000, 0x10000, Clint::new(sys.timer())).unwrap();
     sys.load_elf();
 

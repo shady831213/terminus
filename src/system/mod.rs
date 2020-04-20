@@ -51,8 +51,9 @@ impl System {
         self.processors.push(p)
     }
 
-    fn register_region(&self, name: &str, base: u64, region: &Arc<Region>) -> Result<Arc<Region>, space::Error> {
-        self.mem_space.add_region(name, &Region::remap(base, &region))
+    fn register_region(&self, name: &str, base: u64, region: &Arc<Region>) -> Result<(), space::Error> {
+        self.mem_space.add_region(name, &Region::remap(base, &region))?;
+        Ok(())
     }
 
     fn try_register_htif(&self) {
@@ -85,38 +86,46 @@ impl System {
         &self.mem_space
     }
 
-    pub fn register_device<D: IOAccess + 'static>(&self, name: &str, base: u64, size: u64, device: D) -> Result<Arc<Region>, space::Error> {
+    pub fn register_device<D: IOAccess + 'static>(&self, name: &str, base: u64, size: u64, device: D) -> Result<(), space::Error> {
         self.register_region(name, base, &Region::io(base, size, Box::new(device)))
     }
 
-    pub fn register_memory(&self, name: &str, base: u64, mem: &Arc<Region>) {
+    pub fn register_main_memory(&self, name: &str, base: u64, mem: &Arc<Region>)-> Result<(), space::Error> {
         match self.register_region(name, base, &mem) {
-            Ok(_) => {}
-            Err(space::Error::Overlap(n, msg)) => {
-                if n == "htif".to_string() {
-                    let htif_region = self.mem_space.get_region(&n).unwrap();
-                    let range0 = if base < htif_region.info.base {
-                        Some(MemInfo { base: base, size: htif_region.info.base - base })
+            Ok(_) => {Ok(())}
+            Err(e) => {
+                if let space::Error::Overlap(n, msg) = e {
+                    if n == "htif".to_string() {
+                        let htif_region = self.mem_space.get_region(&n).unwrap();
+                        let range0 = if base < htif_region.info.base {
+                            Some(MemInfo { base: base, size: htif_region.info.base - base })
+                        } else {
+                            None
+                        };
+                        let range1 = if base + mem.info.size > htif_region.info.base + htif_region.info.size {
+                            Some(MemInfo { base: htif_region.info.base + htif_region.info.size, size: base + mem.info.size - (htif_region.info.base + htif_region.info.size) })
+                        } else {
+                            None
+                        };
+                        range0.iter().for_each(|info| {
+                            self.register_region(&format!("{}_0", name), info.base, &Region::remap_partial(0, mem, 0, info.size)).unwrap();
+                        });
+                        range1.iter().for_each(|info| {
+                            self.register_region(&format!("{}_1", name), info.base, &Region::remap_partial(0, mem, info.base - base, info.size)).unwrap();
+                        });
+                        Ok(())
                     } else {
-                        None
-                    };
-                    let range1 = if base + mem.info.size > htif_region.info.base + htif_region.info.size {
-                        Some(MemInfo { base: htif_region.info.base + htif_region.info.size, size: base + mem.info.size - (htif_region.info.base + htif_region.info.size) })
-                    } else {
-                        None
-                    };
-                    range0.iter().for_each(|info| {
-                        self.register_region(&format!("{}_0", name), info.base, &Region::remap_partial(0, mem, 0, info.size)).unwrap();
-                    });
-                    range1.iter().for_each(|info| {
-                        self.register_region(&format!("{}_1", name), info.base, &Region::remap_partial(0, mem, info.base - base, info.size)).unwrap();
-                    });
+                        Err(space::Error::Overlap(n, msg))
+                    }
                 } else {
-                    panic!(msg)
+                    Err(e)
                 }
             }
-            Err(space::Error::Renamed(_, msg)) => panic!(msg)
         }
+    }
+
+    pub fn register_memory(&self, name: &str, base: u64, mem: &Arc<Region>) -> Result<(), space::Error> {
+        self.register_region(name, base, &mem)
     }
 
 
