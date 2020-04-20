@@ -4,7 +4,6 @@ use terminus_spaceport::space;
 use terminus_spaceport::memory::region::{Region,IOAccess,BytesAccess};
 use std::sync::Arc;
 use std::fmt;
-use crate::elf::ElfLoader;
 use crate::devices::htif::HTIF;
 use crate::devices::bus::Bus;
 use std::fmt::{Display, Formatter};
@@ -12,6 +11,9 @@ use crate::processor::{ProcessorCfg, Processor};
 use std::cmp::min;
 use crate::devices::clint::Timer;
 use std::ops::Deref;
+
+pub mod elf;
+use elf::ElfLoader;
 
 pub struct System {
     name: String,

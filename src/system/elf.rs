@@ -1,3 +1,4 @@
+extern crate xmas_elf;
 use xmas_elf::ElfFile;
 use xmas_elf::program::SegmentData;
 use xmas_elf::header;

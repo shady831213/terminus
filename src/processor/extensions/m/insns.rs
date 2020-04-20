@@ -1,3 +1,4 @@
+extern crate num;
 use crate::prelude::*;
 use std::num::Wrapping;
 use num::BigInt;
