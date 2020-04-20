@@ -43,7 +43,7 @@ impl FdtState {
         if let Some(off) = self.string_table.get(v) {
             *off
         } else {
-            let off = (self.string_buffer.len() + 1) as u32;
+            let off = self.string_buffer.len() as u32;
             self.string_table.insert(v.to_string(), off);
             self.string_buffer.append(&mut v.as_bytes().to_vec());
             self.string_buffer.push(0);
