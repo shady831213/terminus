@@ -11,6 +11,11 @@ const FDT_PROP: u32 = 3;
 const FDT_NOP: u32 = 4;
 const FDT_END: u32 = 9;
 
+pub fn compile(root: &FdtNode) -> Vec<u8> {
+    let mut state = FdtState::new();
+    state.compile(root)
+}
+
 struct FdtHeader {
     magic: u32,
     total_size: u32,
@@ -31,7 +36,7 @@ struct FdtState {
 }
 
 impl FdtState {
-    pub fn new() -> FdtState {
+    fn new() -> FdtState {
         FdtState {
             string_table: HashMap::new(),
             string_buffer: vec![],
@@ -151,7 +156,7 @@ impl Display for FdtPropValue {
     }
 }
 
-struct FdtProp {
+pub struct FdtProp {
     indent: usize,
     name: String,
     value: FdtPropValue,
@@ -194,7 +199,7 @@ impl FdtProp {
         }
     }
 
-    pub fn pack(&self, state: &mut FdtState) {
+    fn pack(&self, state: &mut FdtState) {
         state.struct_buffer.append(&mut FDT_PROP.to_be_bytes().to_vec());
         let mut data = self.value.pack();
         state.struct_buffer.append(&mut (data.len() as u32).to_be_bytes().to_vec());
@@ -210,7 +215,7 @@ impl Display for FdtProp {
     }
 }
 
-struct FdtNode {
+pub struct FdtNode {
     indent: usize,
     name: String,
     props: Vec<FdtProp>,
@@ -263,7 +268,7 @@ impl FdtNode {
         res
     }
 
-    pub fn pack(&self, state: &mut FdtState) {
+    fn pack(&self, state: &mut FdtState) {
         state.struct_buffer.append(&mut FDT_BEGIN_NODE.to_be_bytes().to_vec());
         state.struct_buffer.append(&mut self.pack_name());
         for prop in self.props.iter() {
@@ -291,86 +296,87 @@ impl Display for FdtNode {
 }
 
 #[cfg(test)]
-extern crate device_tree;
+mod test {
+    extern crate device_tree;
+    use super::*;
 
-#[cfg(test)]
-fn build_test_fdt() -> FdtNode {
-    let mut root = FdtNode::new("");
-    root.add_prop(FdtProp::u32_prop("#address-cells", vec![2]));
-    root.add_prop(FdtProp::u32_prop("#size-cells", vec![2]));
-    root.add_prop(FdtProp::str_prop("compatible", vec!["ucbbar,terminus-bare-dev"]));
-    root.add_prop(FdtProp::str_prop("model", vec!["ucbbar,terminus-bare"]));
+    fn build_test_fdt() -> FdtNode {
+        let mut root = FdtNode::new("");
+        root.add_prop(FdtProp::u32_prop("#address-cells", vec![2]));
+        root.add_prop(FdtProp::u32_prop("#size-cells", vec![2]));
+        root.add_prop(FdtProp::str_prop("compatible", vec!["ucbbar,terminus-bare-dev"]));
+        root.add_prop(FdtProp::str_prop("model", vec!["ucbbar,terminus-bare"]));
 
-    let mut cpus = FdtNode::new("cpus");
-    cpus.add_prop(FdtProp::u32_prop("#address-cells", vec![1]));
-    cpus.add_prop(FdtProp::u32_prop("#size-cells", vec![0]));
-    cpus.add_prop(FdtProp::u32_prop("timebase-frequency", vec![1000000000]));
+        let mut cpus = FdtNode::new("cpus");
+        cpus.add_prop(FdtProp::u32_prop("#address-cells", vec![1]));
+        cpus.add_prop(FdtProp::u32_prop("#size-cells", vec![0]));
+        cpus.add_prop(FdtProp::u32_prop("timebase-frequency", vec![1000000000]));
 
-    for i in 0..4 {
-        let mut cpu = FdtNode::new_with_num("cpu", i);
-        cpu.add_prop(FdtProp::str_prop("device_type", vec!["cpu"]));
-        cpu.add_prop(FdtProp::u32_prop("reg", vec![i as u32]));
-        cpu.add_prop(FdtProp::str_prop("status", vec!["okey"]));
-        cpu.add_prop(FdtProp::str_prop("compatible", vec!["riscv"]));
-        cpu.add_prop(FdtProp::str_prop("riscv,isa", vec!["acdfimsu"]));
-        cpu.add_prop(FdtProp::str_prop("mmu-type", vec!["riscv,sv48"]));
-        let mut intc = FdtNode::new("interrupt-controller");
-        intc.add_prop(FdtProp::u32_prop("#interrupt-cells", vec![1]));
-        intc.add_prop(FdtProp::null_prop("interrupt-controller"));
-        root.add_prop(FdtProp::str_prop("compatible", vec!["riscv,cpu-intc"]));
-        root.add_prop(FdtProp::u32_prop("phandle", vec![i as u32]));
-        cpu.add_node(intc);
-        cpus.add_node(cpu)
+        for i in 0..4 {
+            let mut cpu = FdtNode::new_with_num("cpu", i);
+            cpu.add_prop(FdtProp::str_prop("device_type", vec!["cpu"]));
+            cpu.add_prop(FdtProp::u32_prop("reg", vec![i as u32]));
+            cpu.add_prop(FdtProp::str_prop("status", vec!["okey"]));
+            cpu.add_prop(FdtProp::str_prop("compatible", vec!["riscv"]));
+            cpu.add_prop(FdtProp::str_prop("riscv,isa", vec!["acdfimsu"]));
+            cpu.add_prop(FdtProp::str_prop("mmu-type", vec!["riscv,sv48"]));
+            let mut intc = FdtNode::new("interrupt-controller");
+            intc.add_prop(FdtProp::u32_prop("#interrupt-cells", vec![1]));
+            intc.add_prop(FdtProp::null_prop("interrupt-controller"));
+            root.add_prop(FdtProp::str_prop("compatible", vec!["riscv,cpu-intc"]));
+            root.add_prop(FdtProp::u32_prop("phandle", vec![i as u32]));
+            cpu.add_node(intc);
+            cpus.add_node(cpu)
+        }
+        root.add_node(cpus);
+
+        let mut memory = FdtNode::new_with_num("memory", 0x80000000);
+        memory.add_prop(FdtProp::str_prop("device_type", vec!["memory"]));
+        memory.add_prop(FdtProp::u64_prop("reg", vec![0x80000000, 0x10000000]));
+        root.add_node(memory);
+
+
+        let mut soc = FdtNode::new("soc");
+        soc.add_prop(FdtProp::u32_prop("#address-cells", vec![2]));
+        soc.add_prop(FdtProp::u32_prop("#size-cells", vec![2]));
+        soc.add_prop(FdtProp::str_prop("compatible", vec!["ucbbar,terminus-bare-soc", "simple-bus"]));
+        soc.add_prop(FdtProp::null_prop("range"));
+        let mut clint = FdtNode::new_with_num("clint", 0x20000);
+        clint.add_prop(FdtProp::str_prop("compatible", vec!["riscv,clint0"]));
+        let mut interrupts_extended = vec![];
+        for i in 0..4 {
+            interrupts_extended.push(i as u32);
+            interrupts_extended.push(3 as u32);
+            interrupts_extended.push(i as u32);
+            interrupts_extended.push(7 as u32);
+        }
+        clint.add_prop(FdtProp::u32_prop("interrupts-extended", interrupts_extended));
+        clint.add_prop(FdtProp::u64_prop("reg", vec![0x20000, 0x10000]));
+        soc.add_node(clint);
+
+        let mut htif = FdtNode::new("htif");
+        htif.add_prop(FdtProp::str_prop("compatible", vec!["ucb,htif0"]));
+        soc.add_node(htif);
+
+        root.add_node(soc);
+        root
     }
-    root.add_node(cpus);
 
-    let mut memory = FdtNode::new_with_num("memory", 0x80000000);
-    memory.add_prop(FdtProp::str_prop("device_type", vec!["memory"]));
-    memory.add_prop(FdtProp::u64_prop("reg", vec![0x80000000, 0x10000000]));
-    root.add_node(memory);
-
-
-    let mut soc = FdtNode::new("soc");
-    soc.add_prop(FdtProp::u32_prop("#address-cells", vec![2]));
-    soc.add_prop(FdtProp::u32_prop("#size-cells", vec![2]));
-    soc.add_prop(FdtProp::str_prop("compatible", vec!["ucbbar,terminus-bare-soc", "simple-bus"]));
-    soc.add_prop(FdtProp::null_prop("range"));
-    let mut clint = FdtNode::new_with_num("clint", 0x20000);
-    clint.add_prop(FdtProp::str_prop("compatible", vec!["riscv,clint0"]));
-    let mut interrupts_extended = vec![];
-    for i in 0..4 {
-        interrupts_extended.push(i as u32);
-        interrupts_extended.push(3 as u32);
-        interrupts_extended.push(i as u32);
-        interrupts_extended.push(7 as u32);
+    #[test]
+    fn fdt_build_test() {
+        let root = build_test_fdt();
+        println!("{}", root.to_string())
     }
-    clint.add_prop(FdtProp::u32_prop("interrupts-extended", interrupts_extended));
-    clint.add_prop(FdtProp::u64_prop("reg", vec![0x20000, 0x10000]));
-    soc.add_node(clint);
 
-    let mut htif = FdtNode::new("htif");
-    htif.add_prop(FdtProp::str_prop("compatible", vec!["ucb,htif0"]));
-    soc.add_node(htif);
+    #[test]
+    fn fdt_compile_test() {
+        let mut fdt_state = FdtState::new();
+        let root = build_test_fdt();
+        let res = fdt_state.compile(&root);
 
-    root.add_node(soc);
-    root
+        // println!("{:#x?}", res);
+
+        let dt = device_tree::DeviceTree::load(res.as_slice()).unwrap();
+        println!("{:?}", dt);
+    }
 }
-
-#[test]
-fn fdt_build_test() {
-    let root = build_test_fdt();
-    println!("{}", root.to_string())
-}
-
-#[test]
-fn fdt_compile_test() {
-    let mut fdt_state = FdtState::new();
-    let root = build_test_fdt();
-    let res = fdt_state.compile(&root);
-
-    // println!("{:#x?}", res);
-
-    let dt = device_tree::DeviceTree::load(res.as_slice()).unwrap();
-    println!("{:?}", dt);
-}
-
