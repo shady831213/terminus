@@ -9,7 +9,7 @@ use crate::devices::bus::Bus;
 use std::fmt::{Display, Formatter};
 use crate::processor::{ProcessorCfg, Processor};
 use std::cmp::min;
-use crate::devices::clint::Timer;
+use crate::devices::clint::{Timer, Clint};
 use std::ops::Deref;
 
 pub mod elf;
@@ -86,12 +86,16 @@ impl System {
         &self.mem_space
     }
 
-    pub fn register_device<D: IOAccess + 'static>(&self, name: &str, base: u64, size: u64, device: D) -> Result<(), space::Error> {
+    fn register_device<D: IOAccess + 'static>(&self, name: &str, base: u64, size: u64, device: D) -> Result<(), space::Error> {
         self.register_region(name, base, &Region::io(base, size, Box::new(device)))
     }
 
-    pub fn register_main_memory(&self, name: &str, base: u64, mem: &Arc<Region>)-> Result<(), space::Error> {
-        match self.register_region(name, base, &mem) {
+    pub fn register_clint(&self, base: u64) -> Result<(), space::Error> {
+        self.register_device("clint", base, 0x10000, Clint::new(self.timer()))
+    }
+
+    pub fn register_main_memory(&self, base: u64, mem: &Arc<Region>)-> Result<(), space::Error> {
+        match self.register_region("main_memory", base, &mem) {
             Ok(_) => {Ok(())}
             Err(e) => {
                 if let space::Error::Overlap(n, msg) = e {
@@ -108,10 +112,10 @@ impl System {
                             None
                         };
                         range0.iter().for_each(|info| {
-                            self.register_region(&format!("{}_0", name), info.base, &Region::remap_partial(0, mem, 0, info.size)).unwrap();
+                            self.register_region(&format!("{}_0", "main_memory"), info.base, &Region::remap_partial(0, mem, 0, info.size)).unwrap();
                         });
                         range1.iter().for_each(|info| {
-                            self.register_region(&format!("{}_1", name), info.base, &Region::remap_partial(0, mem, info.base - base, info.size)).unwrap();
+                            self.register_region(&format!("{}_1", "main_memory"), info.base, &Region::remap_partial(0, mem, info.base - base, info.size)).unwrap();
                         });
                         Ok(())
                     } else {
