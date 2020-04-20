@@ -11,8 +11,6 @@ use terminus_spaceport::EXIT_CTRL;
 use terminus::devices::clint::Clint;
 use rand::thread_rng;
 use rand::seq::SliceRandom;
-use terminus::processor::extensions::i::csrs::*;
-use terminus::processor::extensions::s::csrs::*;
 
 
 fn riscv_test(xlen: XLen, name: &str, debug: bool, num_cores: usize) -> bool {

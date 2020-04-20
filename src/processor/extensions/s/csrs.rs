@@ -1,4 +1,4 @@
-use crate::processor::csr_define::*;
+use crate::prelude::*;
 use crate::processor::extensions::i::csrs::{Tvec, Scratch, Epc, Cause, Tval};
 csr_map! {
 pub SCsrs(0x0, 0xfff) {

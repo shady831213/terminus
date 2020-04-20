@@ -9,13 +9,9 @@ use std::fmt::{Display, Formatter};
 use std::any::TypeId;
 use terminus_spaceport::irq::IrqVec;
 
-mod decode;
+pub mod decode;
 
-pub use decode::{Decoder, InsnMap, GDECODER, GlobalInsnMap, REGISTERY_INSN};
-
-mod insn;
-
-pub use insn::*;
+pub mod insn;
 
 pub mod trap;
 
@@ -42,25 +38,6 @@ use crate::system::Bus;
 
 #[cfg(test)]
 mod test;
-
-//export for insn define
-pub mod insn_define {
-    pub use linkme::*;
-    pub use terminus_global::*;
-    pub use terminus_macros::*;
-    pub use terminus_proc_macros::Instruction;
-    pub use crate::processor::{Processor, Privilege, PrivilegeLevel};
-    pub use crate::processor::trap::Exception;
-    pub use crate::processor::insn::*;
-    pub use crate::processor::decode::*;
-}
-
-//export for csr define
-pub mod csr_define {
-    pub use terminus_global::*;
-    pub use terminus_proc_macros::{define_csr, csr_map};
-    pub use terminus_macros::*;
-}
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]

@@ -1,4 +1,4 @@
-use crate::processor::csr_define::*;
+use crate::prelude::*;
 csr_map! {
 pub FCsrs(0x0, 0xfff) {
     fflags(RW):Fflags,0x001;

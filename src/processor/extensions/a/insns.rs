@@ -1,4 +1,4 @@
-use crate::processor::insn_define::*;
+use crate::prelude::*;
 use crate::processor::extensions::a::ExtensionA;
 use std::rc::Rc;
 use crate::processor::extensions::Extension;

@@ -1,5 +1,4 @@
-use crate::processor::insn_define::*;
-use crate::linkme::*;
+use crate::prelude::*;
 use crate::processor::extensions::i::csrs::*;
 use std::num::Wrapping;
 use std::convert::TryFrom;

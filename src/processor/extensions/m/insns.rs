@@ -1,4 +1,4 @@
-use crate::processor::insn_define::*;
+use crate::prelude::*;
 use std::num::Wrapping;
 use num::BigInt;
 use num::bigint::Sign;

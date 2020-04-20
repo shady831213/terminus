@@ -1,5 +1,5 @@
 extern crate simple_soft_float;
-use crate::processor::insn_define::*;
+use crate::prelude::*;
 use crate::processor::extensions::f::ExtensionF;
 use crate::processor::extensions::Extension;
 use std::rc::Rc;

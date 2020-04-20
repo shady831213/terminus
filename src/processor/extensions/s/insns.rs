@@ -1,4 +1,4 @@
-use crate::processor::insn_define::*;
+use crate::prelude::*;
 use crate::processor::extensions::i::csrs::*;
 use crate::processor::extensions::s::csrs::*;
 use std::convert::TryFrom;

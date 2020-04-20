@@ -1,4 +1,4 @@
-use crate::processor::insn_define::*;
+use crate::prelude::*;
 use std::num::Wrapping;
 use crate::processor::extensions::f::float::FloatInsn;
 use crate::processor::extensions::f::{FRegT, FLen};

@@ -1,6 +1,7 @@
 use terminus_spaceport::memory::region::{U16Access, U32Access};
 use terminus_spaceport::memory::region;
-use crate::processor::{ProcessorState, Instruction};
+use crate::processor::ProcessorState;
+use crate::processor::insn::Instruction;
 use std::rc::Rc;
 use terminus_global::{RegT, InsnT};
 use crate::processor::mmu::{Mmu, MmuOpt};
