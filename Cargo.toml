@@ -19,6 +19,7 @@ simple-soft-float = "0.1.0"
 
 [dev-dependencies]
 rand = "0.7.3"
+device_tree = "1.1.0"
 
 [workspace]
 members = ["global","macros","proc_macros"]
