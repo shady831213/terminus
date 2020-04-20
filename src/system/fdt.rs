@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
 use std::fmt;
+use std::collections::HashMap;
 
 struct FdtHeader {
     magic: u32,
@@ -13,6 +14,33 @@ struct FdtHeader {
     dt_struct_size: u32,
 }
 
+struct FdtState {
+    string_table: HashMap<String, u32>,
+    string_buffer: Vec<u8>,
+    struct_buffer: Vec<u8>,
+}
+
+impl FdtState {
+    pub fn new() -> FdtState {
+        FdtState {
+            string_table: HashMap::new(),
+            string_buffer: vec![],
+            struct_buffer: vec![],
+        }
+    }
+
+    fn get_string_offset(&mut self, v: &str) -> u32 {
+        if let Some(off) = self.string_table.get(v) {
+            *off
+        } else {
+            let off = self.string_buffer.len() as u32;
+            self.string_table.insert(v.to_string(), off);
+            self.string_buffer.append(&mut v.as_bytes().to_vec());
+            off
+        }
+    }
+}
+
 struct FdtRsvEntry {
     address: u64,
     size: u64,
@@ -24,15 +52,42 @@ enum FdtPropValue {
     U32(Vec<u32>),
 }
 
+impl FdtPropValue {
+    fn pack(&self) -> Vec<u8> {
+        match self {
+            FdtPropValue::Null => vec![],
+            FdtPropValue::Str(value) => {
+                let mut res = vec![];
+                for s in value {
+                    res.append(&mut s.as_bytes().to_vec())
+                }
+                if res.len() & 0x3 != 0 {
+                    let padding_len = 4 - res.len() & 0x3;
+                    for _ in 0..padding_len {
+                        res.push(0)
+                    }
+                }
+                res
+            }
+            FdtPropValue::U32(value) => {
+                let mut res: Vec<u8> = vec![];
+                for v in value {
+                    res.append(&mut v.to_le_bytes().to_vec());
+                }
+                res
+            }
+        }
+    }
+}
 
 impl Display for FdtPropValue {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             FdtPropValue::Null => write!(f, ""),
-            FdtPropValue::Str(values) => write!(f, "= {}", values.iter().map(|s|{format!("\"{}\"", s)}).collect::<Vec<String>>().join(",")),
+            FdtPropValue::Str(values) => write!(f, "= {}", values.iter().map(|s| { format!("\"{}\"", s) }).collect::<Vec<String>>().join(",")),
             FdtPropValue::U32(values) => {
                 write!(f, "= <")?;
-                write!(f, "{}", values.iter().map(|v|{format!("{:#x}", v)}).collect::<Vec<String>>().join(" "))?;
+                write!(f, "{}", values.iter().map(|v| { format!("{:#x}", v) }).collect::<Vec<String>>().join(" "))?;
                 write!(f, ">")
             }
         }
@@ -40,7 +95,7 @@ impl Display for FdtPropValue {
 }
 
 struct FdtProp {
-    indent:usize,
+    indent: usize,
     name: String,
     value: FdtPropValue,
 }
@@ -48,14 +103,14 @@ struct FdtProp {
 impl FdtProp {
     pub fn null_prop(name: &str) -> FdtProp {
         FdtProp {
-            indent:0,
+            indent: 0,
             name: name.to_string(),
             value: FdtPropValue::Null,
         }
     }
     pub fn str_prop(name: &str, value: Vec<&str>) -> FdtProp {
         FdtProp {
-            indent:0,
+            indent: 0,
             name: name.to_string(),
             value: FdtPropValue::Str(value.iter().map(|s| { s.to_string() }).collect()),
         }
@@ -63,7 +118,7 @@ impl FdtProp {
 
     pub fn u32_prop(name: &str, value: Vec<u32>) -> FdtProp {
         FdtProp {
-            indent:0,
+            indent: 0,
             name: name.to_string(),
             value: FdtPropValue::U32(value),
         }
@@ -76,21 +131,30 @@ impl FdtProp {
             value_u32.push((v >> 32) as u32);
         }
         FdtProp {
-            indent:0,
+            indent: 0,
             name: name.to_string(),
             value: FdtPropValue::U32(value_u32),
         }
+    }
+
+    pub fn pack(&self, state: &mut FdtState) {
+        state.struct_buffer.append(&mut (3 as u32).to_le_bytes().to_vec());
+        let mut data = self.value.pack();
+        state.struct_buffer.append(&mut (data.len() as u32).to_le_bytes().to_vec());
+        let mut offset = state.get_string_offset(&self.name).to_le_bytes().to_vec();
+        state.struct_buffer.append(&mut offset);
+        state.struct_buffer.append(&mut data);
     }
 }
 
 impl Display for FdtProp {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        writeln!(f, "{:indent$}{} {};", "", self.name, self.value.to_string(), indent=self.indent*4)
+        writeln!(f, "{:indent$}{} {};", "", self.name, self.value.to_string(), indent = self.indent * 4)
     }
 }
 
 struct FdtNode {
-    indent:usize,
+    indent: usize,
     name: String,
     props: Vec<FdtProp>,
     nodes: Vec<Box<FdtNode>>,
@@ -99,7 +163,7 @@ struct FdtNode {
 impl FdtNode {
     pub fn new(name: &str) -> FdtNode {
         FdtNode {
-            indent:0,
+            indent: 0,
             name: name.to_string(),
             props: vec![],
             nodes: vec![],
@@ -110,7 +174,7 @@ impl FdtNode {
         Self::new(&format!("{}@{}", name, num))
     }
 
-    fn upate_indent(&mut self, indent:usize) {
+    fn upate_indent(&mut self, indent: usize) {
         self.indent = indent + 1;
         for prop in self.props.iter_mut() {
             prop.indent = self.indent + 1;
@@ -129,24 +193,47 @@ impl FdtNode {
         node.upate_indent(self.indent);
         self.nodes.push(Box::new(node))
     }
+
+    fn pack_name(&self) -> Vec<u8> {
+        let mut res = self.name.as_bytes().to_vec();
+        if res.len() & 0x3 != 0 {
+            let padding_len = 4 - res.len() & 0x3;
+            for _ in 0..padding_len {
+                res.push(0);
+            }
+        }
+        res
+    }
+
+    pub fn pack(&self, state: &mut FdtState) {
+        state.struct_buffer.append(&mut (1 as u32).to_le_bytes().to_vec());
+        state.struct_buffer.append(&mut self.pack_name());
+        for prop in self.props.iter() {
+            prop.pack(state)
+        }
+        for node in self.nodes.iter() {
+            node.pack(state)
+        }
+        state.struct_buffer.append(&mut (2 as u32).to_le_bytes().to_vec());
+    }
 }
 
 impl Display for FdtNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        writeln!(f, "{:indent$}{} {{", "", self.name, indent=self.indent*4)?;
+        writeln!(f, "{:indent$}{} {{", "", self.name, indent = self.indent * 4)?;
         for prop in self.props.iter() {
             write!(f, "{}", prop.to_string())?
         }
         for node in self.nodes.iter() {
             write!(f, "{}", node.to_string())?
         }
-        writeln!(f, "{:indent$}}};", "", indent=self.indent*4)?;
+        writeln!(f, "{:indent$}}};", "", indent = self.indent * 4)?;
         Ok(())
     }
 }
 
 #[cfg(test)]
-fn build_test_fdt()->FdtNode {
+fn build_test_fdt() -> FdtNode {
     let mut root = FdtNode::new("");
     root.add_prop(FdtProp::u32_prop("#address-cells", vec![2]));
     root.add_prop(FdtProp::u32_prop("#size-cells", vec![2]));
