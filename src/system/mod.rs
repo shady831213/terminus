@@ -15,6 +15,8 @@ use std::ops::Deref;
 pub mod elf;
 use elf::ElfLoader;
 
+pub mod fdt;
+
 pub struct System {
     name: String,
     mem_space: Arc<Space>,
