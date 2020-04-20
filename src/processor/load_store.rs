@@ -6,7 +6,7 @@ use terminus_global::RegT;
 use crate::processor::mmu::{Mmu, MmuOpt};
 use crate::processor::trap::Exception;
 use std::sync::Arc;
-use crate::system::Bus;
+use crate::devices::bus::Bus;
 use std::ops::Deref;
 
 pub struct LoadStore {

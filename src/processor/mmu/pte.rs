@@ -4,7 +4,7 @@ use std::convert::TryFrom;
 use terminus_spaceport::memory::region::{U32Access, U64Access};
 use crate::processor::extensions::s::csrs::*;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use crate::system::Bus;
+use crate::devices::bus::Bus;
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug, Eq, PartialEq)]
 #[repr(u8)]

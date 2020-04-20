@@ -8,6 +8,7 @@ use std::cell::{RefCell, Ref};
 use std::fmt::{Display, Formatter};
 use std::any::TypeId;
 use terminus_spaceport::irq::IrqVec;
+use crate::devices::bus::Bus;
 
 pub mod decode;
 
@@ -34,7 +35,6 @@ use fetcher::*;
 mod load_store;
 
 use load_store::*;
-use crate::system::Bus;
 
 #[cfg(test)]
 mod test;

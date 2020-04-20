@@ -1,5 +1,5 @@
-use terminus_spaceport::memory::region::{BytesAccess, U8Access, U16Access, U32Access, U64Access, IOAccess};
-use terminus_spaceport::{derive_io, EXIT_CTRL};
+use terminus_spaceport::memory::prelude::*;
+use terminus_spaceport::EXIT_CTRL;
 use terminus_spaceport::devices::TERM;
 use terminus_spaceport::memory::region;
 use std::sync::Mutex;

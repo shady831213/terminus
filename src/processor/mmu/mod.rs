@@ -8,7 +8,7 @@ use crate::processor::{ProcessorState, Privilege};
 use crate::processor::extensions::i::csrs::*;
 use crate::processor::extensions::s::csrs::*;
 use terminus_macros::*;
-use crate::system::Bus;
+use crate::devices::bus::Bus;
 
 mod pmp;
 

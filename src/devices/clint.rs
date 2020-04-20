@@ -1,6 +1,5 @@
 use std::num::Wrapping;
-use terminus_spaceport::derive_io;
-use terminus_spaceport::memory::region::{BytesAccess, U8Access, U16Access, U32Access, U64Access, IOAccess};
+use terminus_spaceport::memory::prelude::*;
 use std::sync::{Mutex, Arc, MutexGuard, LockResult};
 use terminus_spaceport::irq::IrqVec;
 use terminus_spaceport::memory::region;
