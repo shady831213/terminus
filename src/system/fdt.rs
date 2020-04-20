@@ -145,9 +145,8 @@ impl Display for FdtNode {
     }
 }
 
-
-#[test]
-fn fdt_build_test() {
+#[cfg(test)]
+fn build_test_fdt()->FdtNode {
     let mut root = FdtNode::new("");
     root.add_prop(FdtProp::u32_prop("#address-cells", vec![2]));
     root.add_prop(FdtProp::u32_prop("#size-cells", vec![2]));
@@ -206,6 +205,11 @@ fn fdt_build_test() {
     soc.add_node(htif);
 
     root.add_node(soc);
+    root
+}
 
+#[test]
+fn fdt_build_test() {
+    let root = build_test_fdt();
     println!("{}", root.to_string())
 }
