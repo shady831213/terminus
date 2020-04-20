@@ -2,10 +2,20 @@ use std::fmt::{Display, Formatter};
 use std::fmt;
 use std::collections::HashMap;
 
+const FDT_MAGIC: u32 = 0xd00dfeed;
+const FDT_VERSION: u32 = 17;
+
+const FDT_BEGIN_NODE: u32 = 1;
+const FDT_END_NODE: u32 = 2;
+const FDT_PROP: u32 = 3;
+const FDT_NOP: u32 = 4;
+const FDT_END: u32 = 9;
+
 struct FdtHeader {
     magic: u32,
     total_size: u32,
     off_dt_struct: u32,
+    off_dt_strings: u32,
     off_mem_rsvmap: u32,
     version: u32,
     last_comp_version: u32,
@@ -39,6 +49,47 @@ impl FdtState {
             off
         }
     }
+
+    fn compile(&mut self, root: &FdtNode) -> Vec<u8> {
+        root.pack(self);
+        self.struct_buffer.append(&mut FDT_END.to_le_bytes().to_vec());
+        let mut header = FdtHeader {
+            magic: FDT_MAGIC,
+            total_size: 0,
+            off_dt_struct: 0,
+            off_dt_strings: 0,
+            off_mem_rsvmap: 0,
+            version: FDT_VERSION,
+            last_comp_version: FDT_VERSION - 1,
+            boot_cpuid_phys: 0,
+            dt_strings_size: self.string_buffer.len() as u32,
+            dt_struct_size: self.struct_buffer.len() as u32,
+        };
+        let mut pos = std::mem::size_of::<FdtHeader>() as u32;
+        header.off_dt_struct = pos;
+        pos += header.dt_struct_size;
+        while pos & 0x7 != 0 {
+            pos += 1
+        }
+        header.off_mem_rsvmap = pos;
+        let re = FdtRsvEntry {
+            address: 0,
+            size: 0,
+        };
+        pos += std::mem::size_of::<FdtRsvEntry>() as u32;
+        header.off_dt_strings = pos;
+        pos += header.dt_strings_size;
+        while pos & 0x7 != 0 {
+            pos += 1
+        };
+        header.total_size = pos;
+        let mut res: Vec<u8> = vec![0; pos as usize];
+        res[0..std::mem::size_of::<FdtHeader>()].copy_from_slice(unsafe { std::slice::from_raw_parts((&header as *const FdtHeader) as *const u8, std::mem::size_of::<FdtHeader>()) });
+        res[header.off_dt_struct as usize.. (header.off_dt_struct + header.dt_struct_size) as usize].copy_from_slice(&self.struct_buffer);
+        res[header.off_mem_rsvmap as usize..(header.off_mem_rsvmap as usize) + std::mem::size_of::<FdtRsvEntry>()].copy_from_slice(unsafe { std::slice::from_raw_parts((&re as *const FdtRsvEntry) as *const u8, std::mem::size_of::<FdtRsvEntry>()) });
+        res[header.off_dt_strings as usize..(header.off_dt_strings + header.dt_strings_size) as usize].copy_from_slice(&self.string_buffer);
+        res
+    }
 }
 
 struct FdtRsvEntry {
@@ -62,7 +113,7 @@ impl FdtPropValue {
                     res.append(&mut s.as_bytes().to_vec())
                 }
                 if res.len() & 0x3 != 0 {
-                    let padding_len = 4 - res.len() & 0x3;
+                    let padding_len = 4 - (res.len() & 0x3);
                     for _ in 0..padding_len {
                         res.push(0)
                     }
@@ -138,7 +189,7 @@ impl FdtProp {
     }
 
     pub fn pack(&self, state: &mut FdtState) {
-        state.struct_buffer.append(&mut (3 as u32).to_le_bytes().to_vec());
+        state.struct_buffer.append(&mut FDT_PROP.to_le_bytes().to_vec());
         let mut data = self.value.pack();
         state.struct_buffer.append(&mut (data.len() as u32).to_le_bytes().to_vec());
         let mut offset = state.get_string_offset(&self.name).to_le_bytes().to_vec();
@@ -197,7 +248,7 @@ impl FdtNode {
     fn pack_name(&self) -> Vec<u8> {
         let mut res = self.name.as_bytes().to_vec();
         if res.len() & 0x3 != 0 {
-            let padding_len = 4 - res.len() & 0x3;
+            let padding_len = 4 - (res.len() & 0x3);
             for _ in 0..padding_len {
                 res.push(0);
             }
@@ -206,7 +257,7 @@ impl FdtNode {
     }
 
     pub fn pack(&self, state: &mut FdtState) {
-        state.struct_buffer.append(&mut (1 as u32).to_le_bytes().to_vec());
+        state.struct_buffer.append(&mut FDT_BEGIN_NODE.to_le_bytes().to_vec());
         state.struct_buffer.append(&mut self.pack_name());
         for prop in self.props.iter() {
             prop.pack(state)
@@ -214,7 +265,7 @@ impl FdtNode {
         for node in self.nodes.iter() {
             node.pack(state)
         }
-        state.struct_buffer.append(&mut (2 as u32).to_le_bytes().to_vec());
+        state.struct_buffer.append(&mut FDT_END_NODE.to_le_bytes().to_vec());
     }
 }
 
@@ -300,3 +351,11 @@ fn fdt_build_test() {
     let root = build_test_fdt();
     println!("{}", root.to_string())
 }
+
+#[test]
+fn fdt_compile_test() {
+    let mut fdt_state = FdtState::new();
+    let root = build_test_fdt();
+    let res = fdt_state.compile(&root);
+}
+
