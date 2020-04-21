@@ -1,7 +1,7 @@
 use terminus_spaceport::memory::MemInfo;
 use terminus_spaceport::space::{Space, SPACE_TABLE};
 use terminus_spaceport::space;
-use terminus_spaceport::memory::region::{Region, IOAccess, BytesAccess};
+use terminus_spaceport::memory::region::{Region, IOAccess, BytesAccess, GHEAP};
 use std::sync::Arc;
 use std::fmt;
 use crate::devices::htif::HTIF;
@@ -170,7 +170,7 @@ impl System {
         }
     }
 
-    pub fn load_fdt(&self) -> Result<()> {
+    fn compile_fdt(&self) -> Result<Vec<u8>> {
         let mut root = FdtNode::new("");
         root.add_prop(FdtProp::u32_prop("#address-cells", vec![2]));
         root.add_prop(FdtProp::u32_prop("#size-cells", vec![2]));
@@ -249,7 +249,38 @@ impl System {
 
         root.add_node(soc);
 
-        let res = fdt::compile(&root);
+        Ok(fdt::compile(&root))
+    }
+
+    pub fn make_boot_rom(&self, base:u64, entry:u64) -> Result<()> {
+        let start_address = if entry == -1i64 as u64 {
+            self.elf.entry_point().unwrap()
+        } else {
+            entry
+        };
+        let mut dtb = self.compile_fdt()?;
+        let mut reset_vec:Vec<u32> = vec![
+            0x297,                                                            //auipc t0, 0x0
+            0,                                                                //placeholder[addi   a1, t0, &dtb]
+            0xf1402573,                                                       //csrr   a0, mhartid
+            match self.processor(0).unwrap().state().config().xlen {
+                XLen::X64 => 0x0182b283,                                      // ld     t0,24(t0)
+                XLen::X32 => 0x0182a283,                                      //lw     t0,24(t0)
+            },
+            0x28067,                                                          // jr     t0
+            0,
+            (start_address as u32) & (-1i32 as u32),
+            (start_address >> 32) as u32
+        ];
+        reset_vec[1] = 0x28593 + ((reset_vec.len() as u32) * 4 << 20);       //addi   a1, t0, &dtb
+        let mut rom: Vec<u8> = vec![];
+        for i in reset_vec {
+            rom.append(&mut i.to_le_bytes().to_vec());
+        }
+        rom.append(&mut dtb);
+        let rom_mem = GHEAP.alloc(rom.len() as u64, 1).expect("boot rom alloc fail!");
+        BytesAccess::write(rom_mem.deref(), rom_mem.info.base, &rom).unwrap();
+        self.register_memory("boot_rom", base, &rom_mem)?;
         Ok(())
     }
 
