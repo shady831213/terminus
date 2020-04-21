@@ -106,7 +106,7 @@ impl System {
     }
 
     pub fn register_device<D: IOAccess + 'static>(&self, name: &str, base: u64, size: u64, device: D) -> Result<()> {
-        self.register_region(name, base, &Region::io(base, size, Box::new(device)))
+        self.register_region(name, base, &Region::io(0, size, Box::new(device)))
     }
 
 
@@ -177,6 +177,10 @@ impl System {
         root.add_prop(FdtProp::str_prop("compatible", vec!["ucbbar,terminus-bare-dev"]));
         root.add_prop(FdtProp::str_prop("model", vec!["ucbbar,terminus-bare"]));
 
+        let mut chosen = FdtNode::new("chosen");
+        chosen.add_prop(FdtProp::str_prop("bootargs", vec!["console=hvc0 earlycon=sbi"]));
+        root.add_node(chosen);
+
         let mut cpus = FdtNode::new("cpus");
         cpus.add_prop(FdtProp::u32_prop("#address-cells", vec![1]));
         cpus.add_prop(FdtProp::u32_prop("#size-cells", vec![0]));
@@ -186,7 +190,7 @@ impl System {
             let mut cpu = FdtNode::new_with_num("cpu", p.state().hartid() as u64);
             cpu.add_prop(FdtProp::str_prop("device_type", vec!["cpu"]));
             cpu.add_prop(FdtProp::u32_prop("reg", vec![p.state().hartid() as u32]));
-            cpu.add_prop(FdtProp::str_prop("status", vec!["okey"]));
+            cpu.add_prop(FdtProp::str_prop("status", vec!["okay"]));
             cpu.add_prop(FdtProp::str_prop("compatible", vec!["riscv"]));
             cpu.add_prop(FdtProp::str_prop("riscv,isa", vec![&p.state().isa_string()]));
             cpu.add_prop(FdtProp::u32_prop("clock-frequency", vec![p.state().config().freq as u32]));

@@ -24,14 +24,18 @@ fn main() {
 
     let interval: u64 = 100;
     let mut interval_cnt: u64 = 0;
-    loop {
+    'outer:loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
             eprintln!("{}", msg);
             break;
         }
         for p in sys.processors() {
             p.step(1);
-            // eprintln!("{}", p.state().trace())
+            eprintln!("{}", p.state().trace());
+            // if p.state().pc() == 0xffffffe000da56cc {
+            //     eprintln!("{}", p.state().to_string());
+            //     break 'outer;
+            // }
         }
         interval_cnt += 1;
         if interval_cnt % interval == interval - 1 {

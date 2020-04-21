@@ -317,7 +317,7 @@ mod test {
             let mut cpu = FdtNode::new_with_num("cpu", i);
             cpu.add_prop(FdtProp::str_prop("device_type", vec!["cpu"]));
             cpu.add_prop(FdtProp::u32_prop("reg", vec![i as u32]));
-            cpu.add_prop(FdtProp::str_prop("status", vec!["okey"]));
+            cpu.add_prop(FdtProp::str_prop("status", vec!["okay"]));
             cpu.add_prop(FdtProp::str_prop("compatible", vec!["riscv"]));
             cpu.add_prop(FdtProp::str_prop("riscv,isa", vec!["acdfimsu"]));
             cpu.add_prop(FdtProp::str_prop("mmu-type", vec!["riscv,sv48"]));
