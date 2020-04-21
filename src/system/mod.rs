@@ -1,7 +1,7 @@
 use terminus_spaceport::memory::MemInfo;
 use terminus_spaceport::space::{Space, SPACE_TABLE};
 use terminus_spaceport::space;
-use terminus_spaceport::memory::region::{Region,IOAccess,BytesAccess};
+use terminus_spaceport::memory::region::{Region, IOAccess, BytesAccess};
 use std::sync::Arc;
 use std::fmt;
 use crate::devices::htif::HTIF;
@@ -9,11 +9,29 @@ use crate::devices::bus::Bus;
 use std::fmt::{Display, Formatter};
 use crate::processor::{ProcessorCfg, Processor};
 use std::cmp::min;
-use crate::devices::clint::{Timer, Clint};
+use crate::devices::clint::Timer;
 use std::ops::Deref;
 
+#[derive(Debug)]
+pub enum Error {
+    SpaceErr(space::Error),
+    ElfErr(String),
+    FdtErr(String),
+}
+
+impl From<space::Error> for Error {
+    fn from(v: space::Error) -> Error {
+        Error::SpaceErr(v)
+    }
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
+
 pub mod elf;
+
 use elf::ElfLoader;
+use crate::system::fdt::{FdtNode, FdtProp};
+use terminus_global::XLen;
 
 pub mod fdt;
 
@@ -51,7 +69,7 @@ impl System {
         self.processors.push(p)
     }
 
-    fn register_region(&self, name: &str, base: u64, region: &Arc<Region>) -> Result<(), space::Error> {
+    fn register_region(&self, name: &str, base: u64, region: &Arc<Region>) -> Result<()> {
         self.mem_space.add_region(name, &Region::remap(base, &region))?;
         Ok(())
     }
@@ -86,16 +104,16 @@ impl System {
         &self.mem_space
     }
 
-    pub fn register_device<D: IOAccess + 'static>(&self, name: &str, base: u64, size: u64, device: D) -> Result<(), space::Error> {
+    pub fn register_device<D: IOAccess + 'static>(&self, name: &str, base: u64, size: u64, device: D) -> Result<()> {
         self.register_region(name, base, &Region::io(base, size, Box::new(device)))
     }
 
 
-    pub fn register_memory(&self, name: &str, base: u64, mem: &Arc<Region>)-> Result<(), space::Error> {
+    pub fn register_memory(&self, name: &str, base: u64, mem: &Arc<Region>) -> Result<()> {
         match self.register_region(name, base, &mem) {
-            Ok(_) => {Ok(())}
+            Ok(_) => { Ok(()) }
             Err(e) => {
-                if let space::Error::Overlap(n, msg) = e {
+                if let Error::SpaceErr(space::Error::Overlap(n, msg)) = e {
                     if n == "htif".to_string() {
                         let htif_region = self.mem_space.get_region(&n).unwrap();
                         let range0 = if base < htif_region.info.base {
@@ -116,7 +134,7 @@ impl System {
                         });
                         Ok(())
                     } else {
-                        Err(space::Error::Overlap(n, msg))
+                        Err(Error::from(space::Error::Overlap(n, msg)))
                     }
                 } else {
                     Err(e)
@@ -126,9 +144,9 @@ impl System {
     }
 
 
-    pub fn load_elf(&self) {
-        self.elf.load(|addr, data| {
-            fn load(space: &Space, addr: u64, data: &[u8]) -> Result<(), String> {
+    pub fn load_elf(&self) -> Result<()> {
+        match self.elf.load(|addr, data| {
+            fn load(space: &Space, addr: u64, data: &[u8]) -> std::result::Result<(), String> {
                 if data.is_empty() {
                     Ok(())
                 } else {
@@ -145,7 +163,93 @@ impl System {
                 }
             };
             load(self.mem_space().deref(), addr, data)
-        }).expect(&format!("{} load elf fail!", self.name));
+        }) {
+            Ok(_) => Ok(()),
+            Err(msg) => Err(Error::ElfErr(msg))
+        }
+    }
+
+    pub fn load_fdt(&self) -> Result<()> {
+        let mut root = FdtNode::new("");
+        root.add_prop(FdtProp::u32_prop("#address-cells", vec![2]));
+        root.add_prop(FdtProp::u32_prop("#size-cells", vec![2]));
+        root.add_prop(FdtProp::str_prop("compatible", vec!["ucbbar,terminus-bare-dev"]));
+        root.add_prop(FdtProp::str_prop("model", vec!["ucbbar,terminus-bare"]));
+
+        let mut cpus = FdtNode::new("cpus");
+        cpus.add_prop(FdtProp::u32_prop("#address-cells", vec![1]));
+        cpus.add_prop(FdtProp::u32_prop("#size-cells", vec![0]));
+        cpus.add_prop(FdtProp::u32_prop("timebase-frequency", vec![self.timer.freq() as u32]));
+
+        for p in self.processors.iter() {
+            let mut cpu = FdtNode::new_with_num("cpu", p.state().hartid() as u64);
+            cpu.add_prop(FdtProp::str_prop("device_type", vec!["cpu"]));
+            cpu.add_prop(FdtProp::u32_prop("reg", vec![p.state().hartid() as u32]));
+            cpu.add_prop(FdtProp::str_prop("status", vec!["okey"]));
+            cpu.add_prop(FdtProp::str_prop("compatible", vec!["riscv"]));
+            cpu.add_prop(FdtProp::str_prop("riscv,isa", vec![&p.state().isa_string()]));
+            cpu.add_prop(FdtProp::u32_prop("clock-frequency", vec![p.state().config().freq as u32]));
+            match p.state().config().xlen {
+                XLen::X64 => cpu.add_prop(FdtProp::str_prop("mmu-type", vec!["riscv,sv48"])),
+                XLen::X32 => cpu.add_prop(FdtProp::str_prop("mmu-type", vec!["riscv,sv32"])),
+            }
+            let mut intc = FdtNode::new("interrupt-controller");
+            intc.add_prop(FdtProp::u32_prop("#interrupt-cells", vec![1]));
+            intc.add_prop(FdtProp::null_prop("interrupt-controller"));
+            root.add_prop(FdtProp::str_prop("compatible", vec!["riscv,cpu-intc"]));
+            root.add_prop(FdtProp::u32_prop("phandle", vec![p.state().hartid() as u32]));
+            cpu.add_node(intc);
+            cpus.add_node(cpu)
+        }
+        root.add_node(cpus);
+
+        if let Some(main_memory) = self.mem_space().get_region("main_memory") {
+            let base = main_memory.info.base;
+            let mut size = main_memory.info.size;
+            //because of htif...
+            if let Some(main_memory_1) = self.mem_space().get_region("main_memory_1") {
+                let htif_region = self.mem_space().get_region("htif").unwrap();
+                size += main_memory_1.info.size + htif_region.info.size
+            }
+            let mut memory = FdtNode::new_with_num("memory", base);
+            memory.add_prop(FdtProp::str_prop("device_type", vec!["memory"]));
+            memory.add_prop(FdtProp::u64_prop("reg", vec![base, size]));
+            root.add_node(memory);
+        } else {
+            return Err(Error::FdtErr("\"main_memory\" is not in memory space!".to_string()))
+        }
+
+        let mut soc = FdtNode::new("soc");
+        soc.add_prop(FdtProp::u32_prop("#address-cells", vec![2]));
+        soc.add_prop(FdtProp::u32_prop("#size-cells", vec![2]));
+        soc.add_prop(FdtProp::str_prop("compatible", vec!["ucbbar,terminus-bare-soc", "simple-bus"]));
+        soc.add_prop(FdtProp::null_prop("range"));
+
+        if let Some(clint_region) = self.mem_space().get_region("clint") {
+            let mut clint = FdtNode::new_with_num("clint", clint_region.info.base);
+            clint.add_prop(FdtProp::str_prop("compatible", vec!["riscv,clint0"]));
+            let mut interrupts_extended = vec![];
+            for p in self.processors.iter() {
+                interrupts_extended.push(p.state().hartid() as u32);
+                interrupts_extended.push(3 as u32);
+                interrupts_extended.push(p.state().hartid() as u32);
+                interrupts_extended.push(7 as u32);
+            }
+            clint.add_prop(FdtProp::u32_prop("interrupts-extended", interrupts_extended));
+            clint.add_prop(FdtProp::u64_prop("reg", vec![clint_region.info.base, clint_region.info.size]));
+            soc.add_node(clint);
+        } else {
+            return Err(Error::FdtErr("\"clint\" is not in memory space!".to_string()))
+        }
+
+        let mut htif = FdtNode::new("htif");
+        htif.add_prop(FdtProp::str_prop("compatible", vec!["ucb,htif0"]));
+        soc.add_node(htif);
+
+        root.add_node(soc);
+
+        let res = fdt::compile(&root);
+        Ok(())
     }
 }
 

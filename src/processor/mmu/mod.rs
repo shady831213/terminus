@@ -249,6 +249,7 @@ fn pmp_basic_test() {
         xlen: XLen::X32,
         enable_dirty: true,
         extensions: vec![].into_boxed_slice(),
+        freq:1000000000,
     }], 100);
 
     let p = sys.processor(0).unwrap();

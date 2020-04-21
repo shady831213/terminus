@@ -1,13 +1,13 @@
 use std::fmt::{Display, Formatter};
 use std::fmt;
 use std::collections::HashMap;
-
 const FDT_MAGIC: u32 = 0xd00dfeed;
 const FDT_VERSION: u32 = 17;
 
 const FDT_BEGIN_NODE: u32 = 1;
 const FDT_END_NODE: u32 = 2;
 const FDT_PROP: u32 = 3;
+#[allow(dead_code)]
 const FDT_NOP: u32 = 4;
 const FDT_END: u32 = 9;
 
@@ -16,6 +16,7 @@ pub fn compile(root: &FdtNode) -> Vec<u8> {
     state.compile(root)
 }
 
+#[allow(dead_code)]
 struct FdtHeader {
     magic: u32,
     total_size: u32,
@@ -73,7 +74,6 @@ impl FdtState {
         };
         let mut pos = std::mem::size_of::<FdtHeader>() as u32;
         let off_dt_struct = pos;
-        println!("off_dt_struct {}", off_dt_struct);
         header.off_dt_struct = off_dt_struct.to_be();
         pos += self.struct_buffer.len() as u32;
         while pos & 0x7 != 0 {
@@ -102,6 +102,7 @@ impl FdtState {
     }
 }
 
+#[allow(dead_code)]
 struct FdtRsvEntry {
     address: u64,
     size: u64,

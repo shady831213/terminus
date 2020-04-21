@@ -61,6 +61,10 @@ impl Timer {
         self.0.lock().unwrap().tick(n)
     }
 
+    pub fn freq(&self) -> usize {
+        self.0.lock().unwrap().freq
+    }
+
     fn lock(&self) -> LockResult<MutexGuard<'_, TimerInner>> {
         self.0.lock()
     }

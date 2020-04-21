@@ -60,6 +60,7 @@ pub struct ProcessorCfg {
     pub xlen: XLen,
     pub enable_dirty: bool,
     pub extensions: Box<[char]>,
+    pub freq:usize,
 }
 
 impl ProcessorCfg {
@@ -88,12 +89,12 @@ pub struct ProcessorState {
     next_pc: RefCell<RegT>,
     ir: RefCell<InsnT>,
     clint: Arc<IrqVec>,
-    insns_cnt:RefCell<u64>,
+    insns_cnt: RefCell<u64>,
 }
 
 impl ProcessorState {
     pub fn trace(&self) -> String {
-        format!("hartid = {}; privilege = {:?};pc = {:#x}; ir = {:#x}; next_pc = {:#x}; insns_cnt = {};", self.hartid,self.privilege(), self.pc(), self.ir(), self.next_pc(), self.insns_cnt())
+        format!("hartid = {}; privilege = {:?};pc = {:#x}; ir = {:#x}; next_pc = {:#x}; insns_cnt = {};", self.hartid, self.privilege(), self.pc(), self.ir(), self.next_pc(), self.insns_cnt())
     }
 }
 
@@ -192,6 +193,11 @@ impl ProcessorState {
         self.extensions.borrow()
     }
 
+    pub fn isa_string(&self) -> String {
+        let exts:String = self.extensions().keys().collect();
+        format!("rv{}{}", self.config().xlen.len(), exts)
+    }
+
     pub fn csrs<T: 'static>(&self) -> Result<Rc<T>, String> {
         if let Some(t) = self.extensions().values().find_map(|extension| {
             if let Some(csrs) = extension.csrs() {
@@ -220,6 +226,10 @@ impl ProcessorState {
             return Err(Exception::IllegalInsn(*self.ir.borrow()));
         }
         Ok(())
+    }
+
+    pub fn hartid(&self) -> usize {
+        self.hartid
     }
 
     pub fn csr(&self, id: RegT) -> Result<RegT, Exception> {
