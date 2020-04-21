@@ -17,6 +17,7 @@ pub enum Error {
     SpaceErr(space::Error),
     ElfErr(String),
     FdtErr(String),
+    ResetErr(String),
 }
 
 impl From<space::Error> for Error {
@@ -65,7 +66,7 @@ impl System {
     }
 
     fn new_processor(&mut self, config: ProcessorCfg) {
-        let p = Processor::new(self.processors.len(), self.elf.entry_point().unwrap(), config, &self.bus, &self.timer().alloc_irq());
+        let p = Processor::new(self.processors.len(), config, &self.bus, &self.timer().alloc_irq());
         self.processors.push(p)
     }
 
@@ -249,6 +250,30 @@ impl System {
         root.add_node(soc);
 
         let res = fdt::compile(&root);
+        Ok(())
+    }
+
+    pub fn reset(&self, reset_vecs:Vec<u64>)->Result<()> {
+        if reset_vecs.len() != self.processors.len() {
+            return Err(Error::ResetErr(format!("reset_vecs size {} is not match with processor num {}!", reset_vecs.len(), self.processors.len())))
+        }
+        if let Some(boot_rom) = self.mem_space.get_region("boot_rom") {
+            for p in self.processors().iter() {
+                if let Err(msg) = p.reset(boot_rom.info.base) {
+                    return Err(Error::ResetErr(msg))
+                }
+            }
+        } else {
+            for (i, p) in self.processors().iter().enumerate() {
+                if let Err(msg) = if reset_vecs[i] == -1i64 as u64 {
+                    p.reset(self.elf.entry_point().unwrap())
+                } else {
+                    p.reset(reset_vecs[i])
+                } {
+                    return Err(Error::ResetErr(msg))
+                }
+            }
+        }
         Ok(())
     }
 }

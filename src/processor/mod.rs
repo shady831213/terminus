@@ -80,7 +80,6 @@ impl ProcessorCfg {
 
 pub struct ProcessorState {
     hartid: usize,
-    start_address: u64,
     config: ProcessorCfg,
     privilege: RefCell<Privilege>,
     xreg: RefCell<[RegT; 32]>,
@@ -101,7 +100,6 @@ impl ProcessorState {
 impl Display for ProcessorState {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         writeln!(f, "hartid:{}", self.hartid)?;
-        writeln!(f, "start_address:{}", self.start_address)?;
         writeln!(f, "config:")?;
         writeln!(f, "{:#x?}", self.config)?;
         writeln!(f, "")?;
@@ -124,32 +122,29 @@ impl Display for ProcessorState {
 
 
 impl ProcessorState {
-    fn new(hartid: usize, start_address: u64, config: ProcessorCfg, clint: &Arc<IrqVec>) -> Result<ProcessorState, String> {
-        if config.xlen == XLen::X32 && start_address.leading_zeros() < 32 {
-            return Err(format!("invalid start addr {:#x} when xlen == X32!", start_address));
-        }
-        let state = ProcessorState {
+    fn new(hartid: usize, config: ProcessorCfg, clint: &Arc<IrqVec>) -> ProcessorState {
+        ProcessorState {
             hartid,
-            start_address,
             config,
             privilege: RefCell::new(Privilege::M),
             xreg: RefCell::new([0 as RegT; 32]),
             extensions: RefCell::new(HashMap::new()),
             pc: RefCell::new(0),
-            next_pc: RefCell::new(start_address),
+            next_pc: RefCell::new(0),
             ir: RefCell::new(0),
             clint: clint.clone(),
             insns_cnt: RefCell::new(0),
-        };
-        state.reset()?;
-        Ok(state)
+        }
     }
 
-    fn reset(&self) -> Result<(), String> {
+    fn reset(&self, start_address:u64) -> Result<(), String> {
+        if self.config.xlen == XLen::X32 && start_address.leading_zeros() < 32 {
+            return Err(format!("cpu{}:invalid start addr {:#x} when xlen == X32!", self.hartid, start_address));
+        }
         *self.xreg.borrow_mut() = [0 as RegT; 32];
         *self.extensions.borrow_mut() = HashMap::new();
         *self.pc.borrow_mut() = 0;
-        *self.next_pc.borrow_mut() = self.start_address;
+        *self.next_pc.borrow_mut() = start_address;
         *self.ir.borrow_mut() = 0;
         self.add_extension()?;
         //register clint:0:msip, 1:mtip
@@ -211,7 +206,7 @@ impl ProcessorState {
         }) {
             Ok(t)
         } else {
-            Err(format!("can not find csrs {:?}", TypeId::of::<T>()))
+            Err(format!("cpu{}:can not find csrs {:?}", self.hartid, TypeId::of::<T>()))
         }
     }
 
@@ -346,12 +341,8 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn new(hartid: usize, start_address: u64, config: ProcessorCfg, bus: &Arc<Bus>, clint: &Arc<IrqVec>) -> Processor {
-        let state = match ProcessorState::new(hartid, start_address, config, clint) {
-            Ok(state) => Rc::new(state),
-            Err(msg) => panic!(msg)
-        };
-
+    pub fn new(hartid: usize,  config: ProcessorCfg, bus: &Arc<Bus>, clint: &Arc<IrqVec>) -> Processor {
+        let state = Rc::new(ProcessorState::new(hartid, config, clint));
         let mmu = Mmu::new(&state, bus);
         let fetcher = Fetcher::new(&state, bus);
         let load_store = LoadStore::new(&state, bus);
@@ -363,11 +354,10 @@ impl Processor {
         }
     }
 
-    pub fn reset(&self) {
-        if let Err(msg) = self.state.reset() {
-            panic!(msg)
-        }
-        self.load_store().reset()
+    pub fn reset(&self, start_address:u64) -> Result<(), String> {
+        self.state.reset(start_address)?;
+        self.load_store().reset();
+        Ok(())
     }
 
     pub fn mmu(&self) -> &Mmu {
