@@ -257,21 +257,17 @@ impl System {
         if reset_vecs.len() != self.processors.len() {
             return Err(Error::ResetErr(format!("reset_vecs size {} is not match with processor num {}!", reset_vecs.len(), self.processors.len())))
         }
-        if let Some(boot_rom) = self.mem_space.get_region("boot_rom") {
-            for p in self.processors().iter() {
-                if let Err(msg) = p.reset(boot_rom.info.base) {
-                    return Err(Error::ResetErr(msg))
-                }
-            }
-        } else {
-            for (i, p) in self.processors().iter().enumerate() {
-                if let Err(msg) = if reset_vecs[i] == -1i64 as u64 {
-                    p.reset(self.elf.entry_point().unwrap())
+        for (i, p) in self.processors().iter().enumerate() {
+            if let Err(msg) = if reset_vecs[i] == -1i64 as u64 {
+                if let Some(boot_rom) = self.mem_space.get_region("boot_rom") {
+                    p.reset(boot_rom.info.base)
                 } else {
-                    p.reset(reset_vecs[i])
-                } {
-                    return Err(Error::ResetErr(msg))
+                    p.reset(self.elf.entry_point().unwrap())
                 }
+            } else {
+                p.reset(reset_vecs[i])
+            } {
+                return Err(Error::ResetErr(msg))
             }
         }
         Ok(())
