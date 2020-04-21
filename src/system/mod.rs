@@ -76,8 +76,8 @@ impl System {
     }
 
     fn try_register_htif(&self) {
-        if let Some(s) = self.elf.htif_section().expect("Invalid ELF!") {
-            self.register_region("htif", s.address(), &Region::io(0, 0x1000, Box::new(HTIF::new()))).unwrap();
+        if let Some((base, tohost, fromhost)) = self.elf.htif_section().expect("Invalid ELF!") {
+            self.register_region("htif", base, &Region::io(0, 0x1000, Box::new(HTIF::new(tohost, fromhost)))).unwrap();
         }
     }
 

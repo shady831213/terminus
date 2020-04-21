@@ -23,11 +23,19 @@ impl HTIFDesp {
 }
 
 #[derive_io(Bytes, U32, U64)]
-pub struct HTIF(Mutex<HTIFDesp>);
+pub struct HTIF {
+    desc: Mutex<HTIFDesp>,
+    tohost_off: u64,
+    fromhost_off: Option<u64>,
+}
 
 impl HTIF {
-    pub fn new() -> HTIF {
-        HTIF(Mutex::new(HTIFDesp { tohost: 0, fromhost: 0 }))
+    pub fn new(tohost_off: u64, fromhost_off: Option<u64>) -> HTIF {
+        HTIF {
+            desc: Mutex::new(HTIFDesp { tohost: 0, fromhost: 0 }),
+            tohost_off,
+            fromhost_off,
+        }
     }
 
     fn handle_cmd(desp: &mut HTIFDesp) -> region::Result<()> {
@@ -38,9 +46,11 @@ impl HTIF {
             let mut data = [0u8; 1];
             data[0] = desp.tohost as u8;
             let stdout = TERM.stdout();
-            stdout.lock().write(&data).unwrap();
-            stdout.lock().flush().unwrap();
+            let mut handle = stdout.lock();
+            handle.write(&data).unwrap();
+            handle.flush().unwrap();
             desp.tohost = 0;
+            desp.fromhost = desp.tohost_device() << 56 | desp.tohost_cmd() << 48;
             Ok(())
         } else if desp.tohost_device() == 1 && desp.tohost_cmd() == 0 {
             desp.tohost = 0;
@@ -51,7 +61,7 @@ impl HTIF {
     }
 
     fn fromhost_poll(&self) {
-        let mut desp = self.0.lock().unwrap();
+        let mut desp = self.desc.lock().unwrap();
         if desp.borrow().fromhost == 0 {
             let mut data = [0u8; 1];
             match TERM.stdin().lock().read_exact(&mut data) {
@@ -69,39 +79,47 @@ impl BytesAccess for HTIF {
 
 impl U32Access for HTIF {
     fn write(&self, addr: u64, data: u32) -> region::Result<()> {
-        match addr {
-            0x0 => {
-                let mut desp = self.0.lock().unwrap();
-                desp.borrow_mut().tohost.set_bit_range(31, 0, data);
-                if desp.borrow().tohost & 0x1 == 1 && desp.tohost_device() == 0 && desp.tohost_cmd() == 0 {
-                    EXIT_CTRL.exit("htif shutdown!").unwrap();
-                }
-                Ok(())
+        if addr == self.tohost_off {
+            let mut desp = self.desc.lock().unwrap();
+            desp.borrow_mut().tohost.set_bit_range(31, 0, data);
+            if desp.borrow().tohost & 0x1 == 1 && desp.tohost_device() == 0 && desp.tohost_cmd() == 0 {
+                EXIT_CTRL.exit("htif shutdown!").unwrap();
             }
-            0x4 => {
-                let mut desp = self.0.lock().unwrap();
-                desp.borrow_mut().tohost.set_bit_range(63, 32, data);
-                HTIF::handle_cmd(desp.borrow_mut())
+            Ok(())
+        } else if addr == self.tohost_off + 4 {
+            let mut desp = self.desc.lock().unwrap();
+            desp.borrow_mut().tohost.set_bit_range(63, 32, data);
+            HTIF::handle_cmd(desp.borrow_mut())
+        } else if let Some(fromhost) = self.fromhost_off {
+            if addr == fromhost {
+                Ok(self.desc.lock().unwrap().fromhost.set_bit_range(31, 0, data))
+            } else if addr == fromhost + 4 {
+                Ok(self.desc.lock().unwrap().fromhost.set_bit_range(63, 32, data))
+            } else {
+                Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
             }
-            0x8 => Ok(self.0.lock().unwrap().fromhost.set_bit_range(31, 0, data)),
-            0xc => Ok(self.0.lock().unwrap().fromhost.set_bit_range(63, 32, data)),
-            _ => Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
+        } else {
+            Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
         }
     }
 
     fn read(&self, addr: u64) -> region::Result<u32> {
-        match addr {
-            0x0 => Ok(self.0.lock().unwrap().tohost.bit_range(31, 0)),
-            0x4 => Ok(self.0.lock().unwrap().tohost.bit_range(63, 32)),
-            0x8 => {
+        if addr == self.tohost_off {
+            Ok(self.desc.lock().unwrap().tohost.bit_range(31, 0))
+        } else if addr == self.tohost_off + 4 {
+            Ok(self.desc.lock().unwrap().tohost.bit_range(63, 32))
+        } else if let Some(fromhost) = self.fromhost_off {
+            if addr == fromhost {
                 self.fromhost_poll();
-                Ok(self.0.lock().unwrap().fromhost.bit_range(31, 0))
-            }
-            0xc => {
+                Ok(self.desc.lock().unwrap().fromhost.bit_range(31, 0))
+            } else if addr == fromhost + 4 {
                 self.fromhost_poll();
-                Ok(self.0.lock().unwrap().fromhost.bit_range(63, 32))
+                Ok(self.desc.lock().unwrap().fromhost.bit_range(63, 32))
+            } else {
+                Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
             }
-            _ => Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
+        } else {
+            Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
         }
     }
 }
@@ -109,25 +127,33 @@ impl U32Access for HTIF {
 
 impl U64Access for HTIF {
     fn write(&self, addr: u64, data: u64) -> region::Result<()> {
-        match addr {
-            0x0 => {
-                let mut desp = self.0.lock().unwrap();
-                desp.borrow_mut().tohost = data;
-                HTIF::handle_cmd(desp.borrow_mut())
+        if addr == self.tohost_off {
+            let mut desp = self.desc.lock().unwrap();
+            desp.borrow_mut().tohost = data;
+            HTIF::handle_cmd(desp.borrow_mut())
+        } else if let Some(fromhost) = self.fromhost_off {
+            if addr == fromhost {
+                Ok(self.desc.lock().unwrap().fromhost = data)
+            } else {
+                Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
             }
-            0x8 => Ok(self.0.lock().unwrap().fromhost = data),
-            _ => Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
+        } else {
+            Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
         }
     }
 
     fn read(&self, addr: u64) -> region::Result<u64> {
-        match addr {
-            0x0 => Ok(self.0.lock().unwrap().tohost),
-            0x8 => {
+        if addr == self.tohost_off {
+            Ok(self.desc.lock().unwrap().tohost)
+        } else if let Some(fromhost) = self.fromhost_off {
+            if addr == fromhost {
                 self.fromhost_poll();
-                Ok(self.0.lock().unwrap().fromhost)
+                Ok(self.desc.lock().unwrap().fromhost)
+            } else {
+                Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
             }
-            _ => Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
+        } else {
+            Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
         }
     }
 }
