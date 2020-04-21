@@ -2,12 +2,17 @@ use crate::prelude::*;
 
 csr_map! {
 pub ICsrs(0x0, 0xfff) {
+    cycle(RO):Cycle, 0xC00;
+    instret(RO):Instret, 0xC02;
+    cycleh(RO):Cycle, 0xC80;
+    instreth(RO):Instret, 0xC82;
     mstatus(RW):MStatus, 0x300;
     misa(RW):Misa, 0x301;
     medeleg(RW):Medeleg, 0x302;
     mideleg(RW):Mideleg, 0x303;
     mie(RW):Mie, 0x304;
     mtvec(RW):Tvec, 0x305;
+    mcounteren(RW):Counteren, 0x306;
     mscratch(RW):Scratch, 0x340;
     mepc(RW):Epc, 0x341;
     mcause(RW):Cause, 0x342;
@@ -35,6 +40,10 @@ pub ICsrs(0x0, 0xfff) {
     pmpaddr15(RW):PmpAddr, 0x3BF;
     //no debug
     tselect(RO):Tselect, 0x7A0;
+    mcycle(RO):Cycle, 0xB00;
+    minstret(RO):Instret, 0xB02;
+    mcycleh(RO):Cycle, 0xB80;
+    minstreth(RO):Instret, 0xB82;
     mvendorid(RO):Mvendorid, 0xF11;
     marchid(RO):Marchid, 0xF12;
     mimpid(RO):Mimpid, 0xF13;
@@ -61,7 +70,7 @@ Mimpid {
 define_csr! {
 Misa {
     fields {
-        extensions(RO):25,0;
+        extensions(RW):25,0;
     },
     fields32{
         mxl(RO):31,30;
@@ -244,6 +253,36 @@ define_csr! {
 Tselect {}
 }
 
+define_csr! {
+Counteren {
+    fields {
+       cy(RW):0, 0;
+       ir(RW):2, 2;
+    },
+}
+}
+
+define_csr! {
+Cycle {
+    fields32 {
+       cycle(RO):31, 0;
+    },
+    fields64 {
+       cycle(RO):63, 0;
+    },
+}
+}
+
+define_csr! {
+Instret {
+    fields32 {
+       instret(RO):31, 0;
+    },
+    fields64 {
+       instret(RO):63, 0;
+    },
+}
+}
 
 #[test]
 fn test_status() {

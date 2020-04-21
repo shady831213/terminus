@@ -1,10 +1,11 @@
 use crate::prelude::*;
-use crate::processor::extensions::i::csrs::{Tvec, Scratch, Epc, Cause, Tval};
+use crate::processor::extensions::i::csrs::{Tvec, Scratch, Epc, Cause, Tval, Counteren};
 csr_map! {
 pub SCsrs(0x0, 0xfff) {
     sstatus(RW):SStatus,0x100;
     sie(RW):Sie, 0x104;
     stvec(RW):Tvec, 0x105;
+    scounteren(RW):Counteren, 0x106;
     sscratch(RW):Scratch, 0x140;
     sepc(RW):Epc, 0x141;
     scause(RW):Cause, 0x142;

@@ -190,8 +190,8 @@ impl FdtProp {
     pub fn u64_prop(name: &str, value: Vec<u64>) -> FdtProp {
         let mut value_u32 = vec![];
         for v in value {
-            value_u32.push(v as u32);
             value_u32.push((v >> 32) as u32);
+            value_u32.push(v as u32);
         }
         FdtProp {
             indent: 0,
@@ -324,8 +324,8 @@ mod test {
             let mut intc = FdtNode::new("interrupt-controller");
             intc.add_prop(FdtProp::u32_prop("#interrupt-cells", vec![1]));
             intc.add_prop(FdtProp::null_prop("interrupt-controller"));
-            root.add_prop(FdtProp::str_prop("compatible", vec!["riscv,cpu-intc"]));
-            root.add_prop(FdtProp::u32_prop("phandle", vec![i as u32]));
+            intc.add_prop(FdtProp::str_prop("compatible", vec!["riscv,cpu-intc"]));
+            intc.add_prop(FdtProp::u32_prop("phandle", vec![(i + 1) as u32]));
             cpu.add_node(intc);
             cpus.add_node(cpu)
         }
@@ -346,9 +346,9 @@ mod test {
         clint.add_prop(FdtProp::str_prop("compatible", vec!["riscv,clint0"]));
         let mut interrupts_extended = vec![];
         for i in 0..4 {
-            interrupts_extended.push(i as u32);
+            interrupts_extended.push((i + 1) as u32);
             interrupts_extended.push(3 as u32);
-            interrupts_extended.push(i as u32);
+            interrupts_extended.push((i + 1) as u32);
             interrupts_extended.push(7 as u32);
         }
         clint.add_prop(FdtProp::u32_prop("interrupts-extended", interrupts_extended));

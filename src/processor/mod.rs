@@ -88,7 +88,7 @@ pub struct ProcessorState {
     next_pc: RefCell<RegT>,
     ir: RefCell<InsnT>,
     clint: Arc<IrqVec>,
-    insns_cnt: RefCell<u64>,
+    insns_cnt: Rc<RefCell<u64>>,
 }
 
 impl ProcessorState {
@@ -133,7 +133,7 @@ impl ProcessorState {
             next_pc: RefCell::new(0),
             ir: RefCell::new(0),
             clint: clint.clone(),
-            insns_cnt: RefCell::new(0),
+            insns_cnt: Rc::new(RefCell::new(0)),
         }
     }
 
@@ -313,7 +313,7 @@ impl ProcessorState {
     }
 
     pub fn insns_cnt(&self) -> u64 {
-        *self.insns_cnt.borrow()
+        *self.insns_cnt.deref().borrow()
     }
 
     pub fn xreg(&self, id: RegT) -> RegT {
@@ -379,12 +379,12 @@ impl Processor {
         *self.state.ir.borrow_mut() = inst.ir();
         match inst.execute(self) {
             Ok(_) => {
-                *self.state.insns_cnt.borrow_mut() += 1;
+                *self.state.insns_cnt.deref().borrow_mut() += 1;
                 Ok(())
             }
             Err(e) => {
                 if e.executed() {
-                    *self.state.insns_cnt.borrow_mut() += 1;
+                    *self.state.insns_cnt.deref().borrow_mut() += 1;
                 }
                 Err(e)
             }

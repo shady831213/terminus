@@ -2,12 +2,14 @@ use terminus_global::*;
 use std::rc::Rc;
 use std::any::Any;
 use crate::processor::extensions::{HasCsr, NoStepCb};
+use crate::processor::extensions::s::csrs::*;
 
 mod insns;
 pub mod csrs;
 
 use csrs::ICsrs;
 use crate::processor::{PrivilegeLevel, Privilege, ProcessorState};
+use std::ops::Deref;
 
 pub struct ExtensionI {
     csrs: Rc<ICsrs>,
@@ -72,6 +74,35 @@ impl ExtensionI {
             }
         }
 
+        //deleg counter
+        e.csrs.instret_mut().instret_transform({
+            let count = state.insns_cnt.clone();
+            move |_| {
+                *count.deref().borrow() as RegT
+            }
+        }
+        );
+        e.csrs.instreth_mut().instret_transform({
+            let count = state.insns_cnt.clone();
+            move |_| {
+                (*count.deref().borrow() >> 32) as RegT
+            }
+        }
+        );
+        e.csrs.minstret_mut().instret_transform({
+            let count = state.insns_cnt.clone();
+            move |_| {
+                *count.deref().borrow() as RegT
+            }
+        }
+        );
+        e.csrs.minstreth_mut().instret_transform({
+            let count = state.insns_cnt.clone();
+            move |_| {
+                (*count.deref().borrow() >> 32) as RegT
+            }
+        }
+        );
         e
     }
 }
@@ -83,7 +114,31 @@ impl HasCsr for ExtensionI {
     fn csr_write(&self, _: &ProcessorState, addr: RegT, value: RegT) -> Option<()> {
         self.csrs.write(addr, value)
     }
-    fn csr_read(&self, _: &ProcessorState, addr: RegT) -> Option<RegT> {
+    fn csr_read(&self, state: &ProcessorState, addr: RegT) -> Option<RegT> {
+        let addr_high = addr & 0xff0;
+        if (addr_high == 0xc80 || addr_high == 0xc90 || addr_high == 0xb80 || addr_high == 0xb90) && state.config().xlen != XLen::X32 {
+            return None
+        }
+        if addr_high == 0xc80 || addr_high == 0xc90 || addr_high == 0xc00 || addr_high == 0xc10 {
+            match state.privilege() {
+                Privilege::M => {}
+                Privilege::S => {
+                    if self.csrs.mcounteren().get() & ((1 as RegT) << (addr & 0x1f)) == 0 {
+                        return None
+                    }
+                }
+                Privilege::U => {
+                    if self.csrs.mcounteren().get() & ((1 as RegT) << (addr & 0x1f)) == 0 {
+                        return None
+                    }
+                    if let Ok(scsrs) = state.csrs::<SCsrs>() {
+                        if scsrs.scounteren().get() & ((1 as RegT) << (addr & 0x1f)) == 0 {
+                            return None
+                        }
+                    }
+                }
+            }
+        }
         self.csrs.read(addr)
     }
 }

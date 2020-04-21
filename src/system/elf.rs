@@ -3,9 +3,8 @@ extern crate xmas_elf;
 use xmas_elf::ElfFile;
 use xmas_elf::program::SegmentData;
 use xmas_elf::header;
-use xmas_elf::sections::SectionHeader;
 use std::{fs, io};
-use xmas_elf::sections::SectionData::SymbolTable64;
+use xmas_elf::sections::SectionData::{SymbolTable64, SymbolTable32};
 use xmas_elf::symbol_table::Entry;
 
 pub struct ElfLoader {
@@ -50,6 +49,17 @@ impl ElfLoader {
             let mut fromhost: Option<u64> = None;
             if let Some(syn) = elf.find_section_by_name(".symtab") {
                 if let Ok(SymbolTable64(table)) = syn.get_data(&elf) {
+                    for e in table {
+                        if tohost.is_some() && fromhost.is_some() {
+                            break
+                        }
+                        if let Ok("tohost") = e.get_name(&elf) {
+                            tohost = Some(e.value() - s.address())
+                        } else if let Ok("fromhost") = e.get_name(&elf) {
+                            fromhost = Some(e.value() -s.address())
+                        }
+                    }
+                } else if let Ok(SymbolTable32(table)) = syn.get_data(&elf) {
                     for e in table {
                         if tohost.is_some() && fromhost.is_some() {
                             break

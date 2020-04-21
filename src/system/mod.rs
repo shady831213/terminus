@@ -197,8 +197,8 @@ impl System {
             let mut intc = FdtNode::new("interrupt-controller");
             intc.add_prop(FdtProp::u32_prop("#interrupt-cells", vec![1]));
             intc.add_prop(FdtProp::null_prop("interrupt-controller"));
-            root.add_prop(FdtProp::str_prop("compatible", vec!["riscv,cpu-intc"]));
-            root.add_prop(FdtProp::u32_prop("phandle", vec![p.state().hartid() as u32]));
+            intc.add_prop(FdtProp::str_prop("compatible", vec!["riscv,cpu-intc"]));
+            intc.add_prop(FdtProp::u32_prop("phandle", vec![(p.state().hartid() + 1) as u32]));
             cpu.add_node(intc);
             cpus.add_node(cpu)
         }
@@ -231,9 +231,9 @@ impl System {
             clint.add_prop(FdtProp::str_prop("compatible", vec!["riscv,clint0"]));
             let mut interrupts_extended = vec![];
             for p in self.processors.iter() {
-                interrupts_extended.push(p.state().hartid() as u32);
+                interrupts_extended.push((p.state().hartid() + 1) as u32);
                 interrupts_extended.push(3 as u32);
-                interrupts_extended.push(p.state().hartid() as u32);
+                interrupts_extended.push((p.state().hartid() + 1) as u32);
                 interrupts_extended.push(7 as u32);
             }
             clint.add_prop(FdtProp::u32_prop("interrupts-extended", interrupts_extended));
@@ -249,6 +249,7 @@ impl System {
 
         root.add_node(soc);
 
+        //println!("{}", root.to_string());
         Ok(fdt::compile(&root))
     }
 
