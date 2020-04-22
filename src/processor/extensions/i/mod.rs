@@ -39,17 +39,6 @@ impl ExtensionI {
         //will be overrided if 's' implemented
         e.csrs.mstatus_mut().set_tvm_transform(|_| { 0 });
         e.csrs.mstatus_mut().set_tsr_transform(|_| { 0 });
-        //xlen config
-        match cfg.xlen {
-            XLen::X32 => {
-                e.csrs.misa_mut().set_mxl(1);
-            }
-            XLen::X64 => {
-                e.csrs.misa_mut().set_mxl(2);
-                e.csrs.mstatus_mut().set_uxl(2);
-                e.csrs.mstatus_mut().set_sxl(2);
-            }
-        }
 
         //privilege_level config
         match cfg.privilege_level() {

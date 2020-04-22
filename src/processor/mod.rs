@@ -60,7 +60,7 @@ pub struct ProcessorCfg {
     pub xlen: XLen,
     pub enable_dirty: bool,
     pub extensions: Box<[char]>,
-    pub freq:usize,
+    pub freq: usize,
 }
 
 impl ProcessorCfg {
@@ -137,7 +137,7 @@ impl ProcessorState {
         }
     }
 
-    fn reset(&self, start_address:u64) -> Result<(), String> {
+    fn reset(&self, start_address: u64) -> Result<(), String> {
         if self.config.xlen == XLen::X32 && start_address.leading_zeros() < 32 {
             return Err(format!("cpu{}:invalid start addr {:#x} when xlen == X32!", self.hartid, start_address));
         }
@@ -147,27 +147,67 @@ impl ProcessorState {
         *self.next_pc.borrow_mut() = start_address;
         *self.ir.borrow_mut() = 0;
         self.add_extension()?;
+        let csrs = self.csrs::<ICsrs>().unwrap();
         //register clint:0:msip, 1:mtip
-        self.csrs::<ICsrs>().unwrap().mip_mut().msip_transform({
+        csrs.mip_mut().msip_transform({
             let clint = self.clint.clone();
             move |_| {
                 clint.pending(0).unwrap() as RegT
             }
         });
-        self.csrs::<ICsrs>().unwrap().mip_mut().mtip_transform({
+        csrs.mip_mut().mtip_transform({
             let clint = self.clint.clone();
             move |_| {
                 clint.pending(1).unwrap() as RegT
             }
         });
         //hartid
-        self.csrs::<ICsrs>().unwrap().mhartid_mut().set(self.hartid as RegT);
-        //extensions config
-        let extensions_value = self.extensions().keys()
-            .map(|e| { (*e as u8 - 'a' as u8) as RegT })
-            .map(|v| { 1 << v })
-            .fold(0 as RegT, |acc, v| { acc | v });
-        self.csrs::<ICsrs>().unwrap().misa_mut().set_extensions(extensions_value);
+        csrs.mhartid_mut().set(self.hartid as RegT);
+        //extensions config, only f, d can disable
+        let mut misa = csrs.misa_mut();
+        for ext in  self.extensions().keys() {
+            match ext {
+                'a' => misa.set_a(1),
+                'b' => misa.set_b(1),
+                'c' => misa.set_c(1),
+                'd' => misa.set_d(1),
+                'e' => misa.set_e(1),
+                'f' => misa.set_f(1),
+                'g' => misa.set_g(1),
+                'h' => misa.set_h(1),
+                'i' => misa.set_i(1),
+                'j' => misa.set_j(1),
+                'k' => misa.set_k(1),
+                'l' => misa.set_l(1),
+                'm' => misa.set_m(1),
+                'n' => misa.set_n(1),
+                'o' => misa.set_o(1),
+                'p' => misa.set_p(1),
+                'q' => misa.set_q(1),
+                'r' => misa.set_r(1),
+                's' => misa.set_s(1),
+                't' => misa.set_t(1),
+                'u' => misa.set_u(1),
+                'v' => misa.set_v(1),
+                'w' => misa.set_w(1),
+                'x' => misa.set_x(1),
+                'y' => misa.set_y(1),
+                'z' => misa.set_z(1),
+                _ => unreachable!()
+            }
+        }
+        //xlen config
+        match self.config().xlen {
+            XLen::X32 => {
+                misa.set_mxl(1);
+            }
+            XLen::X64 => {
+                misa.set_mxl(2);
+                csrs.mstatus_mut().set_uxl(2);
+                csrs.mstatus_mut().set_sxl(2);
+            }
+        }
+
         Ok(())
     }
 
@@ -189,7 +229,7 @@ impl ProcessorState {
     }
 
     pub fn isa_string(&self) -> String {
-        let exts:String = self.extensions().keys().collect();
+        let exts: String = self.extensions().keys().collect();
         format!("rv{}{}", self.config().xlen.len(), exts)
     }
 
@@ -246,7 +286,7 @@ impl ProcessorState {
     }
 
     pub fn check_extension(&self, ext: char) -> Result<(), Exception> {
-        if self.extensions().contains_key(&ext) {
+        if self.csrs::<ICsrs>().unwrap().misa().get() & ((1 as RegT) << ((ext as u8 - 'a' as u8) as RegT)) != 0 {
             Ok(())
         } else {
             Err(Exception::IllegalInsn(*self.ir.borrow()))
@@ -304,7 +344,7 @@ impl ProcessorState {
         *self.next_pc.borrow_mut() = pc
     }
 
-    fn next_pc(&self) -> RegT {
+    pub fn next_pc(&self) -> RegT {
         *self.next_pc.borrow()
     }
 
@@ -341,7 +381,7 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn new(hartid: usize,  config: ProcessorCfg, bus: &Arc<Bus>, clint: &Arc<IrqVec>) -> Processor {
+    pub fn new(hartid: usize, config: ProcessorCfg, bus: &Arc<Bus>, clint: &Arc<IrqVec>) -> Processor {
         let state = Rc::new(ProcessorState::new(hartid, config, clint));
         let mmu = Mmu::new(&state, bus);
         let fetcher = Fetcher::new(&state, bus);
@@ -354,7 +394,7 @@ impl Processor {
         }
     }
 
-    pub fn reset(&self, start_address:u64) -> Result<(), String> {
+    pub fn reset(&self, start_address: u64) -> Result<(), String> {
         self.state.reset(start_address)?;
         self.load_store().reset();
         Ok(())

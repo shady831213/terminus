@@ -6,6 +6,8 @@ use terminus_spaceport::devices::term_exit;
 use terminus_spaceport::EXIT_CTRL;
 use terminus_spaceport::memory::region::GHEAP;
 use terminus_global::XLen;
+use terminus_spaceport::memory::region::{U64Access, U32Access};
+use std::ops::Deref;
 
 fn main() {
     let num_cores = 1;
@@ -31,9 +33,10 @@ fn main() {
         }
         for p in sys.processors() {
             p.step(1);
-            eprintln!("{}", p.state().trace());
-            // if p.state().pc() == 0xffffffe000da56cc {
+            // eprintln!("{}", p.state().trace());
+            // if p.state().next_pc() == 0xffffffe000daa1a0{
             //     eprintln!("{}", p.state().to_string());
+            //     println!("data@0x819abf20 = {:#x}", U64Access::read(sys.mem_space().deref(), 0x819abf20).unwrap());
             //     break 'outer;
             // }
         }

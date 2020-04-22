@@ -359,7 +359,7 @@ impl Execution for SLTIU {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let rs1 = p.state().xreg(self.rs1() as RegT);
         let rs2 = sext(self.imm() as RegT, self.imm_len()) & p.state().config().xlen.mask();
-        if self.rs1() == 0 || rs1 < rs2 {
+        if rs1 == 0 && self.rs2() == 1 || rs1 < rs2 {
             p.state().set_xreg(self.rd() as RegT, 1)
         } else {
             p.state().set_xreg(self.rd() as RegT, 0)
@@ -612,7 +612,7 @@ impl Execution for SLTU {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let rs1 = p.state().xreg(self.rs1() as RegT);
         let rs2 = p.state().xreg(self.rs2() as RegT);
-        if self.rs2() != 0 && self.rs1() == 0 || rs1 < rs2 {
+        if rs2 != 0 && self.rs1() == 0 || rs1 < rs2 {
             p.state().set_xreg(self.rd() as RegT, 1)
         } else {
             p.state().set_xreg(self.rd() as RegT, 0)

@@ -70,7 +70,32 @@ Mimpid {
 define_csr! {
 Misa {
     fields {
-        extensions(RW):25,0;
+        a(RO):0,0;
+        b(RO):1,1;
+        c(RO):2,2;
+        d(RW):3,3;
+        e(RO):4,4;
+        f(RW):5,5;
+        g(RO):6,6;
+        h(RO):7,7;
+        i(RO):8,8;
+        j(RO):9,9;
+        k(RO):10,10;
+        l(RO):11,11;
+        m(RO):12,12;
+        n(RO):13,13;
+        o(RO):14,14;
+        p(RO):15,15;
+        q(RO):16,16;
+        r(RO):17,17;
+        s(RO):18,18;
+        t(RO):19,19;
+        u(RO):20,20;
+        v(RO):21,21;
+        w(RO):22,22;
+        x(RO):23,23;
+        y(RO):24,24;
+        z(RO):25,25;
     },
     fields32{
         mxl(RO):31,30;
