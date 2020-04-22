@@ -6,7 +6,6 @@ use terminus_spaceport::devices::term_exit;
 use terminus_spaceport::EXIT_CTRL;
 use terminus_spaceport::memory::region::GHEAP;
 use terminus_global::XLen;
-use terminus_spaceport::memory::region::{U64Access, U32Access};
 use std::ops::Deref;
 
 fn main() {
@@ -18,32 +17,31 @@ fn main() {
         freq: 1000000000,
     }; num_cores];
     let sys = System::new("sys", Path::new("examples/linux/image/br-base-bin-nodisk").to_str().expect("image not found!"), configs, 10000000);
-    sys.register_memory("main_memory", 0x80000000, &GHEAP.alloc(0x10000000, 1).expect("main_memory alloc fail!")).unwrap();
+    sys.register_memory("main_memory", 0x80000000, &GHEAP.alloc(0x80000000, 1).expect("main_memory alloc fail!")).unwrap();
     sys.register_device("clint", 0x02000000, 0x000c0000, Clint::new(sys.timer())).unwrap();
     sys.make_boot_rom(0x20000000, -1i64 as u64).unwrap();
     sys.load_elf().unwrap();
     sys.reset(vec![-1i64 as u64; num_cores]).unwrap();
-
     let interval: u64 = 100;
-    let mut interval_cnt: u64 = 0;
+    //let mut interval_cnt: u64 = 0;
     'outer:loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
             eprintln!("{}", msg);
             break;
         }
         for p in sys.processors() {
-            p.step(1);
-            // eprintln!("{}", p.state().trace());
-            // if p.state().next_pc() == 0xffffffe000daa1a0{
-            //     eprintln!("{}", p.state().to_string());
-            //     println!("data@0x819abf20 = {:#x}", U64Access::read(sys.mem_space().deref(), 0x819abf20).unwrap());
+            p.step(interval as usize);
+            //eprintln!("{}", p.state().trace());
+            // if p.state().pc() == 0xffffffe0015a8cb4{
             //     break 'outer;
             // }
         }
-        interval_cnt += 1;
-        if interval_cnt % interval == interval - 1 {
-            sys.timer().tick(interval)
-        }
+        sys.timer().tick(1)
+        // interval_cnt += 1;
+        // if interval_cnt % interval == interval - 1 {
+        //     sys.timer().tick(interval)
+        // }
     }
+    eprintln!("{}", sys.processor(0).unwrap().state().to_string());
     term_exit();
 }

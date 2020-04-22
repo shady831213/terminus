@@ -103,12 +103,13 @@ impl U32Access for Clint {
             return Ok(());
         } else if addr >= MTIMECMP_BASE && addr + 4 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
             let offset = ((addr - MTIMECMP_BASE) >> 3) as usize;
-            timer.tick(0);
-            return Ok(if addr.trailing_zeros() == 2 {
+            if addr.trailing_zeros() == 2 {
                 timer.mtimecmps[offset].set_bit_range(63, 32, data)
             } else {
                 timer.mtimecmps[offset].set_bit_range(31, 0, data)
-            });
+            };
+            timer.tick(0);
+            return Ok(())
         } else if addr >= MTIME_BASE && addr + 4 <= MTIME_BASE + MTIME_SIZE {
             return Ok(if addr.trailing_zeros() == 2 {
                 timer.cnt.set_bit_range(63, 32, data)
@@ -167,8 +168,9 @@ impl U64Access for Clint {
             return Ok(());
         } else if addr >= MTIMECMP_BASE && addr + 8 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
             let offset = ((addr - MTIMECMP_BASE) >> 3) as usize;
+            timer.mtimecmps[offset] = data;
             timer.tick(0);
-            return Ok(timer.mtimecmps[offset] = data);
+            return Ok(())
         } else if addr >= MTIME_BASE && addr + 8 <= MTIME_BASE + MTIME_SIZE {
             return Ok(timer.cnt = data);
         }
