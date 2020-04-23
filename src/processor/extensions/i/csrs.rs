@@ -70,9 +70,9 @@ Mimpid {
 define_csr! {
 Misa {
     fields {
-        a(RO):0,0;
+        a(RW):0,0;
         b(RO):1,1;
-        c(RO):2,2;
+        c(RW):2,2;
         d(RW):3,3;
         e(RO):4,4;
         f(RW):5,5;
@@ -82,7 +82,7 @@ Misa {
         j(RO):9,9;
         k(RO):10,10;
         l(RO):11,11;
-        m(RO):12,12;
+        m(RW):12,12;
         n(RO):13,13;
         o(RO):14,14;
         p(RO):15,15;

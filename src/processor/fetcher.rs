@@ -28,9 +28,6 @@ impl Fetcher {
         let code = {
             //expect compress, if is not support, raise illegeInst exception later
             if pc.trailing_zeros() == 1 {
-                if self.p.check_extension('c').is_err() {
-                    return Err(Exception::FetchMisaligned(pc))
-                }
                 let pa = mmu.translate(pc, 2, MmuOpt::Fetch)?;
                 match U16Access::read(self.bus.deref(), pa) {
                     Ok(data) => {

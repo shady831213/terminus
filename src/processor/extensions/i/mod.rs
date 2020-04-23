@@ -100,7 +100,10 @@ impl HasCsr for ExtensionI {
     fn csrs(&self) -> Option<Rc<dyn Any>> {
         Some(self.csrs.clone() as Rc<dyn Any>)
     }
-    fn csr_write(&self, _: &ProcessorState, addr: RegT, value: RegT) -> Option<()> {
+    fn csr_write(&self, state: &ProcessorState, addr: RegT, value: RegT) -> Option<()> {
+        if value & ((1 as RegT) << (('c' as u8 - 'a' as u8) as RegT)) == 0 && addr == 0x301 && state.pc().trailing_zeros() == 1 {
+            return Some(())
+        }
         self.csrs.write(addr, value)
     }
     fn csr_read(&self, state: &ProcessorState, addr: RegT) -> Option<RegT> {
