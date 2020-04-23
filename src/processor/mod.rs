@@ -398,7 +398,12 @@ impl Processor {
         self.state.reset(start_address)?;
         self.load_store().reset();
         self.mmu.flush_tlb();
+        self.fetcher.flush_icache();
         Ok(())
+    }
+
+    pub fn fetcher(&self) -> &Fetcher {
+        &self.fetcher
     }
 
     pub fn mmu(&self) -> &Mmu {
@@ -501,6 +506,7 @@ impl Processor {
             mcsrs.mstatus_mut().set_spp(priv_value as RegT);
             mcsrs.mstatus_mut().set_sie(0);
             self.mmu().flush_tlb();
+            self.fetcher().flush_icache();
             self.state().set_privilege(Privilege::S);
         } else {
             let tvec = mcsrs.mtvec();
@@ -521,6 +527,7 @@ impl Processor {
             mcsrs.mstatus_mut().set_mpp(priv_value as RegT);
             mcsrs.mstatus_mut().set_mie(0);
             self.mmu().flush_tlb();
+            self.fetcher().flush_icache();
             self.state().set_privilege(Privilege::M);
         }
     }

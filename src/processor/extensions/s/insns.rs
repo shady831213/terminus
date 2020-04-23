@@ -27,6 +27,7 @@ impl Execution for SRET {
         mcsrs.mstatus_mut().set_spp(u_value as RegT);
         p.state().set_privilege(Privilege::try_from(spp as u8).unwrap());
         p.mmu().flush_tlb();
+        p.fetcher().flush_icache();
         if p.state().check_extension('c').is_err() {
             p.state().set_pc((scsrs.sepc().get() >> 2) << 2);
         } else {
@@ -50,6 +51,7 @@ impl Execution for SFENCEVMA {
             return Err(Exception::IllegalInsn(self.ir()));
         }
         p.mmu().flush_tlb();
+        p.fetcher().flush_icache();
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }

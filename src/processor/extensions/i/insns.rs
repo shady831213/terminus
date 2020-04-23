@@ -897,7 +897,7 @@ struct FENCEI(InsnT);
 
 impl Execution for FENCEI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        //fixme:no cache in fetcher, load_store and mmu for now
+        p.fetcher().flush_icache();
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -1048,6 +1048,7 @@ impl Execution for MRET {
         csrs.mstatus_mut().set_mpp(u_value as RegT);
         p.state().set_privilege(Privilege::try_from(mpp as u8).unwrap());
         p.mmu().flush_tlb();
+        p.fetcher().flush_icache();
         if p.state().check_extension('c').is_err() {
             p.state().set_pc((csrs.mepc().get() >> 2) << 2);
         } else {
