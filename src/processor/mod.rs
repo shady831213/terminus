@@ -165,7 +165,7 @@ impl ProcessorState {
         csrs.mhartid_mut().set(self.hartid as RegT);
         //extensions config, only f, d can disable
         let mut misa = csrs.misa_mut();
-        for ext in  self.extensions().keys() {
+        for ext in self.extensions().keys() {
             match ext {
                 'a' => misa.set_a(1),
                 'b' => misa.set_b(1),
@@ -453,29 +453,26 @@ impl Processor {
                                   } else {
                                       m_pendings
                                   });
-
-        // MEI > MSI > MTI > SEI > SSI > STI
-        if interrupts.meip() == 1 {
-            return Err(Interrupt::MEInt);
-        } else if interrupts.msip() == 1 {
-            return Err(Interrupt::MSInt);
-        } else if interrupts.mtip() == 1 {
-            return Err(Interrupt::MTInt);
-        } else if interrupts.seip() == 1 {
-            return Err(Interrupt::SEInt);
-        } else if interrupts.ssip() == 1 {
-            return Err(Interrupt::SSInt);
-        } else if interrupts.stip() == 1 {
-            return Err(Interrupt::STInt);
+        if interrupts.get() == 0 {
+            Ok(())
+        } else {
+            // MEI > MSI > MTI > SEI > SSI > STI
+            if interrupts.meip() == 1 {
+                return Err(Interrupt::MEInt);
+            } else if interrupts.msip() == 1 {
+                return Err(Interrupt::MSInt);
+            } else if interrupts.mtip() == 1 {
+                return Err(Interrupt::MTInt);
+            } else if interrupts.seip() == 1 {
+                return Err(Interrupt::SEInt);
+            } else if interrupts.ssip() == 1 {
+                return Err(Interrupt::SSInt);
+            } else if interrupts.stip() == 1 {
+                return Err(Interrupt::STInt);
+            } else {
+                unreachable!()
+            }
         }
-        Ok(())
-    }
-
-    #[inline(always)]
-    fn execute_one(&self) -> Result<(), Trap> {
-        self.take_interrupt()?;
-        self.one_insn()?;
-        Ok(())
     }
 
     fn handle_trap(&self, trap: Trap) {
@@ -530,17 +527,16 @@ impl Processor {
             self.state().set_privilege(Privilege::M);
         }
     }
-    #[inline(always)]
-    fn step_one(&self) {
-        if let Err(trap) = self.execute_one() {
-            self.handle_trap(trap);
-        }
-    }
 
     pub fn step(&self, n: usize) {
         assert!(n > 0);
         for _ in 0..n {
-            self.step_one()
+            if let Err(exct) = self.one_insn() {
+                self.handle_trap(Trap::Exception(exct))
+            }
+        }
+        if let Err(int) = self.take_interrupt() {
+            self.handle_trap(Trap::Interrupt(int))
         }
         for ext in self.state().extensions().values() {
             ext.step_cb(self)
