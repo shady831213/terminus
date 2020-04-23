@@ -59,7 +59,6 @@ fn riscv_test(xlen: XLen, name: &str, debug: bool, num_cores: usize) -> bool {
             println!("{}", p.state().to_string())
         }
     }
-
     let htif = sys.mem_space().get_region("htif").unwrap();
     U64Access::read(htif.deref(), htif.info.base).unwrap() == 0x1
 }
@@ -474,7 +473,7 @@ fn main() {
 
 
     term_exit();
-    println!("{} tests Pass in {} seconds!", tests_cnt, now.elapsed().as_secs())
+    println!("{} tests Pass in {} micro seconds!", tests_cnt, now.elapsed().as_micros())
 }
 
 

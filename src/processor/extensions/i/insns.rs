@@ -230,12 +230,12 @@ struct SLLI(InsnT);
 
 impl Execution for SLLI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        let high: RegT = (self.imm() as RegT).bit_range(self.imm_len() - 1, p.state().config().xlen.len().trailing_zeros() as usize);
+        let high: RegT = (self.imm() as RegT) >> (p.state().config().xlen.len().trailing_zeros() as RegT);
         if high != 0 {
             return Err(Exception::IllegalInsn(self.ir()));
         }
         let rs1 = p.state().xreg(self.rs1() as RegT);
-        let shamt: RegT = (self.imm() as RegT).bit_range(p.state().config().xlen.len().trailing_zeros() as usize - 1, 0);
+        let shamt: RegT = (self.imm() as RegT) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
         p.state().set_xreg(self.rd() as RegT, rs1.wrapping_shl(shamt as u32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -251,12 +251,12 @@ struct SLLIW(InsnT);
 impl Execution for SLLIW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let high: RegT = (self.imm() as RegT).bit_range(self.imm_len() - 1,5);
+        let high: RegT = (self.imm() >> 5) as RegT;
         if high != 0 {
             return Err(Exception::IllegalInsn(self.ir()));
         }
         let rs1 = p.state().xreg(self.rs1() as RegT);
-        let shamt: RegT = (self.imm() as RegT).bit_range(4, 0);
+        let shamt: RegT = (self.imm() as RegT) & 0x1f;
         p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shl(shamt as u32), 32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -272,7 +272,7 @@ struct SRLI(InsnT);
 impl Execution for SRLI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let rs1 = p.state().xreg(self.rs1() as RegT) & p.state().config().xlen.mask();
-        let shamt: RegT = (self.imm() as RegT).bit_range(p.state().config().xlen.len().trailing_zeros() as usize - 1, 0);
+        let shamt: RegT = (self.imm() as RegT) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
         p.state().set_xreg(self.rd() as RegT, rs1 >> shamt);
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -288,8 +288,8 @@ struct SRLIW(InsnT);
 impl Execution for SRLIW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
-        let shamt: RegT = (self.imm() as RegT).bit_range(4, 0);
+        let rs1: RegT = p.state().xreg(self.rs1() as RegT) as u32 as RegT;
+        let shamt: RegT = (self.imm() as RegT) & 0x1f;
         p.state().set_xreg(self.rd() as RegT, sext(rs1 >> shamt, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -305,7 +305,7 @@ struct SRAI(InsnT);
 impl Execution for SRAI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let rs1 = p.state().xreg(self.rs1() as RegT) & p.state().config().xlen.mask();
-        let shamt: RegT = (self.imm() as RegT).bit_range(p.state().config().xlen.len().trailing_zeros() as usize - 1, 0);
+        let shamt: RegT = (self.imm() as RegT) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
         p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shr(shamt as u32), p.state().config().xlen.len() - shamt as usize) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -321,8 +321,8 @@ struct SRAIW(InsnT);
 impl Execution for SRAIW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
-        let shamt: RegT = (self.imm() as RegT).bit_range(4, 0);
+        let rs1: RegT = p.state().xreg(self.rs1() as RegT) as u32 as RegT;
+        let shamt: RegT = (self.imm() as RegT) & 0x1f;
         p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shr(shamt as u32), 32 - shamt as usize) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -492,7 +492,7 @@ struct SLL(InsnT);
 impl Execution for SLL {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let rs1 = p.state().xreg(self.rs1() as RegT);
-        let shamt: RegT = p.state().xreg(self.rs2() as RegT).bit_range(p.state().config().xlen.len().trailing_zeros() as usize - 1, 0);
+        let shamt: RegT = p.state().xreg(self.rs2() as RegT) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
         p.state().set_xreg(self.rd() as RegT, rs1.wrapping_shl(shamt as u32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -508,8 +508,8 @@ struct SLLW(InsnT);
 impl Execution for SLLW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
-        let shamt: RegT = p.state().xreg(self.rs2() as RegT).bit_range(4, 0);
+        let rs1: RegT = p.state().xreg(self.rs1() as RegT) as u32 as RegT;
+        let shamt: RegT = p.state().xreg(self.rs2() as RegT) & 0x1f;
         p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shl(shamt as u32), 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -525,7 +525,7 @@ struct SRL(InsnT);
 impl Execution for SRL {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let rs1 = p.state().xreg(self.rs1() as RegT) & p.state().config().xlen.mask();
-        let shamt: RegT = p.state().xreg(self.rs2() as RegT).bit_range(p.state().config().xlen.len().trailing_zeros() as usize - 1, 0);
+        let shamt: RegT = p.state().xreg(self.rs2() as RegT) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
         p.state().set_xreg(self.rd() as RegT, rs1 >> shamt);
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -541,8 +541,8 @@ struct SRLW(InsnT);
 impl Execution for SRLW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
-        let shamt: RegT = p.state().xreg(self.rs2() as RegT).bit_range(4, 0);
+        let rs1: RegT = p.state().xreg(self.rs1() as RegT) as u32 as RegT;
+        let shamt: RegT = p.state().xreg(self.rs2() as RegT) & 0x1f;
         p.state().set_xreg(self.rd() as RegT, sext(rs1 >> shamt, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -558,7 +558,7 @@ struct SRA(InsnT);
 impl Execution for SRA {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let rs1 = p.state().xreg(self.rs1() as RegT) & p.state().config().xlen.mask();
-        let shamt: RegT = p.state().xreg(self.rs2() as RegT).bit_range(p.state().config().xlen.len().trailing_zeros() as usize - 1, 0);
+        let shamt: RegT = p.state().xreg(self.rs2() as RegT) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
         p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shr(shamt as u32), p.state().config().xlen.len() - shamt as usize) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -574,8 +574,8 @@ struct SRAW(InsnT);
 impl Execution for SRAW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
-        let shamt: RegT = p.state().xreg(self.rs2() as RegT).bit_range(4, 0);
+        let rs1: RegT = p.state().xreg(self.rs1() as RegT) as u32 as RegT;
+        let shamt: RegT = p.state().xreg(self.rs2() as RegT) & 0x1f;
         p.state().set_xreg(self.rd() as RegT, sext(rs1.wrapping_shr(shamt as u32), 32 - shamt as usize) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -794,12 +794,12 @@ impl Execution for LD {
 
 trait Store: InstructionImp {
     fn offset(&self) -> Wrapping<RegT> {
-        let high: RegT = self.imm().bit_range(11, 5);
+        let high: RegT = (self.imm() >> 5) as RegT;
         let low = self.rd() as RegT;
         Wrapping(sext(high << 5 | low, self.imm_len()))
     }
     fn src(&self) -> RegT {
-        self.imm().bit_range(4, 0)
+        (self.imm() & 0x1f) as RegT
     }
 }
 
@@ -1027,7 +1027,7 @@ struct EBREAK(InsnT);
 
 impl Execution for EBREAK {
     fn execute(&self, _: &Processor) -> Result<(), Exception> {
-        return Err(Exception::Breakpoint)
+        return Err(Exception::Breakpoint);
     }
 }
 
@@ -1068,9 +1068,9 @@ impl Execution for WFI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let csrs = p.state().csrs::<ICsrs>().unwrap();
         if csrs.mstatus().tw() != 0 && p.state().config().privilege_level() != PrivilegeLevel::M {
-            return Err(Exception::IllegalInsn(self.ir()))
+            return Err(Exception::IllegalInsn(self.ir()));
         }
-        if csrs.mip().get() & csrs.mie().get() != 0{
+        if csrs.mip().get() & csrs.mie().get() != 0 {
             p.state().set_pc(p.state().pc() + 4);
         }
         Ok(())

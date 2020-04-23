@@ -181,9 +181,9 @@ impl Execution for DIVUW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('m')?;
         p.state().check_xlen(XLen::X64)?;
-        let rs1_u: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
+        let rs1_u: RegT = p.state().xreg(self.rs1() as RegT) & 0xffff_ffff;
         let rs1: Wrapping<RegT> = Wrapping(rs1_u);
-        let rs2_u: RegT = p.state().xreg(self.rs2() as RegT).bit_range(31, 0);
+        let rs2_u: RegT = p.state().xreg(self.rs2() as RegT) & 0xffff_ffff;
         let rs2: Wrapping<RegT> = Wrapping(rs2_u);
         if rs2 == Wrapping(0 as RegT) {
             p.state().set_xreg(self.rd() as RegT, (-1 as SRegT) as RegT & p.state().config().xlen.mask());
@@ -269,9 +269,9 @@ impl Execution for REMUW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('m')?;
         p.state().check_xlen(XLen::X64)?;
-        let rs1_u: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
+        let rs1_u: RegT = p.state().xreg(self.rs1() as RegT) & 0xffff_ffff;
         let rs1: Wrapping<RegT> = Wrapping(rs1_u);
-        let rs2_u: RegT = p.state().xreg(self.rs2() as RegT).bit_range(31, 0);
+        let rs2_u: RegT = p.state().xreg(self.rs2() as RegT) & 0xffff_ffff;
         let rs2: Wrapping<RegT> = Wrapping(rs2_u);
         if rs2 == Wrapping(0 as RegT) {
             p.state().set_xreg(self.rd() as RegT, sext(rs1.0, 32) & p.state().config().xlen.mask());

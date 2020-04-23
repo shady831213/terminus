@@ -23,11 +23,11 @@ pub trait FloatInsn: InstructionImp {
         }
     }
     fn rm(&self) -> RegT {
-        self.ir().bit_range(14, 12)
+        ((self.ir() >> 12) & 0x7) as RegT
     }
 
     fn rs3(&self) -> InsnT {
-        self.ir().bit_range(31, 27)
+        ((self.ir() >> 27) & 0x1f)
     }
 
     fn rm_from_bits(bits: RegT) -> Option<RoundingMode> {
@@ -49,12 +49,12 @@ pub trait FloatInsn: InstructionImp {
 
 pub trait FStore: FloatInsn {
     fn offset(&self) -> Wrapping<RegT> {
-        let high: RegT = self.imm().bit_range(11, 5);
+        let high: RegT = ((self.imm() >> 5) & 0x7f) as RegT;
         let low = self.rd() as RegT;
         Wrapping(sext(high << 5 | low, self.imm_len()))
     }
     fn src(&self) -> RegT {
-        self.imm().bit_range(4, 0)
+        (self.imm() & 0x1f) as RegT
     }
 }
 

@@ -11,6 +11,7 @@ pub struct TLB {
 
 impl TLB {
     pub fn new(size: usize) -> TLB {
+        assert!(size.is_power_of_two());
         TLB {
             entries: vec![None; size],
             size,
@@ -18,7 +19,7 @@ impl TLB {
     }
 
     pub fn get_ppn(&mut self, vpn: u64) -> Option<u64> {
-        if let Some(ref entry) = self.entries[(vpn as usize) % self.size] {
+        if let Some(ref entry) = self.entries[(vpn as usize) & (self.size - 1)] {
             if entry.vpn == vpn {
                 Some(entry.ppn)
             } else {
@@ -30,7 +31,7 @@ impl TLB {
     }
 
     pub fn set_entry(&mut self, vpn: u64, ppn: u64) {
-        self.entries[(vpn as usize) % self.size] = Some(TLBEntry{vpn, ppn})
+        self.entries[(vpn as usize) & (self.size - 1)] = Some(TLBEntry{vpn, ppn})
     }
 
     // pub fn invalid(&mut self, vpn: u64) {
@@ -38,7 +39,7 @@ impl TLB {
     // }
 
     pub fn invalid_all(&mut self) {
-        self.entries = vec![None; self.size]
+        self.entries.iter_mut().for_each(|e|{*e = None})
     }
 
 }

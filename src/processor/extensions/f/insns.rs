@@ -540,7 +540,7 @@ impl XToF<u32, F32Traits> for FCVTSWU {
 impl Execution for FCVTSWU {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
+        let rs1: RegT = p.state().xreg(self.rs1() as RegT) & 0xffff_ffff;
         let fres = self.convert(f.deref(), rs1 as u32)?;
         f.set_freg(self.rd() as RegT, f.flen.padding(fres as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
@@ -772,7 +772,7 @@ impl FloatInsn for FMVXW {}
 impl Execution for FMVXW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let data: RegT = f.freg(self.rs1() as RegT).bit_range(31, 0);
+        let data: RegT = (f.freg(self.rs1() as RegT) & 0xffff_ffff) as RegT;
         p.state().set_xreg(self.rd() as RegT, sext(data, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -790,7 +790,7 @@ impl FloatInsn for FMVWX {}
 impl Execution for FMVWX {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let data: RegT = p.state().xreg(self.rs1() as RegT).bit_range(31, 0);
+        let data: RegT = p.state().xreg(self.rs1() as RegT)& 0xffff_ffff;
         f.set_freg(self.rd() as RegT, f.flen.padding(data as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())

@@ -105,16 +105,16 @@ impl U32Access for HTIF {
 
     fn read(&self, addr: u64) -> region::Result<u32> {
         if addr == self.tohost_off {
-            Ok(self.desc.lock().unwrap().tohost.bit_range(31, 0))
+            Ok(self.desc.lock().unwrap().tohost as u32)
         } else if addr == self.tohost_off + 4 {
-            Ok(self.desc.lock().unwrap().tohost.bit_range(63, 32))
+            Ok((self.desc.lock().unwrap().tohost >> 32) as u32)
         } else if let Some(fromhost) = self.fromhost_off {
             if addr == fromhost {
                 self.fromhost_poll();
-                Ok(self.desc.lock().unwrap().fromhost.bit_range(31, 0))
+                Ok(self.desc.lock().unwrap().fromhost as u32)
             } else if addr == fromhost + 4 {
                 self.fromhost_poll();
-                Ok(self.desc.lock().unwrap().fromhost.bit_range(63, 32))
+                Ok((self.desc.lock().unwrap().fromhost >> 32) as u32)
             } else {
                 Err(region::Error::AccessErr(addr, "invalid HTIF addr".to_string()))
             }

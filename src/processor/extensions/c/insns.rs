@@ -16,9 +16,9 @@ impl Execution for CLWSP {
             return Err(Exception::IllegalInsn(self.ir()));
         }
         let base: Wrapping<RegT> = Wrapping(p.state().xreg(2));
-        let offset_7_6: RegT = self.imm().bit_range(1, 0);
-        let offset_5: RegT = self.imm().bit_range(5, 5);
-        let offset_4_2: RegT = self.imm().bit_range(4, 2);
+        let offset_7_6: RegT = (self.imm() & 0x3) as RegT;
+        let offset_5: RegT = ((self.imm() >> 5) & 0x1) as RegT;
+        let offset_4_2: RegT = ((self.imm() >> 2) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_4_2 << 2 | offset_5 << 5 | offset_7_6 << 6);
         let data = p.load_store().load_word((base + offset).0, p.mmu())?;
         p.state().set_xreg(self.rd() as RegT, sext(data, 32) & p.state().config().xlen.mask());
@@ -38,9 +38,9 @@ impl CLDSPCFLWSP {
         if self.rd() == 0 {
             return Err(Exception::IllegalInsn(self.ir()));
         }
-        let offset_8_6: RegT = self.imm().bit_range(2, 0);
-        let offset_5: RegT = self.imm().bit_range(5, 5);
-        let offset_4_3: RegT = self.imm().bit_range(4, 3);
+        let offset_8_6: RegT = (self.imm() & 0x7) as RegT;
+        let offset_5: RegT = ((self.imm() >> 5) & 0x1) as RegT;
+        let offset_4_3: RegT = ((self.imm() >> 3) & 0x3) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_4_3 << 3 | offset_5 << 5 | offset_8_6 << 6);
         let data = p.load_store().load_double_word((base + offset).0, p.mmu())?;
         p.state().set_xreg(self.rd() as RegT, data as RegT & p.state().config().xlen.mask());
@@ -48,9 +48,9 @@ impl CLDSPCFLWSP {
     }
     fn execute_c_lwsp(&self, p: &Processor, base: Wrapping<RegT>) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let offset_7_6: RegT = self.imm().bit_range(1, 0);
-        let offset_5: RegT = self.imm().bit_range(5, 5);
-        let offset_4_2: RegT = self.imm().bit_range(4, 2);
+        let offset_7_6: RegT = (self.imm() & 0x3) as RegT;
+        let offset_5: RegT = ((self.imm() >> 5) & 0x1) as RegT;
+        let offset_4_2: RegT = ((self.imm() >> 2) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_4_2 << 2 | offset_5 << 5 | offset_7_6 << 6);
         let data = p.load_store().load_word((base + offset).0, p.mmu())?;
         f.set_freg(self.rd() as RegT, f.flen.padding(data as FRegT, FLen::F32));
@@ -88,9 +88,9 @@ impl Execution for CFLDSP {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
         let base: Wrapping<RegT> = Wrapping(p.state().xreg(2));
-        let offset_8_6: RegT = self.imm().bit_range(2, 0);
-        let offset_5: RegT = self.imm().bit_range(5, 5);
-        let offset_4_3: RegT = self.imm().bit_range(4, 3);
+        let offset_8_6: RegT = (self.imm() & 0x7) as RegT;
+        let offset_5: RegT = ((self.imm() >> 5) & 0x1) as RegT;
+        let offset_4_3: RegT = ((self.imm() >> 3) & 0x3) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_4_3 << 3 | offset_5 << 5 | offset_8_6 << 6);
         let data = p.load_store().load_double_word((base + offset).0, p.mmu())?;
         f.set_freg(self.rd() as RegT, f.flen.padding(data as FRegT, FLen::F64));
@@ -109,8 +109,8 @@ impl Execution for CSWSP {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
         let base: Wrapping<RegT> = Wrapping(p.state().xreg(2));
-        let offset_7_6: RegT = self.imm().bit_range(1, 0);
-        let offset_5_2: RegT = self.imm().bit_range(5, 2);
+        let offset_7_6: RegT = (self.imm() & 0x3) as RegT;
+        let offset_5_2: RegT = ((self.imm() >> 2) & 0xf) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_2 << 2 | offset_7_6 << 6);
         let src = p.state().xreg(self.rs2() as RegT);
         p.load_store().store_word((base + offset).0, src, p.mmu())?;
@@ -127,16 +127,16 @@ struct CSDSPFSWSP(InsnT);
 
 impl CSDSPFSWSP {
     fn execute_c_sdsp(&self, p: &Processor, base: Wrapping<RegT>) -> Result<(), Exception> {
-        let offset_8_6: RegT = self.imm().bit_range(2, 0);
-        let offset_5_3: RegT = self.imm().bit_range(5, 3);
+        let offset_8_6: RegT = (self.imm() & 0x7) as RegT;
+        let offset_5_3: RegT = ((self.imm() >> 3) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_3 << 3 | offset_8_6 << 6);
         let src = p.state().xreg(self.rs2() as RegT);
         p.load_store().store_double_word((base + offset).0, src, p.mmu())
     }
     fn execute_c_fswsp(&self, p: &Processor, base: Wrapping<RegT>) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let offset_7_6: RegT = self.imm().bit_range(1, 0);
-        let offset_5_2: RegT = self.imm().bit_range(5, 2);
+        let offset_7_6: RegT = (self.imm() & 0x3) as RegT;
+        let offset_5_2: RegT = ((self.imm() >> 2) & 0xf) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_2 << 2 | offset_7_6 << 6);
         let src = f.freg(self.rs2() as RegT) as RegT;
         p.load_store().store_word((base + offset).0, src, p.mmu())
@@ -173,8 +173,8 @@ impl Execution for CFSDSP {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
         let base: Wrapping<RegT> = Wrapping(p.state().xreg(2));
-        let offset_8_6: RegT = self.imm().bit_range(2, 0);
-        let offset_5_3: RegT = self.imm().bit_range(5, 3);
+        let offset_8_6: RegT = (self.imm() & 0x7) as RegT;
+        let offset_5_3: RegT = ((self.imm() >> 3) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_3 << 3 | offset_8_6 << 6);
         let src = f.freg(self.rs2() as RegT) as RegT;
         p.load_store().store_double_word((base + offset).0, src, p.mmu())?;
@@ -193,9 +193,9 @@ impl Execution for CLW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
         let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
-        let offset_6: RegT = self.imm().bit_range(0, 0);
-        let offset_5_3: RegT = self.imm().bit_range(4, 2);
-        let offset_2: RegT = self.imm().bit_range(1, 1);
+        let offset_6: RegT = (self.imm() & 0x1) as RegT;
+        let offset_5_3: RegT = ((self.imm() >> 2) & 0x7) as RegT;
+        let offset_2: RegT = ((self.imm() >> 1) & 0x1) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_2 << 2 | offset_5_3 << 3 | offset_6 << 6);
         let data = p.load_store().load_word((base + offset).0, p.mmu())?;
         p.state().set_xreg(self.rd() as RegT, sext(data, 32) & p.state().config().xlen.mask());
@@ -212,8 +212,8 @@ struct CLDFLW(InsnT);
 
 impl CLDFLW {
     fn execute_c_ld(&self, p: &Processor, base: Wrapping<RegT>) -> Result<(), Exception> {
-        let offset_7_6: RegT = self.imm().bit_range(1, 0);
-        let offset_5_3: RegT = self.imm().bit_range(4, 2);
+        let offset_7_6: RegT = (self.imm() & 0x3) as RegT;
+        let offset_5_3: RegT = ((self.imm() >> 2) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_3 << 3 | offset_7_6 << 6);
         let data = p.load_store().load_double_word((base + offset).0, p.mmu())?;
         p.state().set_xreg(self.rd() as RegT, data as RegT & p.state().config().xlen.mask());
@@ -221,9 +221,9 @@ impl CLDFLW {
     }
     fn execute_c_flw(&self, p: &Processor, base: Wrapping<RegT>) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let offset_6: RegT = self.imm().bit_range(0, 0);
-        let offset_5_3: RegT = self.imm().bit_range(4, 2);
-        let offset_2: RegT = self.imm().bit_range(1, 1);
+        let offset_6: RegT = (self.imm() & 0x1) as RegT;
+        let offset_5_3: RegT = ((self.imm() >> 2) & 0x7) as RegT;
+        let offset_2: RegT = ((self.imm() >> 1) & 0x1) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_2 << 2 | offset_5_3 << 3 | offset_6 << 6);
         let data = p.load_store().load_word((base + offset).0, p.mmu())?;
         f.set_freg(self.rd() as RegT, f.flen.padding(data as FRegT, FLen::F32));
@@ -261,8 +261,8 @@ impl Execution for CFLD {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
         let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
-        let offset_7_6: RegT = self.imm().bit_range(1, 0);
-        let offset_5_3: RegT = self.imm().bit_range(4, 2);
+        let offset_7_6: RegT = (self.imm() & 0x3) as RegT;
+        let offset_5_3: RegT = ((self.imm() >> 2) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_3 << 3 | offset_7_6 << 6);
         let data = p.load_store().load_double_word((base + offset).0, p.mmu())?;
         f.set_freg(self.rd() as RegT, f.flen.padding(data as FRegT, FLen::F64));
@@ -281,9 +281,9 @@ impl Execution for CSW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
         let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
-        let offset_6: RegT = self.imm().bit_range(0, 0);
-        let offset_5_3: RegT = self.imm().bit_range(4, 2);
-        let offset_2: RegT = self.imm().bit_range(1, 1);
+        let offset_6: RegT = (self.imm() & 0x1) as RegT;
+        let offset_5_3: RegT = ((self.imm() >> 2) & 0x7) as RegT;
+        let offset_2: RegT = ((self.imm() >> 1) & 0x1) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_2 << 2 | offset_5_3 << 3 | offset_6 << 6);
         let src = p.state().xreg(self.rs2() as RegT);
         p.load_store().store_word((base + offset).0, src, p.mmu())?;
@@ -300,17 +300,17 @@ struct CSDFSW(InsnT);
 
 impl CSDFSW {
     fn execute_c_sd(&self, p: &Processor, base: Wrapping<RegT>) -> Result<(), Exception> {
-        let offset_7_6: RegT = self.imm().bit_range(1, 0);
-        let offset_5_3: RegT = self.imm().bit_range(4, 2);
+        let offset_7_6: RegT = (self.imm() & 0x3) as RegT;
+        let offset_5_3: RegT = ((self.imm() >> 2) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_3 << 3 | offset_7_6 << 6);
         let src = p.state().xreg(self.rs2() as RegT);
         p.load_store().store_double_word((base + offset).0, src, p.mmu())
     }
     fn execute_c_fsw(&self, p: &Processor, base: Wrapping<RegT>) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let offset_6: RegT = self.imm().bit_range(0, 0);
-        let offset_5_3: RegT = self.imm().bit_range(4, 2);
-        let offset_2: RegT = self.imm().bit_range(1, 1);
+        let offset_6: RegT = (self.imm() & 0x1) as RegT;
+        let offset_5_3: RegT = ((self.imm() >> 2) & 0x7) as RegT;
+        let offset_2: RegT = ((self.imm() >> 1) & 0x1) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_2 << 2 | offset_5_3 << 3 | offset_6 << 6);
         let src = f.freg(self.rs2() as RegT) as RegT;
         p.load_store().store_word((base + offset).0, src, p.mmu())
@@ -347,8 +347,8 @@ impl Execution for CFSD {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
         let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
-        let offset_7_6: RegT = self.imm().bit_range(1, 0);
-        let offset_5_3: RegT = self.imm().bit_range(4, 2);
+        let offset_7_6: RegT = (self.imm() & 0x3) as RegT;
+        let offset_5_3: RegT = ((self.imm() >> 2) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_3 << 3 | offset_7_6 << 6);
         let src = f.freg(self.rs2() as RegT) as RegT;
         p.load_store().store_double_word((base + offset).0, src, p.mmu())?;
@@ -359,14 +359,14 @@ impl Execution for CFSD {
 
 trait CJump: InstructionImp {
     fn jump(&self, p: &Processor) -> Result<(), Exception> {
-        let offset_3_1: RegT = self.imm().bit_range(3, 1);
-        let offset_4: RegT = self.imm().bit_range(9, 9);
-        let offset_5: RegT = self.imm().bit_range(0, 0);
-        let offset_6: RegT = self.imm().bit_range(5, 5);
-        let offset_7: RegT = self.imm().bit_range(4, 4);
-        let offset_9_8: RegT = self.imm().bit_range(8, 7);
-        let offset_10: RegT = self.imm().bit_range(6, 6);
-        let offset_11: RegT = self.imm().bit_range(10, 10);
+        let offset_3_1: RegT = ((self.imm() >> 1) & 0x7) as RegT;
+        let offset_4: RegT = ((self.imm() >> 9) & 0x1) as RegT;
+        let offset_5: RegT = (self.imm() & 0x1) as RegT;
+        let offset_6: RegT = ((self.imm() >> 5) & 0x1) as RegT;
+        let offset_7: RegT = ((self.imm() >> 4) & 0x1) as RegT;
+        let offset_9_8: RegT = ((self.imm() >> 7) & 0x3) as RegT;
+        let offset_10: RegT = ((self.imm() >> 6) & 0x1) as RegT;
+        let offset_11: RegT = ((self.imm() >> 10) & 0x1) as RegT;
         let offset: Wrapping<RegT> = Wrapping(sext(offset_3_1 << 1 | offset_4 << 4 | offset_5 << 5 | offset_6 << 6 | offset_7 << 7 | offset_9_8 << 8 | offset_10 << 10 | offset_11 << 11, self.imm_len() + 1));
         let t = (Wrapping(p.state().pc()) + offset).0;
         if t.trailing_zeros() < 1 {
@@ -405,10 +405,10 @@ impl CJALADDIW {
         Ok(())
     }
     fn execute_c_addiw(&self, p: &Processor) -> Result<(), Exception> {
-        let rs1_addr: RegT = self.ir().bit_range(11, 7);
-        let rd_addr: RegT = self.ir().bit_range(11, 7);
-        let imm_1: RegT = self.ir().bit_range(6, 2);
-        let imm_2: RegT = self.ir().bit_range(12, 12);
+        let rs1_addr: RegT = ((self.ir() >> 7) & 0x1f) as RegT;
+        let rd_addr: RegT = ((self.ir() >> 7) & 0x1f) as RegT;
+        let imm_1: RegT = ((self.ir() >> 2) & 0x1f) as RegT;
+        let imm_2: RegT = ((self.ir() >> 12) & 0x1) as RegT;
         let imm: RegT = imm_1 | imm_2 << 5;
 
         if rd_addr == 0 {
@@ -531,11 +531,11 @@ impl Execution for CJALRADDEBREAK {
 
 trait CBranch: InstructionImp {
     fn branch<F: Fn(RegT) -> bool>(&self, p: &Processor, condition: F) -> Result<(), Exception> {
-        let offset_2_1: RegT = self.imm().bit_range(2, 1);
-        let offset_4_3: RegT = self.imm().bit_range(6, 5);
-        let offset_5: RegT = self.imm().bit_range(0, 0);
-        let offset_7_6: RegT = self.imm().bit_range(4, 3);
-        let offset_8: RegT = self.imm().bit_range(7, 7);
+        let offset_2_1: RegT = ((self.imm() >> 1) & 0x3) as RegT;
+        let offset_4_3: RegT = ((self.imm() >> 5) & 0x3) as RegT;
+        let offset_5: RegT = (self.imm() & 0x1) as RegT;
+        let offset_7_6: RegT = ((self.imm() >> 3) & 0x3) as RegT;
+        let offset_8: RegT = ((self.imm() >> 7) & 0x1) as RegT;
 
         let offset: Wrapping<RegT> = Wrapping(sext(offset_2_1 << 1 | offset_4_3 << 3 | offset_5 << 5 | offset_7_6 << 6 | offset_8 << 8, self.imm_len() + 1));
         let pc: Wrapping<RegT> = Wrapping(p.state().pc());
@@ -614,11 +614,11 @@ impl CLUIADDI16SP {
     }
     fn execute_c_addi16sp(&self, p: &Processor) -> Result<(), Exception> {
         let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(2));
-        let imm_4: RegT = self.imm().bit_range(4, 4);
-        let imm_5: RegT = self.imm().bit_range(0, 0);
-        let imm_6: RegT = self.imm().bit_range(3, 3);
-        let imm_8_7: RegT = self.imm().bit_range(2, 1);
-        let imm_9: RegT = self.imm().bit_range(5, 5);
+        let imm_4: RegT = ((self.imm() >> 4) & 0x1) as RegT;
+        let imm_5: RegT = (self.imm() & 0x1) as RegT;
+        let imm_6: RegT = ((self.imm() >> 3) & 0x1) as RegT;
+        let imm_8_7: RegT = ((self.imm() >> 1) & 0x3) as RegT;
+        let imm_9: RegT = ((self.imm() >> 5) & 0x1) as RegT;
         let rs2: Wrapping<RegT> = Wrapping(sext(imm_4 << 4 | imm_5 << 5 | imm_6 << 6 | imm_8_7 << 7 | imm_9 << 9, self.imm_len() + 4));
         p.state().set_xreg(2, (rs1 + rs2).0 & p.state().config().xlen.mask());
         Ok(())
@@ -689,10 +689,10 @@ impl Execution for CADDI14SPN {
         if self.imm() == 0 {
             return Err(Exception::IllegalInsn(self.ir()));
         }
-        let imm_2: RegT = self.imm().bit_range(1, 1);
-        let imm_3: RegT = self.imm().bit_range(0, 0);
-        let imm_5_4: RegT = self.imm().bit_range(7, 6);
-        let imm_9_6: RegT = self.imm().bit_range(5, 2);
+        let imm_2: RegT = ((self.imm() >> 1) & 0x1) as RegT;
+        let imm_3: RegT = (self.imm() & 0x1) as RegT;
+        let imm_5_4: RegT = ((self.imm() >> 6) & 0x3) as RegT;
+        let imm_9_6: RegT = ((self.imm() >> 2) & 0xf) as RegT;
         let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(2));
         let rs2: Wrapping<RegT> = Wrapping(imm_2 << 2 | imm_3 << 3 | imm_5_4 << 4 | imm_9_6 << 6);
         p.state().set_xreg(self.rd() as RegT, (rs1 + rs2).0 & p.state().config().xlen.mask());
@@ -719,7 +719,7 @@ impl Execution for CSLLI {
             }
         }
         let rs1 = p.state().xreg(self.rs1() as RegT);
-        let shamt: RegT = (self.imm() as RegT).bit_range(p.state().config().xlen.len().trailing_zeros() as usize - 1, 0);
+        let shamt: RegT = (self.imm() as RegT) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
         p.state().set_xreg(self.rd() as RegT, rs1.wrapping_shl(shamt as u32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 2);
         Ok(())
@@ -735,8 +735,8 @@ struct CSRLI(InsnT);
 impl Execution for CSRLI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        let shamt_4_0: RegT = self.imm().bit_range(4, 0);
-        let shamt_5: RegT = self.imm().bit_range(7, 7);
+        let shamt_4_0: RegT = (self.imm() & 0x1f) as RegT;
+        let shamt_5: RegT = ((self.imm() >> 7) & 0x1) as RegT;
         let shamt = shamt_4_0 | shamt_5 << 5;
         if shamt == 0 {
             return Err(Exception::IllegalInsn(self.ir()));
@@ -762,8 +762,8 @@ struct CSRAI(InsnT);
 impl Execution for CSRAI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        let shamt_4_0: RegT = self.imm().bit_range(4, 0);
-        let shamt_5: RegT = self.imm().bit_range(7, 7);
+        let shamt_4_0: RegT = (self.imm() & 0x1f) as RegT;
+        let shamt_5: RegT = ((self.imm() >> 7) & 0x1) as RegT;
         let shamt = shamt_4_0 | shamt_5 << 5;
         if shamt == 0 {
             return Err(Exception::IllegalInsn(self.ir()));
@@ -789,8 +789,8 @@ struct CANDI(InsnT);
 impl Execution for CANDI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        let imm_4_0: RegT = self.imm().bit_range(4, 0);
-        let imm_5: RegT = self.imm().bit_range(7, 7);
+        let imm_4_0: RegT = (self.imm() & 0x1f) as RegT;
+        let imm_5: RegT = ((self.imm() >> 7) & 0x1) as RegT;
         let imm = imm_4_0 | imm_5 << 5;
         let rs1 = p.state().xreg(self.rs1() as RegT);
         let rs2 = sext(imm, 6) & p.state().config().xlen.mask();

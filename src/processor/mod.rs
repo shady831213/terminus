@@ -256,7 +256,7 @@ impl ProcessorState {
     #[inline(always)]
     fn csr_privilege_check(&self, id: RegT) -> Result<(), Exception> {
         let cur_priv: u8 = (*self.privilege.borrow()).into();
-        let csr_priv: u8 = id.bit_range(9, 8);
+        let csr_priv: u8 = ((id >> 8) & 0x3) as u8;
         if cur_priv < csr_priv {
             return Err(Exception::IllegalInsn(*self.ir.borrow()));
         }

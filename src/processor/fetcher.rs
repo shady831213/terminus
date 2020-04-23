@@ -29,7 +29,7 @@ impl ICacheBasket {
     fn new(size: usize) -> ICacheBasket {
         ICacheBasket {
             size,
-            entries: VecDeque::with_capacity(size),
+            entries: VecDeque::new(),
         }
     }
 
@@ -68,6 +68,7 @@ struct ICache {
 
 impl ICache {
     fn new(cache_size: usize, basket_size: usize) -> ICache {
+        assert!(cache_size.is_power_of_two());
         ICache {
             size: cache_size,
             baskets: vec![ICacheBasket::new(basket_size); cache_size],
@@ -75,16 +76,16 @@ impl ICache {
     }
 
     fn get_insn(&mut self, addr: u64) -> Option<InsnT> {
-        self.baskets[((addr >> 2) as usize) % self.size].get_insn(addr >> 1)
+        self.baskets[((addr >> 2) as usize) & (self.size - 1) ].get_insn(addr >> 1)
     }
 
     fn set_entry(&mut self, addr: u64, data: InsnT) {
-        self.baskets[((addr >> 2) as usize) % self.size].set_entry(addr >> 1, data)
+        self.baskets[((addr >> 2) as usize) & (self.size - 1)].set_entry(addr >> 1, data)
     }
 
     fn invalid_all(&mut self) {
         let basket_size = self.baskets[0].size;
-        self.baskets = vec![ICacheBasket::new(basket_size); self.size]
+        self.baskets.iter_mut().for_each(|b|{*b = ICacheBasket::new(basket_size)})
     }
 }
 
@@ -99,7 +100,7 @@ impl Fetcher {
         Fetcher {
             p: p.clone(),
             bus: bus.clone(),
-            icache: RefCell::new(ICache::new(1024, 64)),
+            icache: RefCell::new(ICache::new(1024, 128)),
         }
     }
     #[inline(always)]
