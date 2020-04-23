@@ -77,11 +77,8 @@ impl Mmu {
     fn pmpcfgs_iter(&self) -> PmpCfgsIter {
         PmpCfgsIter::new(self, PhantomData)
     }
-    #[inline(always)]
-    fn get_pmpaddr(&self, idx: u8) -> RegT {
-        self.p.csrs::<ICsrs>().unwrap().read(0x3b0 + idx as RegT).unwrap()
-    }
     fn match_pmpcfg_entry(&self, addr: u64, len: usize) -> Option<PmpCfgEntry> {
+        let csrs = self.p.csrs::<ICsrs>().unwrap();
         self.pmpcfgs_iter().enumerate()
             .find(|(idx, entry)| {
                 ((addr >> 2)..((addr + len as u64 - 1) >> 2) + 1)
@@ -92,17 +89,17 @@ impl Mmu {
                                 let low = if *idx == 0 {
                                     0
                                 } else {
-                                    self.get_pmpaddr((*idx - 1) as u8)
+                                    csrs.read(0x3b0 + ((*idx - 1) as u8 as RegT)).unwrap()
                                 };
-                                let high = self.get_pmpaddr(*idx as u8);
+                                let high = csrs.read(0x3b0 + (*idx as u8 as RegT)).unwrap();
                                 trail_addr >= low && trail_addr < high
                             }
                             PmpAType::NA4 => {
-                                let pmpaddr = self.get_pmpaddr(*idx as u8);
+                                let pmpaddr = csrs.read(0x3b0 + (*idx as u8 as RegT)).unwrap();
                                 trail_addr == pmpaddr
                             }
                             PmpAType::NAPOT => {
-                                let pmpaddr = self.get_pmpaddr(*idx as u8);
+                                let pmpaddr = csrs.read(0x3b0 + (*idx as u8 as RegT)).unwrap();
                                 let trialing_ones = (!pmpaddr).trailing_zeros();
                                 (trail_addr >> trialing_ones) == (pmpaddr >> trialing_ones)
                             }

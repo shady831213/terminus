@@ -38,7 +38,30 @@ pub fn expand(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2::TokenStrea
         let name_string = name.to_string();
         check_fields(data, name)?;
         Ok(quote!(
-            bitfield_bitrange!{struct #name(InsnT)}
+            impl BitRange<InsnT> for #name {
+                fn bit_range(&self, msb: usize, lsb: usize) -> InsnT {
+                    let width = msb - lsb + 1;
+                    if width == (std::mem::size_of::<InsnT>() << 3) {
+                        self.0
+                    } else {
+                        let mask:InsnT = ((1 as InsnT) << (width as InsnT)) - 1;
+                        ((self.0 >> (lsb as InsnT)) & mask)
+                    }
+                }
+
+                fn set_bit_range(&mut self, msb: usize, lsb: usize, value: InsnT) {
+                    let width = msb - lsb + 1;
+                    let bitlen = (std::mem::size_of::<InsnT>() << 3);
+                    if width == bitlen {
+                        self.0 = value
+                    } else {
+                        let low = self.0 & (((1 as InsnT) << (lsb as InsnT)) - 1);
+                        let high = if msb == bitlen - 1 {0} else {(self.0 >> ((msb + 1) as InsnT)) << ((msb + 1) as InsnT)};
+                        let mask:InsnT = ((1 as InsnT) << (width as InsnT)) - 1;
+                        self.0 = high | low | (((value as InsnT) & mask) << (lsb as InsnT));
+                    }
+                }
+            }
             insn_format!(#name, #format);
             impl #name {
                 fn new(ir:InsnT) -> Instruction {

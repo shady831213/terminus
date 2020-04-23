@@ -189,6 +189,8 @@ impl<'a> Fields<'a> {
     }
 
     fn struct_expand(&self, trait_name: &Ident, transforms_name: &Ident) -> TokenStream {
+        let size = format_ident!("u{}", self.size);
+
         let fields = quote_map_fold(self.fields.iter(), |field| {
             let (setter, getter) = (field.setter_name(), field.getter_name());
             let (msb, lsb) = (&field.msb, &field.lsb);
@@ -244,11 +246,33 @@ impl<'a> Fields<'a> {
                 }
             });
         let struct_name = self.struct_name();
-        let size = format_ident!("u{}", self.size);
         quote! {
             #[derive(Copy, Clone)]
             struct #struct_name(#size);
-            bitfield_bitrange! {struct #struct_name(#size)}
+            impl BitRange<RegT> for #struct_name {
+                fn bit_range(&self, msb: usize, lsb: usize) -> RegT {
+                    let width = msb - lsb + 1;
+                    if width == (std::mem::size_of::<#size>() << 3) {
+                        self.0 as RegT
+                    } else {
+                        let mask:#size = ((1 as #size) << (width as #size)) - 1;
+                        ((self.0 >> (lsb as #size)) & mask) as RegT
+                    }
+                }
+
+                fn set_bit_range(&mut self, msb: usize, lsb: usize, value: RegT) {
+                    let width = msb - lsb + 1;
+                    let bitlen = (std::mem::size_of::<#size>() << 3);
+                    if width == bitlen {
+                        self.0 = value as #size
+                    } else {
+                        let low = self.0 & (((1 as #size) << (lsb as #size)) - 1);
+                        let high = if msb == bitlen - 1 {0} else {(self.0 >> ((msb + 1) as #size)) << ((msb + 1) as #size)};
+                        let mask:#size = ((1 as #size) << (width as #size)) - 1;
+                        self.0 = high | low | (((value as #size) & mask) << (lsb as #size));
+                    }
+                }
+            }
             impl #struct_name {
                 fn get(&self, t:&#transforms_name) -> RegT {
                    #get
