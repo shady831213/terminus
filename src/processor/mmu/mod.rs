@@ -73,15 +73,14 @@ impl Mmu {
             store_tlb: RefCell::new(TLB::new(256)),
         }
     }
-
+    #[inline(always)]
     fn pmpcfgs_iter(&self) -> PmpCfgsIter {
         PmpCfgsIter::new(self, PhantomData)
     }
-
+    #[inline(always)]
     fn get_pmpaddr(&self, idx: u8) -> RegT {
         self.p.csrs::<ICsrs>().unwrap().read(0x3b0 + idx as RegT).unwrap()
     }
-
     fn match_pmpcfg_entry(&self, addr: u64, len: usize) -> Option<PmpCfgEntry> {
         self.pmpcfgs_iter().enumerate()
             .find(|(idx, entry)| {
@@ -113,7 +112,7 @@ impl Mmu {
             })
             .map(|(_, entry)| { entry })
     }
-
+    #[inline(always)]
     fn check_pmp(&self, addr: u64, len: usize, opt: MmuOpt, privilege: Privilege) -> bool {
         if let Some(entry) = self.match_pmpcfg_entry(addr, len) {
             privilege == Privilege::M && entry.l() == 0 || opt.pmp_match(&entry)
@@ -121,11 +120,11 @@ impl Mmu {
             privilege == Privilege::M
         }
     }
-
+    #[inline(always)]
     fn pte_info(&self) -> PteInfo {
         PteInfo::new(self.p.csrs::<SCsrs>().unwrap().satp().deref())
     }
-
+    #[inline(always)]
     fn get_privileage(&self, opt: MmuOpt) -> Privilege {
         if self.p.csrs::<ICsrs>().unwrap().mstatus().mprv() == 1 && opt != MmuOpt::Fetch {
             Privilege::try_from(self.p.csrs::<ICsrs>().unwrap().mstatus().mpp() as u8).unwrap()
@@ -133,7 +132,6 @@ impl Mmu {
             self.p.privilege.borrow().clone()
         }
     }
-
 
     fn check_pte_privilege(&self, addr: RegT, pte_attr: &PteAttr, opt: &MmuOpt, privilege: &Privilege) -> Result<(), Exception> {
         let priv_s = *privilege == Privilege::S;

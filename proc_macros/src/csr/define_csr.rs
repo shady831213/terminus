@@ -193,6 +193,7 @@ impl<'a> Fields<'a> {
             let (setter, getter) = (field.setter_name(), field.getter_name());
             let (msb, lsb) = (&field.msb, &field.lsb);
             quote! {
+                    #[inline(always)]
                     #getter, #setter: #msb, #lsb;
                 }
         });

@@ -47,6 +47,7 @@ pub fn expand(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2::TokenStrea
                     }
                     Instruction::new(#name(ir))
                 }
+                #[inline(always)]
                 fn _ir(&self) ->  InsnT {
                     self.0
                 }
@@ -55,18 +56,23 @@ pub fn expand(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2::TokenStrea
 
             struct #decoder_ident;
             impl Decoder for #decoder_ident {
+                #[inline(always)]
                 fn code(&self) ->  InsnT {
                     #code
                 }
+                #[inline(always)]
                 fn mask(&self) ->  InsnT {
                     #mask
                 }
+                #[inline(always)]
                 fn matched(&self, ir:InsnT) -> bool {
                     ir & self.mask() == self.code()
                 }
+                #[inline(always)]
                 fn decode(&self, ir:InsnT) -> Instruction {
                     #name::new(ir)
                 }
+                #[inline(always)]
                 fn name(&self) -> String{
                     #name_string.to_string()
                 }

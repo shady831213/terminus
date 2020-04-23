@@ -210,7 +210,7 @@ impl ProcessorState {
 
         Ok(())
     }
-
+    #[inline(always)]
     fn add_extension(&self) -> Result<(), String> {
         let add_one_extension = |id: char| -> Result<(), String>  {
             let ext = Extension::new(self, id)?;
@@ -223,16 +223,16 @@ impl ProcessorState {
         }
         Ok(())
     }
-
+    #[inline(always)]
     fn extensions(&self) -> Ref<'_, HashMap<char, Extension>> {
         self.extensions.borrow()
     }
-
+    #[inline(always)]
     pub fn isa_string(&self) -> String {
         let exts: String = self.extensions().keys().collect();
         format!("rv{}{}", self.config().xlen.len(), exts)
     }
-
+    #[inline(always)]
     pub fn csrs<T: 'static>(&self) -> Result<Rc<T>, String> {
         if let Some(t) = self.extensions().values().find_map(|extension| {
             if let Some(csrs) = extension.csrs() {
@@ -249,11 +249,11 @@ impl ProcessorState {
             Err(format!("cpu{}:can not find csrs {:?}", self.hartid, TypeId::of::<T>()))
         }
     }
-
+    #[inline(always)]
     pub fn config(&self) -> &ProcessorCfg {
         &self.config
     }
-
+    #[inline(always)]
     fn csr_privilege_check(&self, id: RegT) -> Result<(), Exception> {
         let cur_priv: u8 = (*self.privilege.borrow()).into();
         let csr_priv: u8 = id.bit_range(9, 8);
@@ -262,11 +262,11 @@ impl ProcessorState {
         }
         Ok(())
     }
-
+    #[inline(always)]
     pub fn hartid(&self) -> usize {
         self.hartid
     }
-
+    #[inline(always)]
     pub fn csr(&self, id: RegT) -> Result<RegT, Exception> {
         let trip_id = id & 0xfff;
         self.csr_privilege_check(trip_id)?;
@@ -275,7 +275,7 @@ impl ProcessorState {
             None => Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
     }
-
+    #[inline(always)]
     pub fn set_csr(&self, id: RegT, value: RegT) -> Result<(), Exception> {
         let trip_id = id & 0xfff;
         self.csr_privilege_check(trip_id)?;
@@ -284,7 +284,7 @@ impl ProcessorState {
             None => Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
     }
-
+    #[inline(always)]
     pub fn check_extension(&self, ext: char) -> Result<(), Exception> {
         if self.csrs::<ICsrs>().unwrap().misa().get() & ((1 as RegT) << ((ext as u8 - 'a' as u8) as RegT)) != 0 {
             Ok(())
@@ -292,7 +292,7 @@ impl ProcessorState {
             Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
     }
-
+    #[inline(always)]
     pub fn check_xlen(&self, xlen: XLen) -> Result<(), Exception> {
         if xlen == self.config().xlen {
             Ok(())
@@ -300,7 +300,7 @@ impl ProcessorState {
             Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
     }
-
+    #[inline(always)]
     pub fn check_privilege_level(&self, privilege: Privilege) -> Result<(), Exception> {
         match self.config().privilege_level() {
             PrivilegeLevel::M => if privilege != Privilege::M {
@@ -313,11 +313,11 @@ impl ProcessorState {
         }
         Ok(())
     }
-
+    #[inline(always)]
     pub fn privilege(&self) -> Privilege {
         self.privilege.borrow().clone()
     }
-
+    #[inline(always)]
     pub fn set_privilege(&self, privilege: Privilege) -> Privilege {
         match self.config().privilege_level() {
             PrivilegeLevel::M => Privilege::M,
@@ -335,27 +335,27 @@ impl ProcessorState {
         }
     }
 
-
+    #[inline(always)]
     pub fn pc(&self) -> RegT {
         *self.pc.borrow()
     }
-
+    #[inline(always)]
     pub fn set_pc(&self, pc: RegT) {
         *self.next_pc.borrow_mut() = pc
     }
-
+    #[inline(always)]
     pub fn next_pc(&self) -> RegT {
         *self.next_pc.borrow()
     }
-
+    #[inline(always)]
     fn ir(&self) -> InsnT {
         *self.ir.borrow()
     }
-
+    #[inline(always)]
     pub fn insns_cnt(&self) -> u64 {
         *self.insns_cnt.deref().borrow()
     }
-
+    #[inline(always)]
     pub fn xreg(&self, id: RegT) -> RegT {
         let trip_id = id & 0x1f;
         if trip_id == 0 {
@@ -364,7 +364,7 @@ impl ProcessorState {
             (*self.xreg.borrow())[trip_id as usize]
         }
     }
-
+    #[inline(always)]
     pub fn set_xreg(&self, id: RegT, value: RegT) {
         let trip_id = id & 0x1f;
         if trip_id != 0 {
@@ -393,7 +393,7 @@ impl Processor {
             load_store,
         }
     }
-
+    #[inline(always)]
     pub fn reset(&self, start_address: u64) -> Result<(), String> {
         self.state.reset(start_address)?;
         self.load_store().reset();
@@ -401,24 +401,23 @@ impl Processor {
         self.fetcher.flush_icache();
         Ok(())
     }
-
+    #[inline(always)]
     pub fn fetcher(&self) -> &Fetcher {
         &self.fetcher
     }
-
+    #[inline(always)]
     pub fn mmu(&self) -> &Mmu {
         &self.mmu
     }
-
+    #[inline(always)]
     pub fn load_store(&self) -> &LoadStore {
         &self.load_store
     }
-
-
+    #[inline(always)]
     pub fn state(&self) -> &ProcessorState {
         self.state.deref()
     }
-
+    #[inline(always)]
     fn one_insn(&self) -> Result<(), Exception> {
         *self.state.pc.borrow_mut() = *self.state.next_pc.borrow();
         let inst = self.fetcher.fetch(*self.state.pc.borrow(), self.mmu())?;
@@ -472,7 +471,7 @@ impl Processor {
         Ok(())
     }
 
-
+    #[inline(always)]
     fn execute_one(&self) -> Result<(), Trap> {
         self.take_interrupt()?;
         self.one_insn()?;
@@ -531,7 +530,7 @@ impl Processor {
             self.state().set_privilege(Privilege::M);
         }
     }
-
+    #[inline(always)]
     fn step_one(&self) {
         if let Err(trap) = self.execute_one() {
             self.handle_trap(trap);
