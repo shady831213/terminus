@@ -92,6 +92,10 @@ impl Sv32Vaddr {
     fn value(&self) -> RegT {
         self.0
     }
+    fn vpn_all(&self) -> RegT {
+        self.vpn1() << 10 | self.vpn0()
+    }
+
 }
 
 bitfield! {
@@ -169,6 +173,8 @@ impl Sv39Vaddr {
     fn value(&self) -> RegT {
         self.0
     }
+    fn vpn_all(&self) -> RegT { self.vpn2() << 18 | self.vpn1() << 9 | self.vpn0() }
+
 }
 
 bitfield! {
@@ -253,6 +259,8 @@ impl Sv48Vaddr {
     fn value(&self) -> RegT {
         self.0
     }
+    fn vpn_all(&self) -> RegT {  self.vpn3() << 27 | self.vpn2() << 18 | self.vpn1() << 9 | self.vpn0() }
+
 }
 
 bitfield! {
@@ -356,8 +364,10 @@ impl Vaddr {
             _ => panic!(format!("unsupported PteMode {:?}", mode))
         }
     }
-    // pt_export!(Vaddr, pub offset, RegT);
+    pt_export!(Vaddr, pub offset, RegT);
     pt_export!(Vaddr, pub vpn, Option<RegT>, level:usize);
+    pt_export!(Vaddr, pub vpn_all, RegT);
+    pt_export!(Vaddr, pub value, RegT);
     // pt_export!(Vaddr, value, RegT);
 }
 

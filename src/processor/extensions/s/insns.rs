@@ -26,6 +26,7 @@ impl Execution for SRET {
         let u_value: u8 = Privilege::U.into();
         mcsrs.mstatus_mut().set_spp(u_value as RegT);
         p.state().set_privilege(Privilege::try_from(spp as u8).unwrap());
+        p.mmu().flush_tlb();
         if p.state().check_extension('c').is_err() {
             p.state().set_pc((scsrs.sepc().get() >> 2) << 2);
         } else {
@@ -48,7 +49,7 @@ impl Execution for SFENCEVMA {
         if p.state().privilege() == Privilege::S && p.state().csrs::<ICsrs>().unwrap().mstatus().tvm() == 1 {
             return Err(Exception::IllegalInsn(self.ir()));
         }
-        //fixme:no cache in fetcher, load_store and mmu for now
+        p.mmu().flush_tlb();
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }

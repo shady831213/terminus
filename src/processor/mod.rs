@@ -397,6 +397,7 @@ impl Processor {
     pub fn reset(&self, start_address: u64) -> Result<(), String> {
         self.state.reset(start_address)?;
         self.load_store().reset();
+        self.mmu.flush_tlb();
         Ok(())
     }
 
@@ -499,6 +500,7 @@ impl Processor {
             let priv_value: u8 = self.state().privilege().into();
             mcsrs.mstatus_mut().set_spp(priv_value as RegT);
             mcsrs.mstatus_mut().set_sie(0);
+            self.mmu().flush_tlb();
             self.state().set_privilege(Privilege::S);
         } else {
             let tvec = mcsrs.mtvec();
@@ -518,6 +520,7 @@ impl Processor {
             let priv_value: u8 = self.state().privilege().into();
             mcsrs.mstatus_mut().set_mpp(priv_value as RegT);
             mcsrs.mstatus_mut().set_mie(0);
+            self.mmu().flush_tlb();
             self.state().set_privilege(Privilege::M);
         }
     }

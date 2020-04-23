@@ -1047,6 +1047,7 @@ impl Execution for MRET {
         let u_value: u8 = Privilege::U.into();
         csrs.mstatus_mut().set_mpp(u_value as RegT);
         p.state().set_privilege(Privilege::try_from(mpp as u8).unwrap());
+        p.mmu().flush_tlb();
         if p.state().check_extension('c').is_err() {
             p.state().set_pc((csrs.mepc().get() >> 2) << 2);
         } else {

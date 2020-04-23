@@ -18,6 +18,9 @@ mod pte;
 
 use pte::*;
 
+mod tlb;
+
+use tlb::*;
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum MmuOpt {
@@ -55,6 +58,9 @@ impl MmuOpt {
 pub struct Mmu {
     p: Rc<ProcessorState>,
     bus: Arc<Bus>,
+    fetch_tlb: RefCell<TLB>,
+    load_tlb: RefCell<TLB>,
+    store_tlb: RefCell<TLB>,
 }
 
 impl Mmu {
@@ -62,6 +68,9 @@ impl Mmu {
         Mmu {
             p: p.clone(),
             bus: bus.clone(),
+            fetch_tlb: RefCell::new(TLB::new(256)),
+            load_tlb: RefCell::new(TLB::new(256)),
+            store_tlb: RefCell::new(TLB::new(256)),
         }
     }
 
@@ -154,15 +163,8 @@ impl Mmu {
         Ok(())
     }
 
-    fn pt_walk(&self, va: RegT, opt: MmuOpt, privilege: Privilege) -> Result<u64, Exception> {
-        if privilege == Privilege::M {
-            return Ok(va as u64);
-        }
+    fn pt_walk(&self, vaddr: &Vaddr, opt: MmuOpt, privilege: Privilege) -> Result<u64, Exception> {
         let info = self.pte_info();
-        if info.mode == PteMode::Bare {
-            return Ok(va as u64);
-        }
-        let vaddr = Vaddr::new(&info.mode, va);
         //step 1
         let ppn = self.p.csrs::<SCsrs>().unwrap().satp().ppn();
         let mut a = ppn * info.page_size as RegT;
@@ -173,33 +175,33 @@ impl Mmu {
             //step 2
             pte_addr = (a + vaddr.vpn(level).unwrap() * info.size as RegT) as u64;
             if !self.check_pmp(pte_addr, info.size, MmuOpt::Load, Privilege::S) {
-                return Err(opt.access_exception(va));
+                return Err(opt.access_exception(vaddr.value()));
             }
             let pte = match Pte::load(&info, self.bus.deref(), pte_addr) {
                 Ok(pte) => pte,
-                Err(_) => return Err(opt.access_exception(va))
+                Err(_) => return Err(opt.access_exception(vaddr.value()))
             };
             //step 3
             if pte.attr().v() == 0 || pte.attr().r() == 0 && pte.attr().w() == 1 {
-                return Err(opt.pagefault_exception(va));
+                return Err(opt.pagefault_exception(vaddr.value()));
             }
             //step 4
             if pte.attr().r() == 1 || pte.attr().x() == 1 {
                 leaf_pte = pte;
                 break;
             } else if level == 0 {
-                return Err(opt.pagefault_exception(va));
+                return Err(opt.pagefault_exception(vaddr.value()));
             } else {
                 level -= 1;
                 a = pte.ppn_all() * info.page_size as RegT;
             }
         }
         //step 5
-        self.check_pte_privilege(va, &leaf_pte.attr(), &opt, &privilege)?;
+        self.check_pte_privilege(vaddr.value(), &leaf_pte.attr(), &opt, &privilege)?;
         //step 6
         for l in 0..level {
             if leaf_pte.ppn(l).unwrap() != 0 {
-                return Err(opt.pagefault_exception(va));
+                return Err(opt.pagefault_exception(vaddr.value()));
             }
         }
         //step 7
@@ -209,29 +211,54 @@ impl Mmu {
                 new_attr.set_a(1);
                 new_attr.set_d((opt == MmuOpt::Store) as u8);
                 if !self.check_pmp(pte_addr, info.size, MmuOpt::Store, Privilege::S) {
-                    return Err(opt.access_exception(va));
+                    return Err(opt.access_exception(vaddr.value()));
                 }
                 leaf_pte.set_attr(new_attr);
                 if leaf_pte.store(self.bus.deref(), pte_addr).is_err() {
-                    return Err(opt.access_exception(va));
+                    return Err(opt.access_exception(vaddr.value()));
                 }
             } else {
-                return Err(opt.pagefault_exception(va));
+                return Err(opt.pagefault_exception(vaddr.value()));
             }
         }
         //step 8
-        Ok(Paddr::new(&vaddr, &leaf_pte, &info, level).value() as u64)
+        Ok(Paddr::new(vaddr, &leaf_pte, &info, level).value() as u64)
+    }
+
+    pub fn flush_tlb(&self) {
+        self.fetch_tlb.borrow_mut().invalid_all();
+        self.load_tlb.borrow_mut().invalid_all();
+        self.store_tlb.borrow_mut().invalid_all();
     }
 
     pub fn translate(&self, va: RegT, len: RegT, opt: MmuOpt) -> Result<u64, Exception> {
         let privilege = self.get_privileage(opt);
-        match self.pt_walk(va, opt, privilege) {
+        if privilege == Privilege::M {
+            return Ok(va as u64);
+        }
+        if self.pte_info().mode == PteMode::Bare {
+            return Ok(va as u64);
+        }
+        let vaddr = Vaddr::new(&self.pte_info().mode, va);
+        let mut tlb = match opt {
+            MmuOpt::Fetch => self.fetch_tlb.borrow_mut(),
+            MmuOpt::Load => self.load_tlb.borrow_mut(),
+            MmuOpt::Store => self.store_tlb.borrow_mut(),
+        };
+        if let Some(ppn) = tlb.get_ppn(vaddr.vpn_all()) {
+            let pa = ppn << 12 | vaddr.offset();
+            return Ok(pa);
+        }
+        match self.pt_walk(&vaddr, opt, privilege) {
             Ok(pa) => if !self.check_pmp(pa, len as usize, opt, privilege) {
                 return Err(opt.access_exception(va));
             } else {
+                tlb.set_entry(vaddr.vpn_all(), pa >> 12);
                 Ok(pa)
             }
-            Err(e) => Err(e)
+            Err(e) => {
+                Err(e)
+            }
         }
     }
 }
@@ -242,6 +269,7 @@ use terminus_global::XLen;
 use crate::processor::ProcessorCfg;
 #[cfg(test)]
 use crate::system::System;
+use std::cell::RefCell;
 
 #[test]
 fn pmp_basic_test() {
@@ -249,7 +277,7 @@ fn pmp_basic_test() {
         xlen: XLen::X32,
         enable_dirty: true,
         extensions: vec![].into_boxed_slice(),
-        freq:1000000000,
+        freq: 1000000000,
     }], 100);
     sys.reset(vec![-1i64 as u64]).unwrap();
 
