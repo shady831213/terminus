@@ -29,8 +29,12 @@ pub trait Execution {
     fn execute(&self, p: &Processor) -> Result<(), Exception>;
 }
 
+pub trait InsnClone {
+    fn clone(&self) -> Instruction;
+}
 
-pub trait InstructionImp: Format + Execution {}
+
+pub trait InstructionImp: Format + Execution + InsnClone{}
 
 pub struct Instruction(Box<dyn InstructionImp>);
 

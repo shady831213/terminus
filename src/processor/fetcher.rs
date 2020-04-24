@@ -13,13 +13,11 @@ use std::ops::Deref;
 use std::collections::VecDeque;
 use std::cell::RefCell;
 
-#[derive(Clone)]
 struct ICacheEntry {
     tag: u64,
-    data: InsnT,
+    insn: Instruction,
 }
 
-#[derive(Clone)]
 struct ICacheBasket {
     size: usize,
     entries: VecDeque<ICacheEntry>,
@@ -33,7 +31,7 @@ impl ICacheBasket {
         }
     }
 
-    fn get_insn(&mut self, tag: u64) -> Option<InsnT> {
+    fn get_insn(&mut self, tag: u64) -> Option<&Instruction> {
         let mut idx: Option<usize> = None;
         for (i, entry) in self.entries.iter().enumerate() {
             if entry.tag == tag {
@@ -46,17 +44,17 @@ impl ICacheBasket {
                 let entry = self.entries.remove(i).unwrap();
                 self.entries.push_front(entry);
             }
-            Some(self.entries[0].data)
+            Some(&self.entries[0].insn)
         } else {
             None
         }
     }
 
-    fn set_entry(&mut self, tag: u64, data: InsnT) {
+    fn set_entry(&mut self, tag: u64, insn: &Instruction) {
         if self.entries.len() >= self.size {
             self.entries.pop_back();
         }
-        self.entries.push_front(ICacheEntry { tag, data })
+        self.entries.push_front(ICacheEntry { tag, insn: insn.deref().deref().clone() })
     }
 }
 
@@ -69,23 +67,27 @@ struct ICache {
 impl ICache {
     fn new(cache_size: usize, basket_size: usize) -> ICache {
         assert!(cache_size.is_power_of_two());
-        ICache {
+        let mut cache = ICache {
             size: cache_size,
-            baskets: vec![ICacheBasket::new(basket_size); cache_size],
-        }
+            baskets: vec![],
+        };
+        for _ in 0..cache_size {
+            cache.baskets.push(ICacheBasket::new(basket_size))
+        };
+        cache
     }
 
-    fn get_insn(&mut self, addr: u64) -> Option<InsnT> {
-        self.baskets[((addr >> 2) as usize) & (self.size - 1) ].get_insn(addr >> 1)
+    fn get_insn(&mut self, addr: u64) -> Option<&Instruction> {
+        self.baskets[((addr >> 2) as usize) & (self.size - 1)].get_insn(addr >> 1)
     }
 
-    fn set_entry(&mut self, addr: u64, data: InsnT) {
-        self.baskets[((addr >> 2) as usize) & (self.size - 1)].set_entry(addr >> 1, data)
+    fn set_entry(&mut self, addr: u64, insn: &Instruction) {
+        self.baskets[((addr >> 2) as usize) & (self.size - 1)].set_entry(addr >> 1, insn)
     }
 
     fn invalid_all(&mut self) {
         let basket_size = self.baskets[0].size;
-        self.baskets.iter_mut().for_each(|b|{*b = ICacheBasket::new(basket_size)})
+        self.baskets.iter_mut().for_each(|b| { *b = ICacheBasket::new(basket_size) })
     }
 }
 
@@ -131,43 +133,83 @@ impl Fetcher {
     }
 
     pub fn fetch(&self, pc: RegT, mmu: &Mmu) -> Result<Instruction, Exception> {
-        let code = {
-            let mut icache = self.icache.borrow_mut();
-            if pc.trailing_zeros() == 1 {
-                let pa = mmu.translate(pc, 2, MmuOpt::Fetch)?;
-                if let Some(data) = icache.get_insn(pa) {
-                    data
-                } else {
-                    let data_low = self.fetch_u16_slow(pa, pc)?;
-                    if data_low & 0x3 != 0x3 {
-                        let data = data_low as u16 as InsnT;
-                        icache.set_entry(pa, data);
-                        data
-                    } else {
-                        let pa_high = mmu.translate(pc + 2, 2, MmuOpt::Fetch)?;
-                        let data_high = self.fetch_u16_slow(pa_high, pc)?;
-                        let data = data_low as u16 as InsnT | ((data_high as u16 as InsnT) << 16);
-                        icache.set_entry(pa, data);
-                        data
-                    }
-                }
+        let mut icache = self.icache.borrow_mut();
+        if pc.trailing_zeros() == 1 {
+            let pa = mmu.translate(pc, 2, MmuOpt::Fetch)?;
+            if let Some(insn) = icache.get_insn(pa) {
+                Ok(insn.deref().deref().clone())
             } else {
-                let pa = mmu.translate(pc, 4, MmuOpt::Fetch)?;
-                if let Some(data) = icache.get_insn(pa) {
-                    data
+                let data_low = self.fetch_u16_slow(pa, pc)?;
+                if data_low & 0x3 != 0x3 {
+                    let data = data_low as u16 as InsnT;
+                    let insn = GDECODER.decode(data)?;
+                    icache.set_entry(pa, &insn);
+                    Ok(insn)
                 } else {
-                    let data = self.fetch_u32_slow(pa, pc)?;
-                    if data & 0x3 != 0x3 {
-                        let data_low = data as u16 as InsnT;
-                        icache.set_entry(pa, data_low);
-                        data_low
-                    } else {
-                        icache.set_entry(pa, data as InsnT);
-                        data as InsnT
-                    }
+                    let pa_high = mmu.translate(pc + 2, 2, MmuOpt::Fetch)?;
+                    let data_high = self.fetch_u16_slow(pa_high, pc)?;
+                    let data = data_low as u16 as InsnT | ((data_high as u16 as InsnT) << 16);
+                    let insn = GDECODER.decode(data)?;
+                    icache.set_entry(pa, &insn);
+                    Ok(insn)
                 }
             }
-        };
-        GDECODER.decode(code)
+        } else {
+            let pa = mmu.translate(pc, 4, MmuOpt::Fetch)?;
+            if let Some(insn) = icache.get_insn(pa) {
+                Ok(insn.deref().deref().clone())
+            } else {
+                let data = self.fetch_u32_slow(pa, pc)?;
+                if data & 0x3 != 0x3 {
+                    let data_low = data as u16 as InsnT;
+                    let insn = GDECODER.decode(data_low)?;
+                    icache.set_entry(pa, &insn);
+                    Ok(insn)
+                } else {
+                    let insn = GDECODER.decode(data)?;
+                    icache.set_entry(pa, &insn);
+                    Ok(insn)
+                }
+            }
+        }
+
+        // let code = {
+        //     let mut icache = self.icache.borrow_mut();
+        //     if pc.trailing_zeros() == 1 {
+        //         let pa = mmu.translate(pc, 2, MmuOpt::Fetch)?;
+        //         if let Some(data) = icache.get_insn(pa) {
+        //             data
+        //         } else {
+        //             let data_low = self.fetch_u16_slow(pa, pc)?;
+        //             if data_low & 0x3 != 0x3 {
+        //                 let data = data_low as u16 as InsnT;
+        //                 icache.set_entry(pa, data);
+        //                 data
+        //             } else {
+        //                 let pa_high = mmu.translate(pc + 2, 2, MmuOpt::Fetch)?;
+        //                 let data_high = self.fetch_u16_slow(pa_high, pc)?;
+        //                 let data = data_low as u16 as InsnT | ((data_high as u16 as InsnT) << 16);
+        //                 icache.set_entry(pa, data);
+        //                 data
+        //             }
+        //         }
+        //     } else {
+        //         let pa = mmu.translate(pc, 4, MmuOpt::Fetch)?;
+        //         if let Some(data) = icache.get_insn(pa) {
+        //             data
+        //         } else {
+        //             let data = self.fetch_u32_slow(pa, pc)?;
+        //             if data & 0x3 != 0x3 {
+        //                 let data_low = data as u16 as InsnT;
+        //                 icache.set_entry(pa, data_low);
+        //                 data_low
+        //             } else {
+        //                 icache.set_entry(pa, data as InsnT);
+        //                 data as InsnT
+        //             }
+        //         }
+        //     }
+        // };
+        // GDECODER.decode(code)
     }
 }

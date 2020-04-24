@@ -75,6 +75,11 @@ pub fn expand(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2::TokenStrea
                     self.0
                 }
             }
+            impl InsnClone for #name{
+                fn clone(&self) -> Instruction {
+                    #name::new(self.0)
+                }
+            }
             impl InstructionImp for #name{}
 
             struct #decoder_ident;
