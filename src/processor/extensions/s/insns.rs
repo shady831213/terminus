@@ -1,6 +1,4 @@
 use crate::prelude::*;
-use crate::processor::extensions::i::csrs::*;
-use crate::processor::extensions::s::csrs::*;
 use std::convert::TryFrom;
 
 #[derive(Instruction)]
@@ -13,8 +11,8 @@ impl Execution for SRET {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('s')?;
         p.state().check_privilege_level(Privilege::S)?;
-        let mcsrs = p.state().csrs::<ICsrs>().unwrap();
-        let scsrs = p.state().csrs::<SCsrs>().unwrap();
+        let mcsrs = p.state().icsrs();
+        let scsrs = p.state().scsrs();
         let tsr = mcsrs.mstatus().tsr();
         if tsr == 1 && p.state().privilege() == Privilege::S {
             return Err(Exception::IllegalInsn(self.ir()));
@@ -47,7 +45,7 @@ impl Execution for SFENCEVMA {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('s')?;
         p.state().check_privilege_level(Privilege::S)?;
-        if p.state().privilege() == Privilege::S && p.state().csrs::<ICsrs>().unwrap().mstatus().tvm() == 1 {
+        if p.state().privilege() == Privilege::S && p.state().icsrs().mstatus().tvm() == 1 {
             return Err(Exception::IllegalInsn(self.ir()));
         }
         p.mmu().flush_tlb();

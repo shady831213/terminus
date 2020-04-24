@@ -1,8 +1,6 @@
 use terminus_global::*;
 use std::rc::Rc;
-use std::any::Any;
 use crate::processor::extensions::{HasCsr, NoStepCb};
-use crate::processor::extensions::s::csrs::*;
 
 mod insns;
 pub mod csrs;
@@ -94,12 +92,13 @@ impl ExtensionI {
         );
         e
     }
+
+    pub fn get_csrs(&self) -> &Rc<ICsrs> {
+        &self.csrs
+    }
 }
 
 impl HasCsr for ExtensionI {
-    fn csrs(&self) -> Option<Rc<dyn Any>> {
-        Some(self.csrs.clone() as Rc<dyn Any>)
-    }
     fn csr_write(&self, state: &ProcessorState, addr: RegT, value: RegT) -> Option<()> {
         if value & ((1 as RegT) << (('c' as u8 - 'a' as u8) as RegT)) == 0 && addr == 0x301 && state.pc().trailing_zeros() == 1 {
             return Some(())
@@ -123,8 +122,8 @@ impl HasCsr for ExtensionI {
                     if self.csrs.mcounteren().get() & ((1 as RegT) << (addr & 0x1f)) == 0 {
                         return None
                     }
-                    if let Ok(scsrs) = state.csrs::<SCsrs>() {
-                        if scsrs.scounteren().get() & ((1 as RegT) << (addr & 0x1f)) == 0 {
+                    if state.check_extension('s').is_ok()  {
+                        if state.scsrs().scounteren().get() & ((1 as RegT) << (addr & 0x1f)) == 0 {
                             return None
                         }
                     }

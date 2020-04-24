@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use terminus_macros::*;
 use terminus_global::*;
 use std::sync::Arc;
@@ -6,9 +5,9 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::rc::Rc;
 use std::cell::{RefCell, Ref};
 use std::fmt::{Display, Formatter};
-use std::any::TypeId;
 use terminus_spaceport::irq::IrqVec;
 use crate::devices::bus::Bus;
+use std::mem::MaybeUninit;
 
 pub mod decode;
 
@@ -35,9 +34,6 @@ use fetcher::*;
 mod load_store;
 
 use load_store::*;
-
-#[cfg(test)]
-mod test;
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
@@ -83,7 +79,7 @@ pub struct ProcessorState {
     config: ProcessorCfg,
     privilege: RefCell<Privilege>,
     xreg: RefCell<[RegT; 32]>,
-    extensions: RefCell<HashMap<char, Extension>>,
+    extensions: RefCell<[Extension; 26]>,
     pc: RefCell<RegT>,
     next_pc: RefCell<RegT>,
     ir: RefCell<InsnT>,
@@ -110,7 +106,7 @@ impl Display for ProcessorState {
         for (i, v) in self.xreg.borrow().iter().enumerate() {
             writeln!(f, "   x{:<2} : {:#x}", i, v)?;
         }
-        if let Some(Extension::F(float)) = self.extensions().get(&'f') {
+        if let Extension::F(ref float) = self.extensions()[('f' as u8 - 'a' as u8) as usize] {
             for (i, v) in float.fregs().iter().enumerate() {
                 writeln!(f, "   f{:<2} : {:#x}", i, v)?;
             }
@@ -128,7 +124,13 @@ impl ProcessorState {
             config,
             privilege: RefCell::new(Privilege::M),
             xreg: RefCell::new([0 as RegT; 32]),
-            extensions: RefCell::new(HashMap::new()),
+            extensions: RefCell::new(unsafe {
+                let mut arr: MaybeUninit<[Extension; 26]> = MaybeUninit::uninit();
+                for i in 0..26 {
+                    (arr.as_mut_ptr() as *mut Extension).add(i).write(Extension::None);
+                }
+                arr.assume_init()
+            }),
             pc: RefCell::new(0),
             next_pc: RefCell::new(0),
             ir: RefCell::new(0),
@@ -142,12 +144,14 @@ impl ProcessorState {
             return Err(format!("cpu{}:invalid start addr {:#x} when xlen == X32!", self.hartid, start_address));
         }
         *self.xreg.borrow_mut() = [0 as RegT; 32];
-        *self.extensions.borrow_mut() = HashMap::new();
+        for e in self.extensions.borrow_mut().iter_mut() {
+            *e = Extension::None
+        }
         *self.pc.borrow_mut() = 0;
         *self.next_pc.borrow_mut() = start_address;
         *self.ir.borrow_mut() = 0;
         self.add_extension()?;
-        let csrs = self.csrs::<ICsrs>().unwrap();
+        let csrs = self.icsrs();
         //register clint:0:msip, 1:mtip
         csrs.mip_mut().msip_transform({
             let clint = self.clint.clone();
@@ -165,7 +169,7 @@ impl ProcessorState {
         csrs.mhartid_mut().set(self.hartid as RegT);
         //extensions config, only f, d can disable
         let mut misa = csrs.misa_mut();
-        for ext in self.extensions().keys() {
+        for ext in self.config().extensions.iter() {
             match ext {
                 'a' => misa.set_a(1),
                 'b' => misa.set_b(1),
@@ -210,11 +214,11 @@ impl ProcessorState {
 
         Ok(())
     }
-    #[inline(always)]
+
     fn add_extension(&self) -> Result<(), String> {
         let add_one_extension = |id: char| -> Result<(), String>  {
             let ext = Extension::new(self, id)?;
-            self.extensions.borrow_mut().insert(id, ext);
+            self.extensions.borrow_mut()[(id as u8 - 'a' as u8) as usize] = ext;
             Ok(())
         };
         add_one_extension('i')?;
@@ -223,37 +227,36 @@ impl ProcessorState {
         }
         Ok(())
     }
-    #[inline(always)]
-    fn extensions(&self) -> Ref<'_, HashMap<char, Extension>> {
+
+    fn extensions(&self) -> Ref<'_, [Extension; 26]> {
         self.extensions.borrow()
     }
-    #[inline(always)]
+
     pub fn isa_string(&self) -> String {
-        let exts: String = self.extensions().keys().collect();
+        let exts: String = self.config().extensions.iter().collect();
         format!("rv{}{}", self.config().xlen.len(), exts)
     }
-    #[inline(always)]
-    pub fn csrs<T: 'static>(&self) -> Result<Rc<T>, String> {
-        if let Some(t) = self.extensions().values().find_map(|extension| {
-            if let Some(csrs) = extension.csrs() {
-                match csrs.downcast::<T>() {
-                    Ok(t) => Some(t),
-                    Err(_) => None
-                }
-            } else {
-                None
-            }
-        }) {
-            Ok(t)
+
+    pub fn icsrs(&self) -> Rc<ICsrs> {
+        if let Extension::I(ref i) = self.extensions()[('i' as u8 - 'a' as u8) as usize] {
+            i.get_csrs().clone()
         } else {
-            Err(format!("cpu{}:can not find csrs {:?}", self.hartid, TypeId::of::<T>()))
+            unreachable!()
         }
     }
-    #[inline(always)]
+
+    pub fn scsrs(&self) -> Rc<SCsrs> {
+        if let Extension::S(ref s) = self.extensions()[('s' as u8 - 'a' as u8) as usize] {
+            s.get_csrs().clone()
+        } else {
+            unreachable!()
+        }
+    }
+
     pub fn config(&self) -> &ProcessorCfg {
         &self.config
     }
-    #[inline(always)]
+
     fn csr_privilege_check(&self, id: RegT) -> Result<(), Exception> {
         let cur_priv: u8 = (*self.privilege.borrow()).into();
         let csr_priv: u8 = ((id >> 8) & 0x3) as u8;
@@ -262,37 +265,37 @@ impl ProcessorState {
         }
         Ok(())
     }
-    #[inline(always)]
+
     pub fn hartid(&self) -> usize {
         self.hartid
     }
-    #[inline(always)]
+
     pub fn csr(&self, id: RegT) -> Result<RegT, Exception> {
         let trip_id = id & 0xfff;
         self.csr_privilege_check(trip_id)?;
-        match self.extensions().values().find_map(|e| { e.csr_read(self, trip_id) }) {
+        match self.extensions().iter().find_map(|e| { e.csr_read(self, trip_id) }) {
             Some(v) => Ok(v),
             None => Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
     }
-    #[inline(always)]
+
     pub fn set_csr(&self, id: RegT, value: RegT) -> Result<(), Exception> {
         let trip_id = id & 0xfff;
         self.csr_privilege_check(trip_id)?;
-        match self.extensions().values().find_map(|e| { e.csr_write(self, trip_id, value) }) {
+        match self.extensions().iter().find_map(|e| { e.csr_write(self, trip_id, value) }) {
             Some(_) => Ok(()),
             None => Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
     }
-    #[inline(always)]
+
     pub fn check_extension(&self, ext: char) -> Result<(), Exception> {
-        if self.csrs::<ICsrs>().unwrap().misa().get() & ((1 as RegT) << ((ext as u8 - 'a' as u8) as RegT)) != 0 {
+        if self.icsrs().misa().get() & ((1 as RegT) << ((ext as u8 - 'a' as u8) as RegT)) != 0 {
             Ok(())
         } else {
             Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
     }
-    #[inline(always)]
+
     pub fn check_xlen(&self, xlen: XLen) -> Result<(), Exception> {
         if xlen == self.config().xlen {
             Ok(())
@@ -300,7 +303,7 @@ impl ProcessorState {
             Err(Exception::IllegalInsn(*self.ir.borrow()))
         }
     }
-    #[inline(always)]
+
     pub fn check_privilege_level(&self, privilege: Privilege) -> Result<(), Exception> {
         match self.config().privilege_level() {
             PrivilegeLevel::M => if privilege != Privilege::M {
@@ -313,11 +316,11 @@ impl ProcessorState {
         }
         Ok(())
     }
-    #[inline(always)]
+
     pub fn privilege(&self) -> Privilege {
         self.privilege.borrow().clone()
     }
-    #[inline(always)]
+
     pub fn set_privilege(&self, privilege: Privilege) -> Privilege {
         match self.config().privilege_level() {
             PrivilegeLevel::M => Privilege::M,
@@ -335,27 +338,27 @@ impl ProcessorState {
         }
     }
 
-    #[inline(always)]
+
     pub fn pc(&self) -> RegT {
         *self.pc.borrow()
     }
-    #[inline(always)]
+
     pub fn set_pc(&self, pc: RegT) {
         *self.next_pc.borrow_mut() = pc
     }
-    #[inline(always)]
+
     pub fn next_pc(&self) -> RegT {
         *self.next_pc.borrow()
     }
-    #[inline(always)]
+
     fn ir(&self) -> InsnT {
         *self.ir.borrow()
     }
-    #[inline(always)]
+
     pub fn insns_cnt(&self) -> u64 {
         *self.insns_cnt.deref().borrow()
     }
-    #[inline(always)]
+
     pub fn xreg(&self, id: RegT) -> RegT {
         let trip_id = id & 0x1f;
         if trip_id == 0 {
@@ -364,7 +367,7 @@ impl ProcessorState {
             (*self.xreg.borrow())[trip_id as usize]
         }
     }
-    #[inline(always)]
+
     pub fn set_xreg(&self, id: RegT, value: RegT) {
         let trip_id = id & 0x1f;
         if trip_id != 0 {
@@ -393,7 +396,7 @@ impl Processor {
             load_store,
         }
     }
-    #[inline(always)]
+
     pub fn reset(&self, start_address: u64) -> Result<(), String> {
         self.state.reset(start_address)?;
         self.load_store().reset();
@@ -401,23 +404,23 @@ impl Processor {
         self.fetcher.flush_icache();
         Ok(())
     }
-    #[inline(always)]
+
     pub fn fetcher(&self) -> &Fetcher {
         &self.fetcher
     }
-    #[inline(always)]
+
     pub fn mmu(&self) -> &Mmu {
         &self.mmu
     }
-    #[inline(always)]
+
     pub fn load_store(&self) -> &LoadStore {
         &self.load_store
     }
-    #[inline(always)]
+
     pub fn state(&self) -> &ProcessorState {
         self.state.deref()
     }
-    #[inline(always)]
+
     fn one_insn(&self) -> Result<(), Exception> {
         *self.state.pc.borrow_mut() = *self.state.next_pc.borrow();
         let inst = self.fetcher.fetch(*self.state.pc.borrow(), self.mmu())?;
@@ -437,7 +440,7 @@ impl Processor {
     }
 
     fn take_interrupt(&self) -> Result<(), Interrupt> {
-        let csrs = self.state().csrs::<ICsrs>().unwrap();
+        let csrs = self.state().icsrs();
         let pendings = csrs.mip().get() & csrs.mie().get();
         let mie = csrs.mstatus().mie();
         let m_enabled = self.state().privilege() != Privilege::M || (self.state().privilege() == Privilege::M && mie == 1);
@@ -476,14 +479,14 @@ impl Processor {
     }
 
     fn handle_trap(&self, trap: Trap) {
-        let mcsrs = self.state().csrs::<ICsrs>().unwrap();
+        let mcsrs = self.state().icsrs();
         let (int_flag, deleg, code, tval) = match trap {
             Trap::Exception(e) => (0 as RegT, mcsrs.medeleg().get(), e.code(), e.tval()),
             Trap::Interrupt(i) => (1 as RegT, mcsrs.mideleg().get(), i.code(), i.tval()),
         };
         //deleg to s-mode
         if self.state().privilege() != Privilege::M && (deleg >> code) & 1 == 1 {
-            let scsrs = self.state().csrs::<SCsrs>().unwrap();
+            let scsrs = self.state().scsrs();
             let tvec = scsrs.stvec();
             let offset = if tvec.mode() == 1 && int_flag == 1 {
                 code << 2
@@ -538,7 +541,7 @@ impl Processor {
         if let Err(int) = self.take_interrupt() {
             self.handle_trap(Trap::Interrupt(int))
         }
-        for ext in self.state().extensions().values() {
+        for ext in self.state().extensions().iter() {
             ext.step_cb(self)
         }
     }

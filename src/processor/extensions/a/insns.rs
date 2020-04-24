@@ -8,7 +8,7 @@ use std::cmp::{min, max};
 pub trait LRSCInsn: InstructionImp {
     fn get_a_ext(&self, p: &Processor) -> Result<Rc<ExtensionA>, Exception> {
         p.state().check_extension('a')?;
-        if let Some(Extension::A(a)) = p.state().extensions().get(&'a') {
+        if let Extension::A(ref a) = p.state().extensions()[('a' as u8 - 'a' as u8) as usize] {
             Ok(a.clone())
         } else {
             Err(Exception::IllegalInsn(self.ir()))

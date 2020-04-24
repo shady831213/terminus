@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use crate::processor::extensions::i::csrs::*;
 use std::num::Wrapping;
 use std::convert::TryFrom;
 
@@ -1039,7 +1038,7 @@ struct MRET(InsnT);
 
 impl Execution for MRET {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        let csrs = p.state().csrs::<ICsrs>().unwrap();
+        let csrs = p.state().icsrs();
         let mpp = csrs.mstatus().mpp();
         let mpie = csrs.mstatus().mpie();
         csrs.mstatus_mut().set_mie(mpie);
@@ -1066,7 +1065,7 @@ struct WFI(InsnT);
 
 impl Execution for WFI {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
-        let csrs = p.state().csrs::<ICsrs>().unwrap();
+        let csrs = p.state().icsrs();
         if csrs.mstatus().tw() != 0 && p.state().config().privilege_level() != PrivilegeLevel::M {
             return Err(Exception::IllegalInsn(self.ir()));
         }

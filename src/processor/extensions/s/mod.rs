@@ -1,9 +1,7 @@
 use std::rc::Rc;
 use crate::processor::{ProcessorState, Privilege};
 use crate::processor::extensions::{HasCsr, NoStepCb};
-use std::any::Any;
 use terminus_global::RegT;
-use crate::processor::extensions::i::csrs::*;
 use std::cell::RefCell;
 
 mod insns;
@@ -26,7 +24,7 @@ impl ExtensionS {
             tvm: Rc::new(RefCell::new(false)),
             tsr: Rc::new(RefCell::new(false)),
         };
-        let icsrs = state.csrs::<ICsrs>().unwrap();
+        let icsrs = state.icsrs();
         //map tvm and tsr
         icsrs.mstatus_mut().set_tvm_transform({
             let tvm = e.tvm.clone();
@@ -160,12 +158,13 @@ impl ExtensionS {
         deleg_sie!(seip, seie, seie_transform, set_seie, set_seie_transform);
         e
     }
+
+    pub fn get_csrs(&self) -> &Rc<SCsrs> {
+        &self.csrs
+    }
 }
 
 impl HasCsr for ExtensionS {
-    fn csrs(&self) -> Option<Rc<dyn Any>> {
-        Some(self.csrs.clone() as Rc<dyn Any>)
-    }
     fn csr_write(&self, state:&ProcessorState, addr: RegT, value: RegT) -> Option<()> {
         //stap
         if addr == 0x180 && state.privilege() == Privilege::S && *self.tvm.borrow() {

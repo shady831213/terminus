@@ -2,9 +2,7 @@ use crate::processor::ProcessorState;
 use std::cell::{RefCell, Ref};
 use std::rc::Rc;
 use crate::processor::extensions::{HasCsr, NoStepCb};
-use std::any::Any;
 use terminus_global::RegT;
-use crate::processor::extensions::i::csrs::*;
 
 pub mod float;
 mod insns;
@@ -91,7 +89,7 @@ impl ExtensionF {
         }
 
         //map dirty to mstatus.fs
-        state.csrs::<ICsrs>().unwrap().mstatus_mut().set_fs_transform(
+        state.icsrs().mstatus_mut().set_fs_transform(
             {
                 let dirty = e.dirty.clone();
                 move |value| {
@@ -100,7 +98,7 @@ impl ExtensionF {
                 }
             }
         );
-        state.csrs::<ICsrs>().unwrap().mstatus_mut().fs_transform(
+        state.icsrs().mstatus_mut().fs_transform(
             {
                 let dirty = e.dirty.clone();
                 move |_| {
@@ -167,9 +165,6 @@ impl ExtensionF {
 }
 
 impl HasCsr for ExtensionF {
-    fn csrs(&self) -> Option<Rc<dyn Any>> {
-        Some(self.csrs.clone() as Rc<dyn Any>)
-    }
     fn csr_write(&self, _: &ProcessorState, addr: RegT, value: RegT) -> Option<()> {
         *self.dirty.borrow_mut() = 0x3;
         self.csrs.write(addr, value)

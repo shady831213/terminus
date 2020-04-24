@@ -69,7 +69,7 @@ impl<'m> PmpCfgsIter<'m> {
     }
 
     fn get_entry(&self) -> PmpCfgEntry {
-        let csr = self.mmu.p.csrs::<ICsrs>().unwrap();
+        let csr = self.mmu.p.icsrs();
         let offset: u8 = match csr.xlen {
             XLen::X32 => self.idx & 0x3,
             XLen::X64 => self.idx & 0x7,
