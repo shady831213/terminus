@@ -213,44 +213,5 @@ impl Fetcher {
                 }
             }
         }
-
-        // let code = {
-        //     let mut icache = self.icache.borrow_mut();
-        //     if pc.trailing_zeros() == 1 {
-        //         let pa = mmu.translate(pc, 2, MmuOpt::Fetch)?;
-        //         if let Some(data) = icache.get_insn(pa) {
-        //             data
-        //         } else {
-        //             let data_low = self.fetch_u16_slow(pa, pc)?;
-        //             if data_low & 0x3 != 0x3 {
-        //                 let data = data_low as u16 as InsnT;
-        //                 icache.set_entry(pa, data);
-        //                 data
-        //             } else {
-        //                 let pa_high = mmu.translate(pc + 2, 2, MmuOpt::Fetch)?;
-        //                 let data_high = self.fetch_u16_slow(pa_high, pc)?;
-        //                 let data = data_low as u16 as InsnT | ((data_high as u16 as InsnT) << 16);
-        //                 icache.set_entry(pa, data);
-        //                 data
-        //             }
-        //         }
-        //     } else {
-        //         let pa = mmu.translate(pc, 4, MmuOpt::Fetch)?;
-        //         if let Some(data) = icache.get_insn(pa) {
-        //             data
-        //         } else {
-        //             let data = self.fetch_u32_slow(pa, pc)?;
-        //             if data & 0x3 != 0x3 {
-        //                 let data_low = data as u16 as InsnT;
-        //                 icache.set_entry(pa, data_low);
-        //                 data_low
-        //             } else {
-        //                 icache.set_entry(pa, data as InsnT);
-        //                 data as InsnT
-        //             }
-        //         }
-        //     }
-        // };
-        // GDECODER.decode(code)
     }
 }
