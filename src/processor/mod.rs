@@ -3,7 +3,7 @@ use terminus_global::*;
 use std::sync::Arc;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::rc::Rc;
-use std::cell::{RefCell, Ref};
+use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use terminus_spaceport::irq::IrqVec;
 use crate::devices::bus::Bus;
@@ -79,7 +79,7 @@ pub struct ProcessorState {
     config: ProcessorCfg,
     privilege: RefCell<Privilege>,
     xreg: RefCell<[RegT; 32]>,
-    extensions: RefCell<[Extension; 26]>,
+    extensions: [Extension; 26],
     pc: RefCell<RegT>,
     next_pc: RefCell<RegT>,
     ir: RefCell<InsnT>,
@@ -106,7 +106,7 @@ impl Display for ProcessorState {
         for (i, v) in self.xreg.borrow().iter().enumerate() {
             writeln!(f, "   x{:<2} : {:#x}", i, v)?;
         }
-        if let Extension::F(ref float) = self.extensions()[('f' as u8 - 'a' as u8) as usize] {
+        if let Extension::F(ref float) = self.get_extension('f') {
             for (i, v) in float.fregs().iter().enumerate() {
                 writeln!(f, "   f{:<2} : {:#x}", i, v)?;
             }
@@ -119,24 +119,26 @@ impl Display for ProcessorState {
 
 impl ProcessorState {
     fn new(hartid: usize, config: ProcessorCfg, clint: &Arc<IrqVec>) -> ProcessorState {
-        ProcessorState {
+        let mut state = ProcessorState {
             hartid,
             config,
             privilege: RefCell::new(Privilege::M),
             xreg: RefCell::new([0 as RegT; 32]),
-            extensions: RefCell::new(unsafe {
+            extensions: unsafe {
                 let mut arr: MaybeUninit<[Extension; 26]> = MaybeUninit::uninit();
                 for i in 0..26 {
                     (arr.as_mut_ptr() as *mut Extension).add(i).write(Extension::None);
                 }
                 arr.assume_init()
-            }),
+            },
             pc: RefCell::new(0),
             next_pc: RefCell::new(0),
             ir: RefCell::new(0),
             clint: clint.clone(),
             insns_cnt: Rc::new(RefCell::new(0)),
-        }
+        };
+        state.add_extension().expect("add extension error!");
+        state
     }
 
     fn reset(&self, start_address: u64) -> Result<(), String> {
@@ -144,13 +146,9 @@ impl ProcessorState {
             return Err(format!("cpu{}:invalid start addr {:#x} when xlen == X32!", self.hartid, start_address));
         }
         *self.xreg.borrow_mut() = [0 as RegT; 32];
-        for e in self.extensions.borrow_mut().iter_mut() {
-            *e = Extension::None
-        }
         *self.pc.borrow_mut() = 0;
         *self.next_pc.borrow_mut() = start_address;
         *self.ir.borrow_mut() = 0;
-        self.add_extension()?;
         let csrs = self.icsrs();
         //register clint:0:msip, 1:mtip
         csrs.mip_mut().msip_transform({
@@ -215,21 +213,26 @@ impl ProcessorState {
         Ok(())
     }
 
-    fn add_extension(&self) -> Result<(), String> {
-        let add_one_extension = |id: char| -> Result<(), String>  {
+    fn add_extension(&mut self) -> Result<(), String> {
+        let exts = self.config().extensions.iter().filter(|&e| { *e != 'i' }).map(|e| { *e }).collect::<Vec<char>>();
+        let mut add_one_extension = |id: char| -> Result<(), String>  {
             let ext = Extension::new(self, id)?;
-            self.extensions.borrow_mut()[(id as u8 - 'a' as u8) as usize] = ext;
+            self.extensions[(id as u8 - 'a' as u8) as usize] = ext;
             Ok(())
         };
         add_one_extension('i')?;
-        for &ext in self.config().extensions.iter().filter(|&e| { *e != 'i' }) {
+        for ext in exts {
             add_one_extension(ext)?
         }
         Ok(())
     }
 
-    fn extensions(&self) -> Ref<'_, [Extension; 26]> {
-        self.extensions.borrow()
+    fn extensions(&self) -> &[Extension; 26] {
+        &self.extensions
+    }
+
+    fn get_extension(&self, id:char) -> &Extension {
+        &self.extensions[(id as u8 - 'a' as u8) as usize]
     }
 
     pub fn isa_string(&self) -> String {
@@ -238,7 +241,7 @@ impl ProcessorState {
     }
 
     pub fn icsrs(&self) -> Rc<ICsrs> {
-        if let Extension::I(ref i) = self.extensions()[('i' as u8 - 'a' as u8) as usize] {
+        if let Extension::I(ref i) = self.get_extension('i') {
             i.get_csrs().clone()
         } else {
             unreachable!()
@@ -246,7 +249,7 @@ impl ProcessorState {
     }
 
     pub fn scsrs(&self) -> Rc<SCsrs> {
-        if let Extension::S(ref s) = self.extensions()[('s' as u8 - 'a' as u8) as usize] {
+        if let Extension::S(ref s) = self.get_extension('s') {
             s.get_csrs().clone()
         } else {
             unreachable!()

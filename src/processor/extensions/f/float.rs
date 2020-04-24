@@ -12,7 +12,7 @@ pub use simple_soft_float::{F64, F32, Sign, F64Traits, F32Traits, FPState};
 pub trait FloatInsn: InstructionImp {
     fn get_f_ext(&self, p: &Processor) -> Result<Rc<ExtensionF>, Exception> {
         p.state().check_extension('f')?;
-        if let Extension::F(ref f) = p.state().extensions()[('f' as u8 - 'a' as u8) as usize] {
+        if let Extension::F(ref f) = p.state().get_extension('f'){
             if f.dirty() == 0 {
                 Err(Exception::IllegalInsn(self.ir()))
             } else {
