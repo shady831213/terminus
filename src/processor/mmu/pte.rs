@@ -1,12 +1,12 @@
+use crate::prelude::*;
 use terminus_spaceport::memory::region;
 use terminus_global::{XLen, RegT};
-use std::convert::TryFrom;
 use terminus_spaceport::memory::region::{U32Access, U64Access};
 use crate::processor::extensions::s::csrs::*;
-use num_enum::{IntoPrimitive, TryFromPrimitive};
+use num_enum::IntoPrimitive;
 use crate::devices::bus::Bus;
 
-#[derive(IntoPrimitive, TryFromPrimitive, Debug, Eq, PartialEq)]
+#[derive(IntoPrimitive, Debug, Eq, PartialEq)]
 #[repr(u8)]
 pub enum PteMode {
     Bare = 0,
@@ -15,6 +15,20 @@ pub enum PteMode {
     Sv48 = 9,
     Sv57 = 10,
     Sv64 = 11,
+}
+
+impl PteMode {
+    fn new(value: u8) -> PteMode {
+        match value {
+            0 => PteMode::Bare,
+            1 => PteMode::Sv32,
+            8 => PteMode::Sv39,
+            9 => PteMode::Sv48,
+            10 => PteMode::Sv57,
+            11 => PteMode::Sv64,
+            _ => unreachable!()
+        }
+    }
 }
 
 pub struct PteInfo {
@@ -28,13 +42,13 @@ impl PteInfo {
     pub fn new(satp: &Satp) -> PteInfo {
         match satp.xlen {
             XLen::X32 => PteInfo {
-                mode: PteMode::try_from(satp.mode() as u8).unwrap(),
+                mode: PteMode::new(satp.mode() as u8),
                 level: 2,
                 size: 4,
                 page_size: 4096,
             },
             XLen::X64 => {
-                let mode = PteMode::try_from(satp.mode() as u8).unwrap();
+                let mode = PteMode::new(satp.mode() as u8);
                 let level = match mode {
                     PteMode::Sv39 => 3,
                     PteMode::Sv48 => 4,
@@ -52,20 +66,50 @@ impl PteInfo {
     }
 }
 
-bitfield! {
-#[derive(Eq,PartialEq)]
+#[derive(Eq, PartialEq)]
 pub struct PteAttr(u8);
-impl Debug;
-pub v, set_v:0, 0;
-pub r, set_r:1, 1;
-pub w, set_w:2, 2;
-pub x, set_x:3, 3;
-pub u, set_u:4, 4;
-pub g, set_g:5, 5;
-pub a, set_a:6,6;
-pub d, set_d:7, 7;
-}
 
+impl PteAttr {
+    pub fn v(&self) -> u8 {
+        self.0 & 0x1
+    }
+
+    pub fn r(&self) -> u8 {
+        (self.0 >> 1) & 0x1
+    }
+
+    pub fn w(&self) -> u8 {
+        (self.0 >> 2) & 0x1
+    }
+
+    pub fn x(&self) -> u8 {
+        (self.0 >> 3) & 0x1
+    }
+
+    pub fn u(&self) -> u8 {
+        (self.0 >> 4) & 0x1
+    }
+
+    // pub fn g(&self) -> u8 {
+    //     (self.0 >> 5) & 0x1
+    // }
+
+    pub fn a(&self) -> u8 {
+        (self.0 >> 6) & 0x1
+    }
+
+    pub fn set_a(&mut self, value: u8) {
+        self.0 = ((value & 1) << 6) | self.0 & 0xbf
+    }
+
+    pub fn d(&self) -> u8 {
+        (self.0 >> 7) & 0x1
+    }
+
+    pub fn set_d(&mut self, value: u8) {
+        self.0 = ((value & 1) << 7) | self.0 & 0x7f
+    }
+}
 
 impl From<u8> for PteAttr {
     fn from(v: u8) -> Self {
@@ -73,13 +117,46 @@ impl From<u8> for PteAttr {
     }
 }
 
+macro_rules! default_bitrange {
+    ($name:ident) => {
+        impl BitRange<RegT> for $name {
+            fn bit_range(&self, msb: usize, lsb: usize) -> RegT {
+                let width = msb - lsb + 1;
+                if width == 64 {
+                    self.0
+                } else {
+                    let mask: RegT = ((1 as RegT) << (width as RegT)) - 1;
+                    (self.0 >> (lsb as RegT)) & mask
+                }
+            }
+
+            fn set_bit_range(&mut self, msb: usize, lsb: usize, value: RegT) {
+                let width = msb - lsb + 1;
+                let bitlen = 64;
+                if width == bitlen {
+                    self.0 = value
+                } else {
+                    let low = self.0 & (((1 as RegT) << (lsb as RegT)) - 1);
+                    let high = if msb == bitlen - 1 { 0 } else { (self.0 >> ((msb + 1) as RegT)) << ((msb + 1) as RegT) };
+                    let mask: RegT = ((1 as RegT) << (width as RegT)) - 1;
+                    self.0 = high | low | (((value as RegT) & mask) << (lsb as RegT));
+                }
+            }
+        }
+    };
+}
+
+
 bitfield! {
 pub struct Sv32Vaddr(RegT);
+no default BitRange;
 impl Debug;
 vpn1,_:31, 22;
 vpn0,_:21, 12;
 offset,_:11,0;
 }
+
+default_bitrange!(Sv32Vaddr);
 
 impl Sv32Vaddr {
     fn vpn(&self, level: usize) -> Option<RegT> {
@@ -95,16 +172,18 @@ impl Sv32Vaddr {
     fn vpn_all(&self) -> RegT {
         self.vpn1() << 10 | self.vpn0()
     }
-
 }
 
 bitfield! {
 pub struct Sv32Paddr(RegT);
+no default BitRange;
 impl Debug;
 ppn1,set_ppn1:33, 22;
 ppn0,set_ppn0:21, 12;
 offset,set_offset:11,0;
 }
+
+default_bitrange!(Sv32Paddr);
 
 impl Sv32Paddr {
     // fn ppn(&self, level: usize) -> Option<RegT> {
@@ -123,19 +202,20 @@ impl Sv32Paddr {
         }
     }
     fn value(&self) -> RegT {
-        self.0 & ((1 << 32) -1)
+        self.0 & ((1 << 32) - 1)
     }
 }
 
 bitfield! {
 pub struct Sv32Pte(RegT);
+no default BitRange;
 impl Debug;
 ppn1,_:31, 20;
 ppn0,_:19, 10;
 rsw,_:9,8;
 attr_raw,set_attr_raw:7,0;
 }
-
+default_bitrange!(Sv32Pte);
 impl Sv32Pte {
     fn ppn(&self, level: usize) -> Option<RegT> {
         match level {
@@ -154,12 +234,14 @@ impl Sv32Pte {
 
 bitfield! {
 pub struct Sv39Vaddr(RegT);
+no default BitRange;
 impl Debug;
 vpn2,_:38, 30;
 vpn1,_:29, 21;
 vpn0,_:20, 12;
 offset,_:11,0;
 }
+default_bitrange!(Sv39Vaddr);
 
 impl Sv39Vaddr {
     fn vpn(&self, level: usize) -> Option<RegT> {
@@ -174,17 +256,18 @@ impl Sv39Vaddr {
         self.0
     }
     fn vpn_all(&self) -> RegT { self.vpn2() << 18 | self.vpn1() << 9 | self.vpn0() }
-
 }
 
 bitfield! {
 pub struct Sv39Paddr(RegT);
+no default BitRange;
 impl Debug;
 ppn2,set_ppn2:55, 30;
 ppn1,set_ppn1:29, 21;
 ppn0,set_ppn0:20, 12;
 offset,set_offset:11,0;
 }
+default_bitrange!(Sv39Paddr);
 
 impl Sv39Paddr {
     // fn ppn(&self, level: usize) -> Option<RegT> {
@@ -205,12 +288,13 @@ impl Sv39Paddr {
         }
     }
     fn value(&self) -> RegT {
-        self.0 & ((1 << 39) -1)
+        self.0 & ((1 << 39) - 1)
     }
 }
 
 bitfield! {
 pub struct Sv39Pte(RegT);
+no default BitRange;
 impl Debug;
 ppn2,_:53, 28;
 ppn1,_:27, 19;
@@ -218,6 +302,7 @@ ppn0,_:18, 10;
 rsw,_:9,8;
 attr_raw,set_attr_raw:7,0;
 }
+default_bitrange!(Sv39Pte);
 
 impl Sv39Pte {
     fn ppn(&self, level: usize) -> Option<RegT> {
@@ -238,6 +323,7 @@ impl Sv39Pte {
 
 bitfield! {
 pub struct Sv48Vaddr(RegT);
+no default BitRange;
 impl Debug;
 vpn3,_:47, 39;
 vpn2,_:38, 30;
@@ -245,6 +331,7 @@ vpn1,_:29, 21;
 vpn0,_:20, 12;
 offset,_:11,0;
 }
+default_bitrange!(Sv48Vaddr);
 
 impl Sv48Vaddr {
     fn vpn(&self, level: usize) -> Option<RegT> {
@@ -259,12 +346,12 @@ impl Sv48Vaddr {
     fn value(&self) -> RegT {
         self.0
     }
-    fn vpn_all(&self) -> RegT {  self.vpn3() << 27 | self.vpn2() << 18 | self.vpn1() << 9 | self.vpn0() }
-
+    fn vpn_all(&self) -> RegT { self.vpn3() << 27 | self.vpn2() << 18 | self.vpn1() << 9 | self.vpn0() }
 }
 
 bitfield! {
 pub struct Sv48Paddr(RegT);
+no default BitRange;
 impl Debug;
 ppn3,set_ppn3:55, 39;
 ppn2,set_ppn2:38, 30;
@@ -272,6 +359,7 @@ ppn1,set_ppn1:29, 21;
 ppn0,set_ppn0:20, 12;
 offset,set_offset:11,0;
 }
+default_bitrange!(Sv48Paddr);
 
 impl Sv48Paddr {
     // fn ppn(&self, level: usize) -> Option<RegT> {
@@ -294,12 +382,13 @@ impl Sv48Paddr {
         }
     }
     fn value(&self) -> RegT {
-        self.0  & ((1 << 48) -1)
+        self.0 & ((1 << 48) - 1)
     }
 }
 
 bitfield! {
 pub struct Sv48Pte(RegT);
+no default BitRange;
 impl Debug;
 ppn3,_:53, 37;
 ppn2,_:36, 28;
@@ -308,6 +397,7 @@ ppn0,_:18, 10;
 rsw,_:9,8;
 attr_raw,set_attr_raw:7,0;
 }
+default_bitrange!(Sv48Pte);
 
 impl Sv48Pte {
     fn ppn(&self, level: usize) -> Option<RegT> {

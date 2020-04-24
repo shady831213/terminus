@@ -146,7 +146,7 @@ impl Fetcher {
             icache: RefCell::new(ICache::new(1024)),
         }
     }
-    #[inline(always)]
+
     fn fetch_u16_slow(&self, addr: u64, pc: u64) -> Result<InsnT, Exception> {
         match U16Access::read(self.bus.deref(), addr) {
             Ok(data) => {
@@ -158,7 +158,7 @@ impl Fetcher {
             }
         }
     }
-    #[inline(always)]
+
     fn fetch_u32_slow(&self, addr: u64, pc: u64) -> Result<InsnT, Exception> {
         match U32Access::read(self.bus.deref(), addr) {
             Ok(data) => Ok(data as InsnT),

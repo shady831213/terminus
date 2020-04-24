@@ -128,10 +128,11 @@ impl System {
                             None
                         };
                         range0.iter().for_each(|info| {
-                            self.register_region(name, info.base, &Region::remap_partial(0, mem, 0, info.size)).unwrap();
+                            self.mem_space.add_region(name, &Region::remap_partial(info.base, mem, 0, info.size)).unwrap();
                         });
                         range1.iter().for_each(|info| {
-                            self.register_region(&format!("{}_1", name), info.base, &Region::remap_partial(0, mem, info.base - base, info.size)).unwrap();
+                            self.mem_space.add_region(&format!("{}_1", name), &Region::remap_partial(info.base, mem, info.base - base, info.size)).unwrap();
+
                         });
                         Ok(())
                     } else {
