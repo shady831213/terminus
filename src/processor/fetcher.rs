@@ -10,51 +10,94 @@ use crate::processor::decode::*;
 use std::sync::Arc;
 use crate::devices::bus::Bus;
 use std::ops::Deref;
-use std::collections::VecDeque;
 use std::cell::RefCell;
+use std::mem::MaybeUninit;
 
 struct ICacheEntry {
+    accsessed: bool,
     tag: u64,
-    insn: Instruction,
+    insn: Option<Instruction>,
 }
 
 struct ICacheBasket {
-    size: usize,
-    entries: VecDeque<ICacheEntry>,
+    ptr: u8,
+    entries: [ICacheEntry; 16],
 }
 
 impl ICacheBasket {
-    fn new(size: usize) -> ICacheBasket {
+    fn new() -> ICacheBasket {
         ICacheBasket {
-            size,
-            entries: VecDeque::new(),
+            ptr: 0,
+            entries: unsafe {
+                let mut arr: MaybeUninit<[ICacheEntry; 16]> = MaybeUninit::uninit();
+                for i in 0..16 {
+                    (arr.as_mut_ptr() as *mut ICacheEntry).add(i).write(ICacheEntry { accsessed: false, tag: 0, insn: None });
+                }
+                arr.assume_init()
+            },
         }
     }
 
     fn get_insn(&mut self, tag: u64) -> Option<&Instruction> {
-        let mut idx: Option<usize> = None;
-        for (i, entry) in self.entries.iter().enumerate() {
-            if entry.tag == tag {
-                idx = Some(i);
-                break;
+        let mut ptr = self.ptr;
+        let tail = self.tail();
+        while ptr != tail {
+            if self.entries[ptr as usize].tag == tag {
+                if let Some(ref i) = self.entries[ptr as usize].insn {
+                    self.entries[ptr as usize].accsessed = true;
+                    self.ptr = ptr;
+                    return Some(i);
+                }
             }
+            self.entries[ptr as usize].accsessed = false;
+            ptr = Self::next_ptr(ptr);
         }
-        if let Some(i) = idx {
-            if i != 0 {
-                let entry = self.entries.remove(i).unwrap();
-                self.entries.push_front(entry);
-            }
-            Some(&self.entries[0].insn)
+        None
+    }
+
+    fn next_ptr(p: u8) -> u8 {
+        if p == 15 {
+            0
         } else {
-            None
+            p + 1
+        }
+    }
+
+    fn prev_ptr(p: u8) -> u8 {
+        if p == 0 {
+            15
+        } else {
+            p -1
+        }
+    }
+
+    fn tail(&self) -> u8 {
+        if self.ptr == 0 {
+            15
+        } else {
+            self.ptr - 1
         }
     }
 
     fn set_entry(&mut self, tag: u64, insn: &Instruction) {
-        if self.entries.len() >= self.size {
-            self.entries.pop_back();
+        let mut ptr = self.tail();
+        let tail = self.ptr;
+        while ptr != tail {
+            let e = &self.entries[ptr as usize];
+            if e.insn.is_none() || !e.accsessed {
+                break;
+            }
+            ptr = Self::prev_ptr(ptr);
         }
-        self.entries.push_front(ICacheEntry { tag, insn: insn.deref().deref().clone() })
+        let e = &mut self.entries[ptr as usize];
+        e.accsessed = true;
+        e.tag = tag;
+        e.insn = Some(insn.deref().deref().clone());
+        self.ptr = ptr;
+    }
+
+    fn invalid_all(&mut self) {
+        self.entries.iter_mut().for_each(|e| { e.insn = None })
     }
 }
 
@@ -65,29 +108,27 @@ struct ICache {
 }
 
 impl ICache {
-    fn new(cache_size: usize, basket_size: usize) -> ICache {
-        assert!(cache_size.is_power_of_two());
+    fn new(size:usize) -> ICache {
         let mut cache = ICache {
-            size: cache_size,
-            baskets: vec![],
+            size,
+            baskets:Vec::with_capacity(size),
         };
-        for _ in 0..cache_size {
-            cache.baskets.push(ICacheBasket::new(basket_size))
+        for _ in 0 .. size {
+            cache.baskets.push(ICacheBasket::new())
         };
         cache
     }
 
     fn get_insn(&mut self, addr: u64) -> Option<&Instruction> {
-        self.baskets[((addr >> 2) as usize) & (self.size - 1)].get_insn(addr >> 1)
+        self.baskets[((addr >> 1) as usize) & (self.size - 1)].get_insn(addr >> 1)
     }
 
     fn set_entry(&mut self, addr: u64, insn: &Instruction) {
-        self.baskets[((addr >> 2) as usize) & (self.size - 1)].set_entry(addr >> 1, insn)
+        self.baskets[((addr >> 1) as usize) & (self.size - 1)].set_entry(addr >> 1, insn)
     }
 
     fn invalid_all(&mut self) {
-        let basket_size = self.baskets[0].size;
-        self.baskets.iter_mut().for_each(|b| { *b = ICacheBasket::new(basket_size) })
+        self.baskets.iter_mut().for_each(|b| { b.invalid_all() })
     }
 }
 
@@ -102,7 +143,7 @@ impl Fetcher {
         Fetcher {
             p: p.clone(),
             bus: bus.clone(),
-            icache: RefCell::new(ICache::new(1024, 128)),
+            icache: RefCell::new(ICache::new(1024)),
         }
     }
     #[inline(always)]
