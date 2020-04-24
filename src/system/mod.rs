@@ -132,7 +132,6 @@ impl System {
                         });
                         range1.iter().for_each(|info| {
                             self.mem_space.add_region(&format!("{}_1", name), &Region::remap_partial(info.base, mem, info.base - base, info.size)).unwrap();
-
                         });
                         Ok(())
                     } else {
@@ -152,16 +151,11 @@ impl System {
                 if data.is_empty() {
                     Ok(())
                 } else {
-                    if let Ok(ref region) = space.get_region_by_addr(addr) {
-                        let len = min((region.info.base + region.info.size - addr) as usize, data.len());
-                        let (head, tails) = data.split_at(len);
-                        if let Err(e) = BytesAccess::write(region.deref(), addr, head) {
-                            return Err(format!("{:?}", e));
-                        }
-                        load(space, region.info.base + region.info.size, tails)
-                    } else {
-                        Err(format!("not enough memory!"))
-                    }
+                    let region = space.get_region_by_addr(addr).expect("not enough memory!");
+                    let len = min((region.info.base + region.info.size - addr) as usize, data.len());
+                    let (head, tails) = data.split_at(len);
+                    BytesAccess::write(region.deref(), addr, head);
+                    load(space, region.info.base + region.info.size, tails)
                 }
             };
             load(self.mem_space().deref(), addr, data)
@@ -222,7 +216,7 @@ impl System {
             memory.add_prop(FdtProp::u64_prop("reg", vec![base, size]));
             root.add_node(memory);
         } else {
-            return Err(Error::FdtErr("\"main_memory\" is not in memory space!".to_string()))
+            return Err(Error::FdtErr("\"main_memory\" is not in memory space!".to_string()));
         }
 
         let mut soc = FdtNode::new("soc");
@@ -245,7 +239,7 @@ impl System {
             clint.add_prop(FdtProp::u64_prop("reg", vec![clint_region.info.base, clint_region.info.size]));
             soc.add_node(clint);
         } else {
-            return Err(Error::FdtErr("\"clint\" is not in memory space!".to_string()))
+            return Err(Error::FdtErr("\"clint\" is not in memory space!".to_string()));
         }
 
         let mut htif = FdtNode::new("htif");
@@ -258,14 +252,14 @@ impl System {
         Ok(fdt::compile(&root))
     }
 
-    pub fn make_boot_rom(&self, base:u64, entry:u64) -> Result<()> {
+    pub fn make_boot_rom(&self, base: u64, entry: u64) -> Result<()> {
         let start_address = if entry == -1i64 as u64 {
             self.elf.entry_point().unwrap()
         } else {
             entry
         };
         let mut dtb = self.compile_fdt()?;
-        let mut reset_vec:Vec<u32> = vec![
+        let mut reset_vec: Vec<u32> = vec![
             0x297,                                                            //auipc t0, 0x0
             0,                                                                //placeholder[addi   a1, t0, &dtb]
             0xf1402573,                                                       //csrr   a0, mhartid
@@ -285,14 +279,14 @@ impl System {
         }
         rom.append(&mut dtb);
         let rom_mem = GHEAP.alloc(rom.len() as u64, 1).expect("boot rom alloc fail!");
-        BytesAccess::write(rom_mem.deref(), rom_mem.info.base, &rom).unwrap();
+        BytesAccess::write(rom_mem.deref(), rom_mem.info.base, &rom);
         self.register_memory("boot_rom", base, &rom_mem)?;
         Ok(())
     }
 
-    pub fn reset(&self, reset_vecs:Vec<u64>)->Result<()> {
+    pub fn reset(&self, reset_vecs: Vec<u64>) -> Result<()> {
         if reset_vecs.len() != self.processors.len() {
-            return Err(Error::ResetErr(format!("reset_vecs size {} is not match with processor num {}!", reset_vecs.len(), self.processors.len())))
+            return Err(Error::ResetErr(format!("reset_vecs size {} is not match with processor num {}!", reset_vecs.len(), self.processors.len())));
         }
         for (i, p) in self.processors().iter().enumerate() {
             if let Err(msg) = if reset_vecs[i] == -1i64 as u64 {
@@ -304,7 +298,7 @@ impl System {
             } else {
                 p.reset(reset_vecs[i])
             } {
-                return Err(Error::ResetErr(msg))
+                return Err(Error::ResetErr(msg));
             }
         }
         Ok(())

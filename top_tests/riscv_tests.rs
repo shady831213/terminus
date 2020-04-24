@@ -60,7 +60,7 @@ fn riscv_test(xlen: XLen, name: &str, debug: bool, num_cores: usize) -> bool {
         }
     }
     let htif = sys.mem_space().get_region("htif").unwrap();
-    U64Access::read(htif.deref(), htif.info.base).unwrap() == 0x1
+    U64Access::read(htif.deref(), htif.info.base) == 0x1
 }
 
 fn main() {

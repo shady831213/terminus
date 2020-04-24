@@ -1,5 +1,3 @@
-use terminus_spaceport::memory::region::{U16Access, U32Access};
-use terminus_spaceport::memory::region;
 use crate::processor::ProcessorState;
 use crate::processor::insn::Instruction;
 use std::rc::Rc;
@@ -14,7 +12,7 @@ use std::cell::RefCell;
 use std::mem::MaybeUninit;
 
 struct ICacheEntry {
-    accsessed: bool,
+    accessed: bool,
     tag: u64,
     insn: Option<Instruction>,
 }
@@ -31,7 +29,7 @@ impl ICacheBasket {
             entries: unsafe {
                 let mut arr: MaybeUninit<[ICacheEntry; 16]> = MaybeUninit::uninit();
                 for i in 0..16 {
-                    (arr.as_mut_ptr() as *mut ICacheEntry).add(i).write(ICacheEntry { accsessed: false, tag: 0, insn: None });
+                    (arr.as_mut_ptr() as *mut ICacheEntry).add(i).write(ICacheEntry { accessed: false, tag: 0, insn: None });
                 }
                 arr.assume_init()
             },
@@ -44,12 +42,12 @@ impl ICacheBasket {
         while ptr != tail {
             if self.entries[ptr as usize].tag == tag {
                 if let Some(ref i) = self.entries[ptr as usize].insn {
-                    self.entries[ptr as usize].accsessed = true;
+                    self.entries[ptr as usize].accessed = true;
                     self.ptr = ptr;
                     return Some(i);
                 }
             }
-            self.entries[ptr as usize].accsessed = false;
+            self.entries[ptr as usize].accessed = false;
             ptr = Self::next_ptr(ptr);
         }
         None
@@ -67,7 +65,7 @@ impl ICacheBasket {
         if p == 0 {
             15
         } else {
-            p -1
+            p - 1
         }
     }
 
@@ -84,13 +82,13 @@ impl ICacheBasket {
         let tail = self.ptr;
         while ptr != tail {
             let e = &self.entries[ptr as usize];
-            if e.insn.is_none() || !e.accsessed {
+            if e.insn.is_none() || !e.accessed {
                 break;
             }
             ptr = Self::prev_ptr(ptr);
         }
         let e = &mut self.entries[ptr as usize];
-        e.accsessed = true;
+        e.accessed = true;
         e.tag = tag;
         e.insn = Some(insn.deref().deref().clone());
         self.ptr = ptr;
@@ -108,21 +106,21 @@ struct ICache {
 }
 
 impl ICache {
-    fn new(size:usize) -> ICache {
+    fn new(size: usize) -> ICache {
         let mut cache = ICache {
             size,
-            baskets:Vec::with_capacity(size),
+            baskets: Vec::with_capacity(size),
         };
-        for _ in 0 .. size {
+        for _ in 0..size {
             cache.baskets.push(ICacheBasket::new())
         };
         cache
     }
-
+    #[cfg_attr(feature = "no-inline", inline(never))]
     fn get_insn(&mut self, addr: u64) -> Option<&Instruction> {
         self.baskets[((addr >> 1) as usize) & (self.size - 1)].get_insn(addr >> 1)
     }
-
+    #[cfg_attr(feature = "no-inline", inline(never))]
     fn set_entry(&mut self, addr: u64, insn: &Instruction) {
         self.baskets[((addr >> 1) as usize) & (self.size - 1)].set_entry(addr >> 1, insn)
     }
@@ -146,26 +144,20 @@ impl Fetcher {
             icache: RefCell::new(ICache::new(1024)),
         }
     }
-
+    #[cfg_attr(feature = "no-inline", inline(never))]
     fn fetch_u16_slow(&self, addr: u64, pc: u64) -> Result<InsnT, Exception> {
-        match U16Access::read(self.bus.deref(), addr) {
+        match self.bus.read_u16(addr) {
             Ok(data) => {
                 Ok(data as InsnT)
             }
-            Err(e) => match e {
-                region::Error::AccessErr(_, _) => return Err(Exception::FetchAccess(pc)),
-                region::Error::Misaligned(_) => return Err(Exception::FetchMisaligned(pc))
-            }
+            Err(_) => Err(Exception::FetchAccess(pc)),
         }
     }
-
+    #[cfg_attr(feature = "no-inline", inline(never))]
     fn fetch_u32_slow(&self, addr: u64, pc: u64) -> Result<InsnT, Exception> {
-        match U32Access::read(self.bus.deref(), addr) {
+        match self.bus.read_u32(addr) {
             Ok(data) => Ok(data as InsnT),
-            Err(e) => match e {
-                region::Error::AccessErr(_, _) => return Err(Exception::FetchAccess(pc)),
-                region::Error::Misaligned(_) => return Err(Exception::FetchMisaligned(pc))
-            }
+            Err(_) => Err(Exception::FetchAccess(pc))
         }
     }
 

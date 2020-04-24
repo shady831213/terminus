@@ -1,45 +1,41 @@
 #[derive(Default, Copy, Clone)]
 struct TLBEntry {
+    valid: bool,
     vpn: u64,
     ppn: u64,
 }
 
 pub struct TLB {
-    entries: Vec<Option<TLBEntry>>,
+    entries: [TLBEntry; 256],
     size: usize,
 }
 
 impl TLB {
-    pub fn new(size: usize) -> TLB {
-        assert!(size.is_power_of_two());
+    pub fn new() -> TLB {
         TLB {
-            entries: vec![None; size],
-            size,
+            entries: [TLBEntry::default(); 256],
+            size: 256,
         }
     }
-
-    pub fn get_ppn(&mut self, vpn: u64) -> Option<u64> {
-        if let Some(ref entry) = self.entries[(vpn as usize) & (self.size - 1)] {
-            if entry.vpn == vpn {
-                Some(entry.ppn)
-            } else {
-                None
-            }
+    #[inline(never)]
+    pub fn get_ppn(&self, vpn: u64) -> Option<u64> {
+        let e = &self.entries[(vpn as usize) & (self.size - 1)];
+        if e.valid && e.vpn == vpn {
+            Some(e.ppn)
         } else {
             None
         }
     }
-
+    #[inline(never)]
     pub fn set_entry(&mut self, vpn: u64, ppn: u64) {
-        self.entries[(vpn as usize) & (self.size - 1)] = Some(TLBEntry{vpn, ppn})
+        let e = &mut self.entries[(vpn as usize) & (self.size - 1)];
+        e.valid = true;
+        e.vpn = vpn;
+        e.ppn = ppn;
     }
 
-    // pub fn invalid(&mut self, vpn: u64) {
-    //     self.entries.retain(|e|{e.vpn != vpn})
-    // }
 
     pub fn invalid_all(&mut self) {
-        self.entries.iter_mut().for_each(|e|{*e = None})
+        self.entries.iter_mut().for_each(|e| { e.valid = false })
     }
-
 }

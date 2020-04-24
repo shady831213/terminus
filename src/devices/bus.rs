@@ -1,7 +1,5 @@
-use terminus_spaceport::memory::prelude::*;
 use std::sync::{Arc, Mutex};
 use terminus_spaceport::space::Space;
-use terminus_spaceport::memory::region;
 use std::ops::Deref;
 
 
@@ -23,7 +21,6 @@ impl LockEntry {
     }
 }
 
-#[derive_io(U8, U16, U32, U64)]
 pub struct Bus {
     space: Arc<Space>,
     lock_table: Mutex<Vec<LockEntry>>,
@@ -89,59 +86,26 @@ impl Bus {
 
     pub fn release(&self, who: usize) {
         let mut lock_table = self.lock_table.lock().unwrap();
-        lock_table.retain(|e|{e.holder != who})
+        lock_table.retain(|e| { e.holder != who })
     }
 
-    pub fn amo_u32<F: Fn(u32) -> u32>(&self, addr: u64, f: F) -> region::Result<u32> {
-        let read = U32Access::read(self.space.deref(), addr)?;
+    pub fn amo_u32<F: Fn(u32) -> u32>(&self, addr: u64, f: F) -> Result<u32, u64> {
+        let read = self.read_u32(addr)?;
         let write = f(read);
-        U32Access::write(self.space.deref(), addr, write)?;
+        self.write_u32(addr, write)?;
         Ok(read)
     }
-    pub fn amo_u64<F: Fn(u64) -> u64>(&self, addr: u64, f: F) -> region::Result<u64> {
-        let read = U64Access::read(self.space.deref(), addr)?;
+    pub fn amo_u64<F: Fn(u64) -> u64>(&self, addr: u64, f: F) -> Result<u64, u64> {
+        let read = self.read_u64(addr)?;
         let write = f(read);
-        U64Access::write(self.space.deref(), addr, write)?;
+        self.write_u64(addr, write)?;
         Ok(read)
     }
 }
 
-impl U8Access for Bus {
-    fn write(&self, addr: u64, data: u8) -> region::Result<()> {
-        U8Access::write(self.space.deref(), addr, data)
-    }
-
-    fn read(&self, addr: u64) -> region::Result<u8> {
-        U8Access::read(self.space.deref(), addr)
-    }
-}
-
-impl U16Access for Bus {
-    fn write(&self, addr: u64, data: u16) -> region::Result<()> {
-        U16Access::write(self.space.deref(), addr, data)
-    }
-
-    fn read(&self, addr: u64) -> region::Result<u16> {
-        U16Access::read(self.space.deref(), addr)
-    }
-}
-
-impl U32Access for Bus {
-    fn write(&self, addr: u64, data: u32) -> region::Result<()> {
-        U32Access::write(self.space.deref(), addr, data)
-    }
-
-    fn read(&self, addr: u64) -> region::Result<u32> {
-        U32Access::read(self.space.deref(), addr)
-    }
-}
-
-impl U64Access for Bus {
-    fn write(&self, addr: u64, data: u64) -> region::Result<()> {
-        U64Access::write(self.space.deref(), addr, data)
-    }
-
-    fn read(&self, addr: u64) -> region::Result<u64> {
-        U64Access::read(self.space.deref(), addr)
+impl Deref for Bus {
+    type Target = Arc<Space>;
+    fn deref(&self) -> &Self::Target {
+        &self.space
     }
 }

@@ -31,3 +31,6 @@ path = "top_tests/riscv_tests.rs"
 [[example]]
 name = "htif_test"
 path = "top_tests/htif_test.rs"
+
+[features]
+no-inline = []

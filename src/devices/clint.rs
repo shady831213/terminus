@@ -2,7 +2,6 @@ use std::num::Wrapping;
 use terminus_spaceport::memory::prelude::*;
 use std::sync::{Mutex, Arc, MutexGuard, LockResult};
 use terminus_spaceport::irq::IrqVec;
-use terminus_spaceport::memory::region;
 use terminus_macros::*;
 
 struct TimerInner {
@@ -89,10 +88,8 @@ impl Clint {
 }
 
 impl U32Access for Clint {
-    fn write(&self, addr: u64, data: u32) -> region::Result<()> {
-        if addr.trailing_zeros() < 2 {
-            return Err(region::Error::Misaligned(addr));
-        }
+    fn write(&self, addr: u64, data: u32) {
+        assert!(addr.trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
         let mut timer = self.0.lock().unwrap();
         if addr >= MSIP_BASE && addr + 4 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
             let offset = ((addr - MSIP_BASE) >> 2) as usize;
@@ -100,7 +97,7 @@ impl U32Access for Clint {
             if data & 1 == 1 {
                 timer.irq_vecs[offset].set_pending(0).unwrap();
             }
-            return Ok(());
+            return;
         } else if addr >= MTIMECMP_BASE && addr + 4 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
             let offset = ((addr - MTIMECMP_BASE) >> 3) as usize;
             if addr.trailing_zeros() == 2 {
@@ -109,51 +106,48 @@ impl U32Access for Clint {
                 timer.mtimecmps[offset].set_bit_range(31, 0, data)
             };
             timer.tick(0);
-            return Ok(())
+            return;
         } else if addr >= MTIME_BASE && addr + 4 <= MTIME_BASE + MTIME_SIZE {
-            return Ok(if addr.trailing_zeros() == 2 {
+            return if addr.trailing_zeros() == 2 {
                 timer.cnt.set_bit_range(63, 32, data)
             } else {
                 timer.cnt.set_bit_range(31, 0, data)
-            });
+            };
         }
 
-        Err(region::Error::AccessErr(addr, "clint:U32Access Invalid addr!".to_string()))
+        panic!("clint:U32Access Invalid addr!".to_string());
     }
 
-    fn read(&self, addr: u64) -> region::Result<u32> {
-        if addr.trailing_zeros() < 2 {
-            return Err(region::Error::Misaligned(addr));
-        }
+    fn read(&self, addr: u64) -> u32 {
+        assert!(addr.trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
         let timer = self.0.lock().unwrap();
         if addr >= MSIP_BASE && addr + 4 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
             let offset = ((addr - MSIP_BASE) >> 2) as usize;
-            return Ok(timer.irq_vecs[offset].pending(0).unwrap() as u32);
+            return timer.irq_vecs[offset].pending(0).unwrap() as u32;
         } else if addr >= MTIMECMP_BASE && addr + 4 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
             let offset = ((addr - MTIMECMP_BASE) >> 3) as usize;
-            return Ok(if addr.trailing_zeros() == 2 {
+            return if addr.trailing_zeros() == 2 {
                 timer.mtimecmps[offset] >> 32
             } else {
                 timer.mtimecmps[offset]
-            } as u32);
+            } as u32;
         } else if addr >= MTIME_BASE && addr + 4 <= MTIME_BASE + MTIME_SIZE {
-            return Ok(if addr.trailing_zeros() == 2 {
+            return if addr.trailing_zeros() == 2 {
                 timer.cnt >> 32
             } else {
                 timer.cnt
-            } as u32);
+            } as u32;
         }
 
-        Err(region::Error::AccessErr(addr, "clint:U32Access Invalid addr!".to_string()))
+        panic!("clint:U32Access Invalid addr!".to_string());
     }
 }
 
 
 impl U64Access for Clint {
-    fn write(&self, addr: u64, data: u64) -> region::Result<()> {
-        if addr.trailing_zeros() < 3 {
-            return Err(region::Error::Misaligned(addr));
-        }
+    fn write(&self, addr: u64, data: u64) {
+        assert!(addr.trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", addr));
+
         let mut timer = self.0.lock().unwrap();
         if addr >= MSIP_BASE && addr + 8 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
             let offset = (((addr - MSIP_BASE) >> 3) << 1) as usize;
@@ -165,35 +159,34 @@ impl U64Access for Clint {
             if (data >> 32) & 1 == 1 {
                 timer.irq_vecs[offset + 1].set_pending(0).unwrap();
             }
-            return Ok(());
+            return;
         } else if addr >= MTIMECMP_BASE && addr + 8 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
             let offset = ((addr - MTIMECMP_BASE) >> 3) as usize;
             timer.mtimecmps[offset] = data;
             timer.tick(0);
-            return Ok(())
+            return;
         } else if addr >= MTIME_BASE && addr + 8 <= MTIME_BASE + MTIME_SIZE {
-            return Ok(timer.cnt = data);
+            return timer.cnt = data;
         }
 
-        Err(region::Error::AccessErr(addr, "clint:U64Access Invalid addr!".to_string()))
+        panic!("clint:U64Access Invalid addr!".to_string());
     }
 
-    fn read(&self, addr: u64) -> region::Result<u64> {
-        if addr.trailing_zeros() < 3 {
-            return Err(region::Error::Misaligned(addr));
-        }
+    fn read(&self, addr: u64) -> u64 {
+        assert!(addr.trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", addr));
+
         let timer = self.0.lock().unwrap();
         if addr >= MSIP_BASE && addr + 8 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
             let offset = (((addr - MSIP_BASE) >> 3) << 1) as usize;
-            return Ok((timer.irq_vecs[offset].pending(0).unwrap() as u64) | ((timer.irq_vecs[offset + 1].pending(0).unwrap() as u64) << 32));
+            return (timer.irq_vecs[offset].pending(0).unwrap() as u64) | ((timer.irq_vecs[offset + 1].pending(0).unwrap() as u64) << 32);
         } else if addr >= MTIMECMP_BASE && addr + 8 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
             let offset = ((addr - MTIMECMP_BASE) >> 3) as usize;
-            return Ok(timer.mtimecmps[offset]);
+            return timer.mtimecmps[offset];
         } else if addr >= MTIME_BASE && addr + 8 <= MTIME_BASE + MTIME_SIZE {
-            return Ok(timer.cnt);
+            return timer.cnt;
         }
 
-        Err(region::Error::AccessErr(addr, "clint:U64Access Invalid addr!".to_string()))
+        panic!("clint:U64Access Invalid addr!".to_string());
     }
 }
 
@@ -214,9 +207,9 @@ fn timer_test() {
                 while !irq.pending(1).unwrap() {}
                 println!("get timer {}!", cnt);
                 irq.clr_pending(1).unwrap();
-                let time = U64Access::read(&clint, MTIME_BASE).unwrap();
+                let time = U64Access::read(&clint, MTIME_BASE);
                 println!("time = {}", time);
-                U64Access::write(&clint, MTIMECMP_BASE, time + 1).unwrap();
+                U64Access::write(&clint, MTIMECMP_BASE, time + 1);
             }
         }
     }

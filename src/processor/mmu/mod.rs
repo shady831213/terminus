@@ -66,15 +66,16 @@ impl Mmu {
         Mmu {
             p: p.clone(),
             bus: bus.clone(),
-            fetch_tlb: RefCell::new(TLB::new(256)),
-            load_tlb: RefCell::new(TLB::new(256)),
-            store_tlb: RefCell::new(TLB::new(256)),
+            fetch_tlb: RefCell::new(TLB::new()),
+            load_tlb: RefCell::new(TLB::new()),
+            store_tlb: RefCell::new(TLB::new()),
         }
     }
-    
+    #[cfg_attr(feature = "no-inline", inline(never))]
     fn pmpcfgs_iter(&self) -> PmpCfgsIter {
         PmpCfgsIter::new(self, PhantomData)
     }
+    #[cfg_attr(feature = "no-inline", inline(never))]
     fn match_pmpcfg_entry(&self, addr: u64, len: usize) -> Option<PmpCfgEntry> {
         let csrs = self.p.icsrs();
         self.pmpcfgs_iter().enumerate()
@@ -107,7 +108,7 @@ impl Mmu {
             })
             .map(|(_, entry)| { entry })
     }
-    
+    #[cfg_attr(feature = "no-inline", inline(never))]
     fn check_pmp(&self, addr: u64, len: usize, opt: MmuOpt, privilege: Privilege) -> bool {
         if let Some(entry) = self.match_pmpcfg_entry(addr, len) {
             privilege == Privilege::M && entry.l() == 0 || opt.pmp_match(&entry)
@@ -115,16 +116,22 @@ impl Mmu {
             privilege == Privilege::M
         }
     }
-    
 
+    #[cfg_attr(feature = "no-inline", inline(never))]
     fn get_privileage(&self, opt: MmuOpt) -> Privilege {
-        if self.p.icsrs().mstatus().mprv() == 1 && opt != MmuOpt::Fetch {
-            Privilege::try_from(self.p.icsrs().mstatus().mpp() as u8).unwrap()
+        let icsrc = self.p.icsrs();
+        if icsrc.mstatus().mprv() == 1 && opt != MmuOpt::Fetch {
+            match icsrc.mstatus().mpp() as u8 & 3 {
+                0 => Privilege::U,
+                1 => Privilege::S,
+                3 => Privilege::M,
+                _ => unreachable!()
+            }
         } else {
             self.p.privilege.borrow().clone()
         }
     }
-
+    #[cfg_attr(feature = "no-inline", inline(never))]
     fn check_pte_privilege(&self, addr: RegT, pte_attr: &PteAttr, opt: &MmuOpt, privilege: &Privilege) -> Result<(), Exception> {
         let priv_s = *privilege == Privilege::S;
         let pte_x = pte_attr.x() == 1;
@@ -152,8 +159,8 @@ impl Mmu {
         }
         Ok(())
     }
-
-    fn pt_walk(&self, vaddr: &Vaddr, opt: MmuOpt, privilege: Privilege, info:&PteInfo) -> Result<u64, Exception> {
+    #[cfg_attr(feature = "no-inline", inline(never))]
+    fn pt_walk(&self, vaddr: &Vaddr, opt: MmuOpt, privilege: Privilege, info: &PteInfo) -> Result<u64, Exception> {
         //step 1
         let ppn = self.p.scsrs().satp().ppn();
         let mut a = ppn * info.page_size as RegT;

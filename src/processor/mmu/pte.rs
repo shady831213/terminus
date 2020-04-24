@@ -1,7 +1,5 @@
 use crate::prelude::*;
-use terminus_spaceport::memory::region;
 use terminus_global::{XLen, RegT};
-use terminus_spaceport::memory::region::{U32Access, U64Access};
 use crate::processor::extensions::s::csrs::*;
 use num_enum::IntoPrimitive;
 use crate::devices::bus::Bus;
@@ -507,23 +505,23 @@ impl Pte {
             _ => panic!(format!("unsupported PteMode {:?}", mode))
         }
     }
-    pub fn load(info: &PteInfo, bus: &Bus, addr: u64) -> region::Result<Pte> {
+    pub fn load(info: &PteInfo, bus: &Bus, addr: u64) -> Result<Pte, u64> {
         let value = match info.size {
             4 => {
-                U32Access::read(bus, addr)? as RegT
+                bus.read_u32(addr)? as RegT
             }
             8 => {
-                U64Access::read(bus, addr)? as RegT
+                bus.read_u64(addr)? as RegT
             }
             _ => unreachable!()
         };
         Ok(Pte::new(&info.mode, value))
     }
 
-    pub fn store(&self, bus: &Bus, addr: u64) -> region::Result<()> {
+    pub fn store(&self, bus: &Bus, addr: u64) -> Result<(), u64> {
         match self {
-            Pte::Sv32(_) => U32Access::write(bus, addr, self.value() as u32),
-            _ => U64Access::write(bus, addr, self.value() as u64)
+            Pte::Sv32(_) => bus.write_u32(addr, self.value() as u32),
+            _ => bus.write_u64(addr, self.value() as u64)
         }
     }
 
