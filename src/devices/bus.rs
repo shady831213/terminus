@@ -33,6 +33,7 @@ impl Bus {
             lock_table: Mutex::new(vec![]),
         }
     }
+    #[cfg_attr(feature = "no-inline", inline(never))]
     pub fn acquire(&self, addr: u64, len: u64, who: usize) -> bool {
         let mut lock_table = self.lock_table.lock().unwrap();
         if lock_table.iter().find(|entry| {
@@ -55,7 +56,7 @@ impl Bus {
             true
         }
     }
-
+    #[cfg_attr(feature = "no-inline", inline(never))]
     pub fn lock_holder(&self, addr: u64, len: u64) -> Option<usize> {
         let lock_table = self.lock_table.lock().unwrap();
         if let Some(e) = lock_table.iter().find_map(|entry| { entry.lock_holder(addr, len) }) {
@@ -64,7 +65,7 @@ impl Bus {
             None
         }
     }
-
+    #[cfg_attr(feature = "no-inline", inline(never))]
     pub fn invalid_lock(&self, addr: u64, len: u64, who: usize) {
         let mut lock_table = self.lock_table.lock().unwrap();
         if let Some((i, _)) = lock_table.iter().enumerate().find(|(_, entry)| {
@@ -83,7 +84,7 @@ impl Bus {
             panic!(format!("master {} try to release {:#x} - {:#x} but haven't owned the lock! lock_table:{:?}", who, addr, addr + len, lock_table))
         }
     }
-
+    #[cfg_attr(feature = "no-inline", inline(never))]
     pub fn release(&self, who: usize) {
         let mut lock_table = self.lock_table.lock().unwrap();
         lock_table.retain(|e| { e.holder != who })

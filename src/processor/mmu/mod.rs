@@ -4,9 +4,10 @@ use crate::processor::trap::Exception;
 use terminus_global::RegT;
 use std::rc::Rc;
 use std::sync::Arc;
-use crate::processor::{ProcessorState, Privilege};
+use crate::processor::ProcessorState;
 use terminus_macros::*;
 use crate::devices::bus::Bus;
+use crate::processor::extensions::i::csrs::ICsrs;
 
 mod pmp;
 
@@ -56,6 +57,7 @@ impl MmuOpt {
 pub struct Mmu {
     p: Rc<ProcessorState>,
     bus: Arc<Bus>,
+    icsrs:Rc<ICsrs>,
     fetch_tlb: RefCell<TLB>,
     load_tlb: RefCell<TLB>,
     store_tlb: RefCell<TLB>,
@@ -66,6 +68,7 @@ impl Mmu {
         Mmu {
             p: p.clone(),
             bus: bus.clone(),
+            icsrs:p.icsrs(),
             fetch_tlb: RefCell::new(TLB::new()),
             load_tlb: RefCell::new(TLB::new()),
             store_tlb: RefCell::new(TLB::new()),
@@ -77,7 +80,6 @@ impl Mmu {
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
     fn match_pmpcfg_entry(&self, addr: u64, len: usize) -> Option<PmpCfgEntry> {
-        let csrs = self.p.icsrs();
         self.pmpcfgs_iter().enumerate()
             .find(|(idx, entry)| {
                 ((addr >> 2)..((addr + len as u64 - 1) >> 2) + 1)
@@ -88,17 +90,17 @@ impl Mmu {
                                 let low = if *idx == 0 {
                                     0
                                 } else {
-                                    csrs.read(0x3b0 + ((*idx - 1) as u8 as RegT)).unwrap()
+                                    self.icsrs.read(0x3b0 + ((*idx - 1) as u8 as RegT)).unwrap()
                                 };
-                                let high = csrs.read(0x3b0 + (*idx as u8 as RegT)).unwrap();
+                                let high = self.icsrs.read(0x3b0 + (*idx as u8 as RegT)).unwrap();
                                 trail_addr >= low && trail_addr < high
                             }
                             PmpAType::NA4 => {
-                                let pmpaddr = csrs.read(0x3b0 + (*idx as u8 as RegT)).unwrap();
+                                let pmpaddr = self.icsrs.read(0x3b0 + (*idx as u8 as RegT)).unwrap();
                                 trail_addr == pmpaddr
                             }
                             PmpAType::NAPOT => {
-                                let pmpaddr = csrs.read(0x3b0 + (*idx as u8 as RegT)).unwrap();
+                                let pmpaddr = self.icsrs.read(0x3b0 + (*idx as u8 as RegT)).unwrap();
                                 let trialing_ones = (!pmpaddr).trailing_zeros();
                                 (trail_addr >> trialing_ones) == (pmpaddr >> trialing_ones)
                             }
@@ -109,49 +111,44 @@ impl Mmu {
             .map(|(_, entry)| { entry })
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn check_pmp(&self, addr: u64, len: usize, opt: MmuOpt, privilege: Privilege) -> bool {
+    fn check_pmp(&self, addr: u64, len: usize, opt: &MmuOpt, privilege: &u8) -> bool {
         if let Some(entry) = self.match_pmpcfg_entry(addr, len) {
-            privilege == Privilege::M && entry.l() == 0 || opt.pmp_match(&entry)
+            *privilege == 3 && entry.l() == 0 || opt.pmp_match(&entry)
         } else {
-            privilege == Privilege::M
+            *privilege == 3
         }
     }
 
-    #[cfg_attr(feature = "no-inline", inline(never))]
-    fn get_privileage(&self, opt: MmuOpt) -> Privilege {
-        let icsrc = self.p.icsrs();
-        if icsrc.mstatus().mprv() == 1 && opt != MmuOpt::Fetch {
-            match icsrc.mstatus().mpp() as u8 & 3 {
-                0 => Privilege::U,
-                1 => Privilege::S,
-                3 => Privilege::M,
-                _ => unreachable!()
-            }
-        } else {
-            self.p.privilege.borrow().clone()
+    fn get_privileage(&self, opt: &MmuOpt) -> u8 {
+        let is_mprv = self.icsrs.mstatus().mprv() == 1;
+        let mpp = self.icsrs.mstatus().mpp() as u8 & 3;
+        match opt {
+            &MmuOpt::Load if is_mprv => mpp,
+            &MmuOpt::Store if is_mprv => mpp,
+            _ => (*self.p.privilege.borrow()).into()
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn check_pte_privilege(&self, addr: RegT, pte_attr: &PteAttr, opt: &MmuOpt, privilege: &Privilege) -> Result<(), Exception> {
-        let priv_s = *privilege == Privilege::S;
+    fn check_pte_privilege(&self, addr: RegT, pte_attr: &PteAttr, opt: &MmuOpt, privilege: &u8) -> Result<(), Exception> {
+        let priv_s = *privilege == 1;
         let pte_x = pte_attr.x() == 1;
         let pte_u = pte_attr.u() == 1;
         let pte_r = pte_attr.r() == 1;
         let pte_w = pte_attr.w() == 1;
-        let mxr = self.p.icsrs().mstatus().mxr() == 1;
-        let sum = self.p.icsrs().mstatus().sum() == 1;
+        let mxr = self.icsrs.mstatus().mxr() == 1;
+        let sum = self.icsrs.mstatus().sum() == 1;
         match opt {
-            MmuOpt::Fetch => {
+            &MmuOpt::Fetch => {
                 if !pte_x || pte_u == priv_s {
                     return Err(opt.pagefault_exception(addr));
                 }
             }
-            MmuOpt::Load => {
+            &MmuOpt::Load => {
                 if priv_s && !sum && pte_u || !pte_u && !priv_s || !pte_r && !mxr || mxr && !pte_r && !pte_x {
                     return Err(opt.pagefault_exception(addr));
                 }
             }
-            MmuOpt::Store => {
+            &MmuOpt::Store => {
                 if priv_s && !sum && pte_u || !pte_u && !priv_s || !pte_w || !pte_r {
                     return Err(opt.pagefault_exception(addr));
                 }
@@ -160,17 +157,17 @@ impl Mmu {
         Ok(())
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn pt_walk(&self, vaddr: &Vaddr, opt: MmuOpt, privilege: Privilege, info: &PteInfo) -> Result<u64, Exception> {
+    fn pt_walk(&self, vaddr: &Vaddr, opt: &MmuOpt, privilege: &u8, info: &PteInfo) -> Result<u64, Exception> {
         //step 1
         let ppn = self.p.scsrs().satp().ppn();
-        let mut a = ppn * info.page_size as RegT;
+        let mut a = (ppn << info.page_size_shift) as RegT;
         let mut level = info.level - 1;
         let mut leaf_pte: Pte;
         let mut pte_addr: u64;
         loop {
             //step 2
-            pte_addr = (a + vaddr.vpn(level).unwrap() * info.size as RegT) as u64;
-            if !self.check_pmp(pte_addr, info.size, MmuOpt::Load, Privilege::S) {
+            pte_addr = (a + (vaddr.vpn(level).unwrap() << (info.size_shift as RegT))) as u64;
+            if !self.check_pmp(pte_addr, 1 << info.size_shift, &MmuOpt::Load, &1) {
                 return Err(opt.access_exception(vaddr.value()));
             }
             let pte = match Pte::load(info, self.bus.deref(), pte_addr) {
@@ -189,11 +186,11 @@ impl Mmu {
                 return Err(opt.pagefault_exception(vaddr.value()));
             } else {
                 level -= 1;
-                a = pte.ppn_all() * info.page_size as RegT;
+                a = pte.ppn_all() << info.page_size_shift as RegT;
             }
         }
         //step 5
-        self.check_pte_privilege(vaddr.value(), &leaf_pte.attr(), &opt, &privilege)?;
+        self.check_pte_privilege(vaddr.value(), &leaf_pte.attr(), opt, privilege)?;
         //step 6
         for l in 0..level {
             if leaf_pte.ppn(l).unwrap() != 0 {
@@ -201,12 +198,12 @@ impl Mmu {
             }
         }
         //step 7
-        if leaf_pte.attr().d() == 0 && opt == MmuOpt::Store || leaf_pte.attr().a() == 0 {
+        if leaf_pte.attr().d() == 0 && *opt == MmuOpt::Store || leaf_pte.attr().a() == 0 {
             if self.p.config.enable_dirty {
                 let mut new_attr = leaf_pte.attr();
                 new_attr.set_a(1);
-                new_attr.set_d((opt == MmuOpt::Store) as u8);
-                if !self.check_pmp(pte_addr, info.size, MmuOpt::Store, Privilege::S) {
+                new_attr.set_d((*opt == MmuOpt::Store) as u8);
+                if !self.check_pmp(pte_addr, 1 << info.size_shift, &MmuOpt::Store, &1) {
                     return Err(opt.access_exception(vaddr.value()));
                 }
                 leaf_pte.set_attr(new_attr);
@@ -228,9 +225,9 @@ impl Mmu {
     }
 
     pub fn translate(&self, va: RegT, len: RegT, opt: MmuOpt) -> Result<u64, Exception> {
-        let privilege = self.get_privileage(opt);
+        let privilege = self.get_privileage(&opt);
         let info = PteInfo::new(self.p.scsrs().satp().deref());
-        if privilege == Privilege::M {
+        if privilege == 3 {
             return Ok(va as u64);
         }
         if info.mode == PteMode::Bare {
@@ -243,14 +240,14 @@ impl Mmu {
             MmuOpt::Store => self.store_tlb.borrow_mut(),
         };
         if let Some(ppn) = tlb.get_ppn(vaddr.vpn_all()) {
-            let pa = ppn << 12 | vaddr.offset();
+            let pa = (ppn << (info.page_size_shift as u64)) | vaddr.offset();
             return Ok(pa);
         }
-        match self.pt_walk(&vaddr, opt, privilege, &info) {
-            Ok(pa) => if !self.check_pmp(pa, len as usize, opt, privilege) {
+        match self.pt_walk(&vaddr, &opt, &privilege, &info) {
+            Ok(pa) => if !self.check_pmp(pa, len as usize, &opt, &privilege) {
                 return Err(opt.access_exception(va));
             } else {
-                tlb.set_entry(vaddr.vpn_all(), pa >> 12);
+                tlb.set_entry(vaddr.vpn_all(), pa >> (info.page_size_shift as u64));
                 Ok(pa)
             }
             Err(e) => {

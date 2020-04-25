@@ -1,10 +1,8 @@
 use terminus_global::{XLen, RegT};
 use crate::processor::mmu::Mmu;
 use std::marker::PhantomData;
-use std::ops::Deref;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use terminus_macros::*;
-use crate::processor::extensions::i::csrs::*;
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug)]
 #[repr(u8)]
@@ -47,21 +45,21 @@ impl<'m> PmpCfgsIter<'m> {
             marker,
         }
     }
-    fn get_cfg(&self, csr: &ICsrs) -> RegT {
-        match csr.xlen {
+    fn get_cfg(&self) -> RegT {
+        match self.mmu.p.config().xlen {
             XLen::X32 => {
                 match (self.idx >> 2) & 0x3 {
-                    0 => csr.pmpcfg0().get(),
-                    1 => csr.pmpcfg1().get(),
-                    2 => csr.pmpcfg2().get(),
-                    3 => csr.pmpcfg3().get(),
+                    0 => self.mmu.icsrs.pmpcfg0().get(),
+                    1 => self.mmu.icsrs.pmpcfg1().get(),
+                    2 => self.mmu.icsrs.pmpcfg2().get(),
+                    3 => self.mmu.icsrs.pmpcfg3().get(),
                     _ => unreachable!()
                 }
             }
             XLen::X64 => {
                 match (self.idx >> 3) & 0x1 {
-                    0 => csr.pmpcfg0().get(),
-                    1 => csr.pmpcfg2().get(),
+                    0 => self.mmu.icsrs.pmpcfg0().get(),
+                    1 => self.mmu.icsrs.pmpcfg2().get(),
                     _ => unreachable!()
                 }
             }
@@ -69,12 +67,11 @@ impl<'m> PmpCfgsIter<'m> {
     }
 
     fn get_entry(&self) -> PmpCfgEntry {
-        let csr = self.mmu.p.icsrs();
-        let offset: u8 = match csr.xlen {
+        let offset: u8 = match self.mmu.p.config().xlen {
             XLen::X32 => self.idx & 0x3,
             XLen::X64 => self.idx & 0x7,
         };
-        let cfg:u8 = (self.get_cfg(csr.deref()) >> ((offset as RegT) << 3)) as u8;
+        let cfg:u8 = (self.get_cfg() >> ((offset as RegT) << 3)) as u8;
 
         cfg.into()
     }

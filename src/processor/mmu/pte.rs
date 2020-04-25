@@ -32,8 +32,8 @@ impl PteMode {
 pub struct PteInfo {
     pub mode: PteMode,
     pub level: usize,
-    pub size: usize,
-    pub page_size: usize,
+    pub size_shift: usize,
+    pub page_size_shift: usize,
 }
 
 impl PteInfo {
@@ -42,8 +42,8 @@ impl PteInfo {
             XLen::X32 => PteInfo {
                 mode: PteMode::new(satp.mode() as u8),
                 level: 2,
-                size: 4,
-                page_size: 4096,
+                size_shift: 2,
+                page_size_shift: 12,
             },
             XLen::X64 => {
                 let mode = PteMode::new(satp.mode() as u8);
@@ -56,8 +56,8 @@ impl PteInfo {
                 PteInfo {
                     mode,
                     level,
-                    size: 8,
-                    page_size: 4096,
+                    size_shift: 3,
+                    page_size_shift: 12,
                 }
             }
         }
@@ -506,11 +506,11 @@ impl Pte {
         }
     }
     pub fn load(info: &PteInfo, bus: &Bus, addr: u64) -> Result<Pte, u64> {
-        let value = match info.size {
-            4 => {
+        let value = match info.size_shift {
+            2 => {
                 bus.read_u32(addr)? as RegT
             }
-            8 => {
+            3 => {
                 bus.read_u64(addr)? as RegT
             }
             _ => unreachable!()
