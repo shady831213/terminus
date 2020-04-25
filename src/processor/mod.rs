@@ -1,6 +1,5 @@
 use terminus_macros::*;
 use terminus_global::*;
-use std::sync::Arc;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -83,7 +82,7 @@ pub struct ProcessorState {
     pc: RefCell<RegT>,
     next_pc: RefCell<RegT>,
     ir: RefCell<InsnT>,
-    clint: Arc<IrqVec>,
+    clint: Rc<IrqVec>,
     insns_cnt: Rc<RefCell<u64>>,
 }
 
@@ -118,7 +117,7 @@ impl Display for ProcessorState {
 
 
 impl ProcessorState {
-    fn new(hartid: usize, config: ProcessorCfg, clint: &Arc<IrqVec>) -> ProcessorState {
+    fn new(hartid: usize, config: ProcessorCfg, clint: &Rc<IrqVec>) -> ProcessorState {
         let mut state = ProcessorState {
             hartid,
             config,
@@ -387,7 +386,7 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn new(hartid: usize, config: ProcessorCfg, bus: &Arc<Bus>, clint: &Arc<IrqVec>) -> Processor {
+    pub fn new(hartid: usize, config: ProcessorCfg, bus: &Rc<Bus>, clint: &Rc<IrqVec>) -> Processor {
         let state = Rc::new(ProcessorState::new(hartid, config, clint));
         let mmu = Mmu::new(&state, bus);
         let fetcher = Fetcher::new(&state, bus);

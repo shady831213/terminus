@@ -3,16 +3,15 @@ use std::rc::Rc;
 use terminus_global::RegT;
 use crate::processor::mmu::{Mmu, MmuOpt};
 use crate::processor::trap::Exception;
-use std::sync::Arc;
 use crate::devices::bus::Bus;
 
 pub struct LoadStore {
     p: Rc<ProcessorState>,
-    bus: Arc<Bus>,
+    bus: Rc<Bus>,
 }
 
 impl LoadStore {
-    pub fn new(p: &Rc<ProcessorState>, bus: &Arc<Bus>) -> LoadStore {
+    pub fn new(p: &Rc<ProcessorState>, bus: &Rc<Bus>) -> LoadStore {
         LoadStore {
             p: p.clone(),
             bus: bus.clone(),
