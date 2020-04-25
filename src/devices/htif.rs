@@ -105,10 +105,10 @@ impl U32Access for HTIF {
             (self.desc.lock().unwrap().tohost >> 32) as u32
         } else if let Some(fromhost) = self.fromhost_off {
             if addr == fromhost {
-                // self.fromhost_poll();
+                self.fromhost_poll();
                 self.desc.lock().unwrap().fromhost as u32
             } else if addr == fromhost + 4 {
-                // self.fromhost_poll();
+                self.fromhost_poll();
                 (self.desc.lock().unwrap().fromhost >> 32) as u32
             } else {
                 panic!("invalid HTIF addr")
@@ -142,7 +142,7 @@ impl U64Access for HTIF {
             self.desc.lock().unwrap().tohost
         } else if let Some(fromhost) = self.fromhost_off {
             if addr == fromhost {
-                // self.fromhost_poll();
+                self.fromhost_poll();
                 self.desc.lock().unwrap().fromhost
             } else {
                 panic!("invalid HTIF addr")
