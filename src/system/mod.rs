@@ -1,5 +1,5 @@
 use terminus_spaceport::memory::MemInfo;
-use terminus_spaceport::space::{Space, SPACE_TABLE};
+use terminus_spaceport::space::Space;
 use terminus_spaceport::space;
 use terminus_spaceport::memory::region::{Region, IOAccess, BytesAccess, GHEAP};
 use std::sync::Arc;
@@ -38,7 +38,6 @@ pub mod fdt;
 
 pub struct System {
     name: String,
-    mem_space: Arc<Space>,
     bus: Arc<Bus>,
     timer: Arc<Timer>,
     elf: ElfLoader,
@@ -47,12 +46,10 @@ pub struct System {
 
 impl System {
     pub fn new(name: &str, elf_file: &str, processor_cfgs: Vec<ProcessorCfg>, timer_freq: usize) -> System {
-        let space = SPACE_TABLE.get_space(name);
-        let bus = Arc::new(Bus::new(&space));
+        let bus = Arc::new(Bus::new());
         let elf = ElfLoader::new(elf_file).expect(&format!("Invalid Elf {}", elf_file));
         let mut sys = System {
             name: name.to_string(),
-            mem_space: space,
             bus,
             timer: Arc::new(Timer::new(timer_freq)),
             elf,
@@ -71,7 +68,7 @@ impl System {
     }
 
     fn register_region(&self, name: &str, base: u64, region: &Arc<Region>) -> Result<()> {
-        self.mem_space.add_region(name, &Region::remap(base, &region))?;
+        self.bus.space_mut().add_region(name, &Region::remap(base, &region))?;
         Ok(())
     }
 
@@ -101,10 +98,6 @@ impl System {
         &self.timer
     }
 
-    pub fn mem_space(&self) -> &Arc<Space> {
-        &self.mem_space
-    }
-
     pub fn register_device<D: IOAccess + 'static>(&self, name: &str, base: u64, size: u64, device: D) -> Result<()> {
         self.register_region(name, base, &Region::io(0, size, Box::new(device)))
     }
@@ -116,7 +109,7 @@ impl System {
             Err(e) => {
                 if let Error::SpaceErr(space::Error::Overlap(n, msg)) = e {
                     if n == "htif".to_string() {
-                        let htif_region = self.mem_space.get_region(&n).unwrap();
+                        let htif_region = self.bus.space().get_region(&n).unwrap();
                         let range0 = if base < htif_region.info.base {
                             Some(MemInfo { base: base, size: htif_region.info.base - base })
                         } else {
@@ -128,10 +121,10 @@ impl System {
                             None
                         };
                         range0.iter().for_each(|info| {
-                            self.mem_space.add_region(name, &Region::remap_partial(info.base, mem, 0, info.size)).unwrap();
+                            self.bus.space_mut().add_region(name, &Region::remap_partial(info.base, mem, 0, info.size)).unwrap();
                         });
                         range1.iter().for_each(|info| {
-                            self.mem_space.add_region(&format!("{}_1", name), &Region::remap_partial(info.base, mem, info.base - base, info.size)).unwrap();
+                            self.bus.space_mut().add_region(&format!("{}_1", name), &Region::remap_partial(info.base, mem, info.base - base, info.size)).unwrap();
                         });
                         Ok(())
                     } else {
@@ -158,7 +151,7 @@ impl System {
                     load(space, region.info.base + region.info.size, tails)
                 }
             };
-            load(self.mem_space().deref(), addr, data)
+            load(self.bus.space().deref(), addr, data)
         }) {
             Ok(_) => Ok(()),
             Err(msg) => Err(Error::ElfErr(msg))
@@ -203,12 +196,12 @@ impl System {
         }
         root.add_node(cpus);
 
-        if let Some(main_memory) = self.mem_space().get_region("main_memory") {
+        if let Some(main_memory) = self.bus.space().get_region("main_memory") {
             let base = main_memory.info.base;
             let mut size = main_memory.info.size;
             //because of htif...
-            if let Some(main_memory_1) = self.mem_space().get_region("main_memory_1") {
-                let htif_region = self.mem_space().get_region("htif").unwrap();
+            if let Some(main_memory_1) = self.bus.space().get_region("main_memory_1") {
+                let htif_region = self.bus.space().get_region("htif").unwrap();
                 size += main_memory_1.info.size + htif_region.info.size
             }
             let mut memory = FdtNode::new_with_num("memory", base);
@@ -225,7 +218,7 @@ impl System {
         soc.add_prop(FdtProp::str_prop("compatible", vec!["ucbbar,terminus-bare-soc", "simple-bus"]));
         soc.add_prop(FdtProp::null_prop("range"));
 
-        if let Some(clint_region) = self.mem_space().get_region("clint") {
+        if let Some(clint_region) = self.bus.space().get_region("clint") {
             let mut clint = FdtNode::new_with_num("clint", clint_region.info.base);
             clint.add_prop(FdtProp::str_prop("compatible", vec!["riscv,clint0"]));
             let mut interrupts_extended = vec![];
@@ -290,7 +283,7 @@ impl System {
         }
         for (i, p) in self.processors().iter().enumerate() {
             if let Err(msg) = if reset_vecs[i] == -1i64 as u64 {
-                if let Some(boot_rom) = self.mem_space.get_region("boot_rom") {
+                if let Some(boot_rom) = self.bus.space().get_region("boot_rom") {
                     p.reset(boot_rom.info.base)
                 } else {
                     p.reset(self.elf.entry_point().unwrap())
@@ -308,7 +301,7 @@ impl System {
 impl Display for System {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         writeln!(f, "Machine {}:", self.name)?;
-        writeln!(f, "   {}", self.mem_space.to_string())
+        writeln!(f, "   {}", self.bus.space().to_string())
     }
 }
 
