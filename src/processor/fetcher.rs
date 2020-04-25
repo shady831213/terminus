@@ -5,6 +5,7 @@ use terminus_global::{RegT, InsnT};
 use crate::processor::mmu::{Mmu, MmuOpt};
 use crate::processor::trap::Exception;
 use crate::processor::decode::*;
+use std::sync::Arc;
 use crate::devices::bus::Bus;
 use std::ops::Deref;
 use std::cell::RefCell;
@@ -131,12 +132,12 @@ impl ICache {
 
 pub struct Fetcher {
     p: Rc<ProcessorState>,
-    bus: Rc<Bus>,
+    bus: Arc<Bus>,
     icache: RefCell<ICache>,
 }
 
 impl Fetcher {
-    pub fn new(p: &Rc<ProcessorState>, bus: &Rc<Bus>) -> Fetcher {
+    pub fn new(p: &Rc<ProcessorState>, bus: &Arc<Bus>) -> Fetcher {
         Fetcher {
             p: p.clone(),
             bus: bus.clone(),

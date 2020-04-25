@@ -3,6 +3,7 @@ use std::convert::TryFrom;
 use crate::processor::trap::Exception;
 use terminus_global::RegT;
 use std::rc::Rc;
+use std::sync::Arc;
 use crate::processor::ProcessorState;
 use terminus_macros::*;
 use crate::devices::bus::Bus;
@@ -55,7 +56,7 @@ impl MmuOpt {
 
 pub struct Mmu {
     p: Rc<ProcessorState>,
-    bus: Rc<Bus>,
+    bus: Arc<Bus>,
     icsrs:Rc<ICsrs>,
     fetch_tlb: RefCell<TLB>,
     load_tlb: RefCell<TLB>,
@@ -63,7 +64,7 @@ pub struct Mmu {
 }
 
 impl Mmu {
-    pub fn new(p: &Rc<ProcessorState>, bus: &Rc<Bus>) -> Mmu {
+    pub fn new(p: &Rc<ProcessorState>, bus: &Arc<Bus>) -> Mmu {
         Mmu {
             p: p.clone(),
             bus: bus.clone(),
