@@ -4,20 +4,20 @@ use terminus_global::*;
 use crate::processor::trap::Exception;
 
 pub trait Format {
-    fn ir(&self) -> InsnT;
-    fn rs1(&self) -> InsnT {
+    fn ir(&self, code: InsnT) -> InsnT { code }
+    fn rs1(&self, _: InsnT) -> InsnT {
         0
     }
-    fn rs2(&self) -> InsnT {
+    fn rs2(&self, _: InsnT) -> InsnT {
         0
     }
-    fn rd(&self) -> InsnT {
+    fn rd(&self, _: InsnT) -> InsnT {
         0
     }
-    fn imm(&self) -> InsnT {
+    fn imm(&self, _: InsnT) -> InsnT {
         0
     }
-    fn op(&self) -> InsnT {
+    fn op(&self, _: InsnT) -> InsnT {
         0
     }
     fn imm_len(&self) -> usize {
@@ -29,12 +29,8 @@ pub trait Execution {
     fn execute(&self, p: &Processor) -> Result<(), Exception>;
 }
 
-pub trait InsnClone {
-    fn clone(&self) -> Instruction;
-}
 
-
-pub trait InstructionImp: Format + Execution + InsnClone{}
+pub trait InstructionImp: Format + Execution + Send + Sync {}
 
 pub struct Instruction(Box<dyn InstructionImp>);
 

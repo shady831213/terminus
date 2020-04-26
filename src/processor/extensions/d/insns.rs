@@ -8,7 +8,7 @@ use std::cmp::Ordering;
 #[format(I)]
 #[code("0b?????????????????011?????0000111")]
 #[derive(Debug)]
-struct FLD(InsnT);
+struct FLD();
 
 impl FloatInsn for FLD {}
 
@@ -16,10 +16,10 @@ impl Execution for FLD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1()));
-        let offset: Wrapping<RegT> = Wrapping(sext(self.imm() as RegT, self.imm_len()));
+        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
         let data = p.load_store().load_double_word((base + offset).0, p.mmu())?;
-        f.set_freg(self.rd(), f.flen.padding(data as FRegT, FLen::F64));
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(data as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -30,7 +30,7 @@ impl Execution for FLD {
 #[format(I)]
 #[code("0b?????????????????011?????0100111")]
 #[derive(Debug)]
-struct FSD(InsnT);
+struct FSD();
 
 impl FloatInsn for FSD {}
 
@@ -40,9 +40,9 @@ impl Execution for FSD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1()));
-        let data = f.freg(self.src()) as u64;
-        p.load_store().store_double_word((base + self.offset()).0, data as RegT, p.mmu())?;
+        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let data = f.freg(self.src(p.state().ir())) as u64;
+        p.load_store().store_double_word((base + self.offset(p.state().ir())).0, data as RegT, p.mmu())?;
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -52,13 +52,13 @@ impl Execution for FSD {
 #[format(R)]
 #[code("0b0000001??????????????????1010011")]
 #[derive(Debug)]
-struct FADDD(InsnT);
+struct FADDD();
 
 impl FloatInsn for FADDD {}
 
 impl FCompute<u64, F64Traits> for FADDD {
-    fn opt(&self, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
-        frs1.add(&frs2, Self::rm_from_bits(self.rm()), Some(fp_state))
+    fn opt(&self, ir: InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
+        frs1.add(&frs2, Self::rm_from_bits(self.rm(ir)), Some(fp_state))
     }
 }
 
@@ -66,10 +66,10 @@ impl Execution for FADDD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
-        let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -79,13 +79,13 @@ impl Execution for FADDD {
 #[format(R)]
 #[code("0b0000101??????????????????1010011")]
 #[derive(Debug)]
-struct FSUBD(InsnT);
+struct FSUBD();
 
 impl FloatInsn for FSUBD {}
 
 impl FCompute<u64, F64Traits> for FSUBD {
-    fn opt(&self, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
-        frs1.sub(&frs2, Self::rm_from_bits(self.rm()), Some(fp_state))
+    fn opt(&self, ir: InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
+        frs1.sub(&frs2, Self::rm_from_bits(self.rm(ir)), Some(fp_state))
     }
 }
 
@@ -93,10 +93,10 @@ impl Execution for FSUBD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
-        let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -106,13 +106,13 @@ impl Execution for FSUBD {
 #[format(R)]
 #[code("0b0001001??????????????????1010011")]
 #[derive(Debug)]
-struct FMULD(InsnT);
+struct FMULD();
 
 impl FloatInsn for FMULD {}
 
 impl FCompute<u64, F64Traits> for FMULD {
-    fn opt(&self, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
-        frs1.mul(&frs2, Self::rm_from_bits(self.rm()), Some(fp_state))
+    fn opt(&self, ir: InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
+        frs1.mul(&frs2, Self::rm_from_bits(self.rm(ir)), Some(fp_state))
     }
 }
 
@@ -120,10 +120,10 @@ impl Execution for FMULD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
-        let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -133,13 +133,13 @@ impl Execution for FMULD {
 #[format(R)]
 #[code("0b0001101??????????????????1010011")]
 #[derive(Debug)]
-struct FDIVD(InsnT);
+struct FDIVD();
 
 impl FloatInsn for FDIVD {}
 
 impl FCompute<u64, F64Traits> for FDIVD {
-    fn opt(&self, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
-        frs1.div(&frs2, Self::rm_from_bits(self.rm()), Some(fp_state))
+    fn opt(&self, ir: InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
+        frs1.div(&frs2, Self::rm_from_bits(self.rm(ir)), Some(fp_state))
     }
 }
 
@@ -147,10 +147,10 @@ impl Execution for FDIVD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
-        let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -160,13 +160,13 @@ impl Execution for FDIVD {
 #[format(R)]
 #[code("0b010110100000?????????????1010011")]
 #[derive(Debug)]
-struct FSQRTD(InsnT);
+struct FSQRTD();
 
 impl FloatInsn for FSQRTD {}
 
 impl FCompute<u64, F64Traits> for FSQRTD {
-    fn opt(&self, frs1: F64, _: F64, _: F64, fp_state: &mut FPState) -> F64 {
-        frs1.sqrt(Self::rm_from_bits(self.rm()), Some(fp_state))
+    fn opt(&self, ir: InsnT, frs1: F64, _: F64, _: F64, fp_state: &mut FPState) -> F64 {
+        frs1.sqrt(Self::rm_from_bits(self.rm(ir)), Some(fp_state))
     }
 }
 
@@ -174,9 +174,9 @@ impl Execution for FSQRTD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let res = self.compute(f.deref(), rs1, 0, 0)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, 0, 0)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -186,12 +186,12 @@ impl Execution for FSQRTD {
 #[format(R)]
 #[code("0b0010101??????????000?????1010011")]
 #[derive(Debug)]
-struct FMIND(InsnT);
+struct FMIND();
 
 impl FloatInsn for FMIND {}
 
 impl FCompute<u64, F64Traits> for FMIND {
-    fn opt(&self, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
+    fn opt(&self, _: InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
         if frs1.is_nan() && frs2.is_nan() {
             return F64::quiet_nan();
         }
@@ -210,10 +210,10 @@ impl Execution for FMIND {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
-        let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -223,12 +223,12 @@ impl Execution for FMIND {
 #[format(R)]
 #[code("0b0010101??????????001?????1010011")]
 #[derive(Debug)]
-struct FMAXD(InsnT);
+struct FMAXD();
 
 impl FloatInsn for FMAXD {}
 
 impl FCompute<u64, F64Traits> for FMAXD {
-    fn opt(&self, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
+    fn opt(&self, _: InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
         if frs1.is_nan() && frs2.is_nan() {
             return F64::quiet_nan();
         }
@@ -247,10 +247,10 @@ impl Execution for FMAXD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
-        let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -260,13 +260,13 @@ impl Execution for FMAXD {
 #[format(R)]
 #[code("0b?????01??????????????????1000011")]
 #[derive(Debug)]
-struct FMADDD(InsnT);
+struct FMADDD();
 
 impl FloatInsn for FMADDD {}
 
 impl FCompute<u64, F64Traits> for FMADDD {
-    fn opt(&self, frs1: F64, frs2: F64, frs3: F64, state: &mut FPState) -> F64 {
-        frs1.fused_mul_add(&frs2, &frs3, Self::rm_from_bits(self.rm()), Some(state))
+    fn opt(&self, ir: InsnT, frs1: F64, frs2: F64, frs3: F64, state: &mut FPState) -> F64 {
+        frs1.fused_mul_add(&frs2, &frs3, Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
 
@@ -274,11 +274,11 @@ impl Execution for FMADDD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs3: u64 = (f.freg(self.rs3()) & 0xffff_ffff_ffff_ffff) as u64;
-        let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs3: u64 = (f.freg(self.rs3(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, rs3)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -288,13 +288,13 @@ impl Execution for FMADDD {
 #[format(R)]
 #[code("0b?????01??????????????????1000111")]
 #[derive(Debug)]
-struct FMSUBD(InsnT);
+struct FMSUBD();
 
 impl FloatInsn for FMSUBD {}
 
 impl FCompute<u64, F64Traits> for FMSUBD {
-    fn opt(&self, frs1: F64, frs2: F64, frs3: F64, state: &mut FPState) -> F64 {
-        frs1.fused_mul_add(&frs2, &frs3.neg(), Self::rm_from_bits(self.rm()), Some(state))
+    fn opt(&self, ir: InsnT, frs1: F64, frs2: F64, frs3: F64, state: &mut FPState) -> F64 {
+        frs1.fused_mul_add(&frs2, &frs3.neg(), Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
 
@@ -302,11 +302,11 @@ impl Execution for FMSUBD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs3: u64 = (f.freg(self.rs3()) & 0xffff_ffff_ffff_ffff) as u64;
-        let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs3: u64 = (f.freg(self.rs3(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, rs3)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -317,13 +317,13 @@ impl Execution for FMSUBD {
 #[format(R)]
 #[code("0b?????01??????????????????1001011")]
 #[derive(Debug)]
-struct FMNSUBD(InsnT);
+struct FMNSUBD();
 
 impl FloatInsn for FMNSUBD {}
 
 impl FCompute<u64, F64Traits> for FMNSUBD {
-    fn opt(&self, frs1: F64, frs2: F64, frs3: F64, state: &mut FPState) -> F64 {
-        frs1.fused_mul_add(&frs2, &frs3.neg(), Self::rm_from_bits(self.rm()), Some(state)).neg()
+    fn opt(&self, ir: InsnT, frs1: F64, frs2: F64, frs3: F64, state: &mut FPState) -> F64 {
+        frs1.fused_mul_add(&frs2, &frs3.neg(), Self::rm_from_bits(self.rm(ir)), Some(state)).neg()
     }
 }
 
@@ -331,11 +331,11 @@ impl Execution for FMNSUBD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs3: u64 = (f.freg(self.rs3()) & 0xffff_ffff_ffff_ffff) as u64;
-        let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs3: u64 = (f.freg(self.rs3(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, rs3)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -345,13 +345,13 @@ impl Execution for FMNSUBD {
 #[format(R)]
 #[code("0b?????01??????????????????1001111")]
 #[derive(Debug)]
-struct FMNADDD(InsnT);
+struct FMNADDD();
 
 impl FloatInsn for FMNADDD {}
 
 impl FCompute<u64, F64Traits> for FMNADDD {
-    fn opt(&self, frs1: F64, frs2: F64, frs3: F64, state: &mut FPState) -> F64 {
-        frs1.fused_mul_add(&frs2, &frs3, Self::rm_from_bits(self.rm()), Some(state)).neg()
+    fn opt(&self, ir: InsnT, frs1: F64, frs2: F64, frs3: F64, state: &mut FPState) -> F64 {
+        frs1.fused_mul_add(&frs2, &frs3, Self::rm_from_bits(self.rm(ir)), Some(state)).neg()
     }
 }
 
@@ -359,11 +359,11 @@ impl Execution for FMNADDD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs3: u64 = (f.freg(self.rs3()) & 0xffff_ffff_ffff_ffff) as u64;
-        let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs3: u64 = (f.freg(self.rs3(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, rs3)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -374,14 +374,14 @@ impl Execution for FMNADDD {
 #[format(R)]
 #[code("0b110000100000?????????????1010011")]
 #[derive(Debug)]
-struct FCVTWD(InsnT);
+struct FCVTWD();
 
 impl FloatInsn for FCVTWD {}
 
 impl FToX<u64, F64Traits> for FCVTWD {
     type T = i32;
-    fn opt(&self, frs1: F64, state: &mut FPState) -> Self::T {
-        if let Some(v) = frs1.to_i32(true, Self::rm_from_bits(self.rm()), Some(state)) {
+    fn opt(&self, ir: InsnT, frs1: F64, state: &mut FPState) -> Self::T {
+        if let Some(v) = frs1.to_i32(true, Self::rm_from_bits(self.rm(ir)), Some(state)) {
             v
         } else {
             if frs1.is_nan() || frs1.sign() == Sign::Positive {
@@ -397,9 +397,9 @@ impl Execution for FCVTWD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let res = self.convert(f.deref(), rs1)? as u32;
-        p.state().set_xreg(self.rd(), sext(res as RegT, 32) & p.state().config().xlen.mask());
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let res = self.convert(p.state().ir(), f.deref(), rs1)? as u32;
+        p.state().set_xreg(self.rd(p.state().ir()), sext(res as RegT, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -409,14 +409,14 @@ impl Execution for FCVTWD {
 #[format(R)]
 #[code("0b110000100001?????????????1010011")]
 #[derive(Debug)]
-struct FCVTWUD(InsnT);
+struct FCVTWUD();
 
 impl FloatInsn for FCVTWUD {}
 
 impl FToX<u64, F64Traits> for FCVTWUD {
     type T = u32;
-    fn opt(&self, frs1: F64, state: &mut FPState) -> Self::T {
-        if let Some(v) = frs1.to_u32(true, Self::rm_from_bits(self.rm()), Some(state)) {
+    fn opt(&self, ir: InsnT, frs1: F64, state: &mut FPState) -> Self::T {
+        if let Some(v) = frs1.to_u32(true, Self::rm_from_bits(self.rm(ir)), Some(state)) {
             v
         } else {
             if frs1.is_nan() || frs1.sign() == Sign::Positive {
@@ -432,9 +432,9 @@ impl Execution for FCVTWUD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let res = self.convert(f.deref(), rs1)?;
-        p.state().set_xreg(self.rd(), sext(res as RegT, 32) & p.state().config().xlen.mask());
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let res = self.convert(p.state().ir(), f.deref(), rs1)?;
+        p.state().set_xreg(self.rd(p.state().ir()), sext(res as RegT, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -444,14 +444,14 @@ impl Execution for FCVTWUD {
 #[format(R)]
 #[code("0b110000100010?????????????1010011")]
 #[derive(Debug)]
-struct FCVTLD(InsnT);
+struct FCVTLD();
 
 impl FloatInsn for FCVTLD {}
 
 impl FToX<u64, F64Traits> for FCVTLD {
     type T = i64;
-    fn opt(&self, frs1: F64, state: &mut FPState) -> Self::T {
-        if let Some(v) = frs1.to_i64(true, Self::rm_from_bits(self.rm()), Some(state)) {
+    fn opt(&self, ir: InsnT, frs1: F64, state: &mut FPState) -> Self::T {
+        if let Some(v) = frs1.to_i64(true, Self::rm_from_bits(self.rm(ir)), Some(state)) {
             v
         } else {
             if frs1.is_nan() || frs1.sign() == Sign::Positive {
@@ -468,9 +468,9 @@ impl Execution for FCVTLD {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let res = self.convert(f.deref(), rs1)? as u64;
-        p.state().set_xreg(self.rd(), res as RegT & p.state().config().xlen.mask());
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let res = self.convert(p.state().ir(), f.deref(), rs1)? as u64;
+        p.state().set_xreg(self.rd(p.state().ir()), res as RegT & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -480,14 +480,14 @@ impl Execution for FCVTLD {
 #[format(R)]
 #[code("0b110000100011?????????????1010011")]
 #[derive(Debug)]
-struct FCVTLUD(InsnT);
+struct FCVTLUD();
 
 impl FloatInsn for FCVTLUD {}
 
 impl FToX<u64, F64Traits> for FCVTLUD {
     type T = u64;
-    fn opt(&self, frs1: F64, state: &mut FPState) -> Self::T {
-        if let Some(v) = frs1.to_u64(true, Self::rm_from_bits(self.rm()), Some(state)) {
+    fn opt(&self, ir: InsnT, frs1: F64, state: &mut FPState) -> Self::T {
+        if let Some(v) = frs1.to_u64(true, Self::rm_from_bits(self.rm(ir)), Some(state)) {
             v
         } else {
             if frs1.is_nan() || frs1.sign() == Sign::Positive {
@@ -504,9 +504,9 @@ impl Execution for FCVTLUD {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let res = self.convert(f.deref(), rs1)?;
-        p.state().set_xreg(self.rd(), res as RegT & p.state().config().xlen.mask());
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let res = self.convert(p.state().ir(), f.deref(), rs1)?;
+        p.state().set_xreg(self.rd(p.state().ir()), res as RegT & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -516,14 +516,14 @@ impl Execution for FCVTLUD {
 #[format(R)]
 #[code("0b110100100000?????????????1010011")]
 #[derive(Debug)]
-struct FCVTDW(InsnT);
+struct FCVTDW();
 
 impl FloatInsn for FCVTDW {}
 
 impl XToF<u64, F64Traits> for FCVTDW {
     type T = i32;
-    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F64 {
-        F64::from_i32(rs1, Self::rm_from_bits(self.rm()), Some(state))
+    fn opt(&self, ir: InsnT, rs1: Self::T, state: &mut FPState) -> F64 {
+        F64::from_i32(rs1, Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
 
@@ -531,9 +531,9 @@ impl Execution for FCVTDW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: RegT = sext(p.state().xreg(self.rs1()), 32);
-        let fres = self.convert(f.deref(), rs1 as i32)?;
-        f.set_freg(self.rd(), f.flen.padding(fres as FRegT, FLen::F64));
+        let rs1: RegT = sext(p.state().xreg(self.rs1(p.state().ir())), 32);
+        let fres = self.convert(p.state().ir(), f.deref(), rs1 as i32)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(fres as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -543,14 +543,14 @@ impl Execution for FCVTDW {
 #[format(R)]
 #[code("0b110100100001?????????????1010011")]
 #[derive(Debug)]
-struct FCVTDWU(InsnT);
+struct FCVTDWU();
 
 impl FloatInsn for FCVTDWU {}
 
 impl XToF<u64, F64Traits> for FCVTDWU {
     type T = u32;
-    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F64 {
-        F64::from_u32(rs1, Self::rm_from_bits(self.rm()), Some(state))
+    fn opt(&self, ir: InsnT, rs1: Self::T, state: &mut FPState) -> F64 {
+        F64::from_u32(rs1, Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
 
@@ -558,9 +558,9 @@ impl Execution for FCVTDWU {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: RegT = p.state().xreg(self.rs1()) & 0xffff_ffff;
-        let fres = self.convert(f.deref(), rs1 as u32)?;
-        f.set_freg(self.rd(), f.flen.padding(fres as FRegT, FLen::F64));
+        let rs1: RegT = p.state().xreg(self.rs1(p.state().ir())) & 0xffff_ffff;
+        let fres = self.convert(p.state().ir(), f.deref(), rs1 as u32)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(fres as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -570,14 +570,14 @@ impl Execution for FCVTDWU {
 #[format(R)]
 #[code("0b110100100010?????????????1010011")]
 #[derive(Debug)]
-struct FCVTDL(InsnT);
+struct FCVTDL();
 
 impl FloatInsn for FCVTDL {}
 
 impl XToF<u64, F64Traits> for FCVTDL {
     type T = i64;
-    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F64 {
-        F64::from_i64(rs1, Self::rm_from_bits(self.rm()), Some(state))
+    fn opt(&self, ir: InsnT, rs1: Self::T, state: &mut FPState) -> F64 {
+        F64::from_i64(rs1, Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
 
@@ -586,9 +586,9 @@ impl Execution for FCVTDL {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: RegT = p.state().xreg(self.rs1());
-        let fres = self.convert(f.deref(), rs1 as i64)?;
-        f.set_freg(self.rd(), f.flen.padding(fres as FRegT, FLen::F64));
+        let rs1: RegT = p.state().xreg(self.rs1(p.state().ir()));
+        let fres = self.convert(p.state().ir(), f.deref(), rs1 as i64)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(fres as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -598,14 +598,14 @@ impl Execution for FCVTDL {
 #[format(R)]
 #[code("0b110100100011?????????????1010011")]
 #[derive(Debug)]
-struct FCVTDLU(InsnT);
+struct FCVTDLU();
 
 impl FloatInsn for FCVTDLU {}
 
 impl XToF<u64, F64Traits> for FCVTDLU {
     type T = u64;
-    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F64 {
-        F64::from_u64(rs1, Self::rm_from_bits(self.rm()), Some(state))
+    fn opt(&self, ir: InsnT, rs1: Self::T, state: &mut FPState) -> F64 {
+        F64::from_u64(rs1, Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
 
@@ -614,9 +614,9 @@ impl Execution for FCVTDLU {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: RegT = p.state().xreg(self.rs1());
-        let fres = self.convert(f.deref(), rs1 as u64)?;
-        f.set_freg(self.rd(), f.flen.padding(fres as FRegT, FLen::F64));
+        let rs1: RegT = p.state().xreg(self.rs1(p.state().ir()));
+        let fres = self.convert(p.state().ir(), f.deref(), rs1 as u64)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(fres as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -626,14 +626,14 @@ impl Execution for FCVTDLU {
 #[format(R)]
 #[code("0b010000000001?????????????1010011")]
 #[derive(Debug)]
-struct FCVTSD(InsnT);
+struct FCVTSD();
 
 impl FloatInsn for FCVTSD {}
 
 impl FToX<u64, F64Traits> for FCVTSD {
     type T = u32;
-    fn opt(&self, frs1: F64, state: &mut FPState) -> Self::T {
-        *frs1.convert_to_float::<F32Traits>(Self::rm_from_bits(self.rm()), Some(state)).bits()
+    fn opt(&self, ir: InsnT, frs1: F64, state: &mut FPState) -> Self::T {
+        *frs1.convert_to_float::<F32Traits>(Self::rm_from_bits(self.rm(ir)), Some(state)).bits()
     }
 }
 
@@ -641,9 +641,9 @@ impl Execution for FCVTSD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let fres = self.convert(f.deref(), rs1)?;
-        f.set_freg(self.rd(), f.flen.padding(fres as FRegT, FLen::F32));
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let fres = self.convert(p.state().ir(), f.deref(), rs1)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(fres as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -653,15 +653,15 @@ impl Execution for FCVTSD {
 #[format(R)]
 #[code("0b010000100000?????????????1010011")]
 #[derive(Debug)]
-struct FCVTDS(InsnT);
+struct FCVTDS();
 
 impl FloatInsn for FCVTDS {}
 
 impl XToF<u64, F64Traits> for FCVTDS {
     type T = u32;
-    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F64 {
+    fn opt(&self, ir: InsnT, rs1: Self::T, state: &mut FPState) -> F64 {
         let frs1 = F32::from_bits(rs1);
-        F64::convert_from_float::<F32Traits>(&frs1, Self::rm_from_bits(self.rm()), Some(state))
+        F64::convert_from_float::<F32Traits>(&frs1, Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
 
@@ -669,9 +669,9 @@ impl Execution for FCVTDS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = (f.freg(self.rs1()) & 0xffff_ffff) as u32;
-        let fres = self.convert(f.deref(), rs1)?;
-        f.set_freg(self.rd(), f.flen.padding(fres as FRegT, FLen::F64));
+        let rs1: u32 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff) as u32;
+        let fres = self.convert(p.state().ir(), f.deref(), rs1)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(fres as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -681,7 +681,7 @@ impl Execution for FCVTDS {
 #[format(R)]
 #[code("0b0010001??????????000?????1010011")]
 #[derive(Debug)]
-struct FSGNJD(InsnT);
+struct FSGNJD();
 
 impl FloatInsn for FSGNJD {}
 
@@ -689,10 +689,10 @@ impl Execution for FSGNJD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
         let res = rs1 & ((1 << 63) - 1) | rs2 & (1 << 63);
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -702,7 +702,7 @@ impl Execution for FSGNJD {
 #[format(R)]
 #[code("0b0010001??????????001?????1010011")]
 #[derive(Debug)]
-struct FSGNJND(InsnT);
+struct FSGNJND();
 
 impl FloatInsn for FSGNJND {}
 
@@ -710,10 +710,10 @@ impl Execution for FSGNJND {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
         let res = rs1 & ((1 << 63) - 1) | !rs2 & (1 << 63);
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -723,7 +723,7 @@ impl Execution for FSGNJND {
 #[format(R)]
 #[code("0b0010001??????????010?????1010011")]
 #[derive(Debug)]
-struct FSGNJXD(InsnT);
+struct FSGNJXD();
 
 impl FloatInsn for FSGNJXD {}
 
@@ -731,10 +731,10 @@ impl Execution for FSGNJXD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
         let res = rs1 & ((1 << 63) - 1) | (rs1 ^ rs2) & (1 << 63);
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -744,7 +744,7 @@ impl Execution for FSGNJXD {
 #[format(R)]
 #[code("0b1010001??????????010?????1010011")]
 #[derive(Debug)]
-struct FEQD(InsnT);
+struct FEQD();
 
 impl FloatInsn for FEQD {}
 
@@ -754,12 +754,12 @@ impl Execution for FEQD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
-        if let Some(Ordering::Equal) = self.compare(f.deref(), rs1, rs2, false)? {
-            p.state().set_xreg(self.rd(), 1);
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        if let Some(Ordering::Equal) = self.compare(p.state().ir(), f.deref(), rs1, rs2, false)? {
+            p.state().set_xreg(self.rd(p.state().ir()), 1);
         } else {
-            p.state().set_xreg(self.rd(), 0);
+            p.state().set_xreg(self.rd(p.state().ir()), 0);
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -770,7 +770,7 @@ impl Execution for FEQD {
 #[format(R)]
 #[code("0b1010001??????????001?????1010011")]
 #[derive(Debug)]
-struct FLTD(InsnT);
+struct FLTD();
 
 impl FloatInsn for FLTD {}
 
@@ -780,12 +780,12 @@ impl Execution for FLTD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
-        if let Some(Ordering::Less) = self.compare(f.deref(), rs1, rs2, true)? {
-            p.state().set_xreg(self.rd(), 1);
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        if let Some(Ordering::Less) = self.compare(p.state().ir(), f.deref(), rs1, rs2, true)? {
+            p.state().set_xreg(self.rd(p.state().ir()), 1);
         } else {
-            p.state().set_xreg(self.rd(), 0);
+            p.state().set_xreg(self.rd(p.state().ir()), 0);
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -796,7 +796,7 @@ impl Execution for FLTD {
 #[format(R)]
 #[code("0b1010001??????????000?????1010011")]
 #[derive(Debug)]
-struct FLED(InsnT);
+struct FLED();
 
 impl FloatInsn for FLED {}
 
@@ -806,15 +806,15 @@ impl Execution for FLED {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
-        let res = self.compare(f.deref(), rs1, rs2, true)?;
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        let res = self.compare(p.state().ir(), f.deref(), rs1, rs2, true)?;
         if let Some(Ordering::Equal) = res {
-            p.state().set_xreg(self.rd(), 1);
+            p.state().set_xreg(self.rd(p.state().ir()), 1);
         } else if let Some(Ordering::Less) = res {
-            p.state().set_xreg(self.rd(), 1);
+            p.state().set_xreg(self.rd(p.state().ir()), 1);
         } else {
-            p.state().set_xreg(self.rd(), 0);
+            p.state().set_xreg(self.rd(p.state().ir()), 0);
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -826,7 +826,7 @@ impl Execution for FLED {
 #[format(R)]
 #[code("0b111000100000?????001?????1010011")]
 #[derive(Debug)]
-struct FCLASSD(InsnT);
+struct FCLASSD();
 
 impl FloatInsn for FCLASSD {}
 
@@ -836,8 +836,8 @@ impl Execution for FCLASSD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        p.state().set_xreg(self.rd(), self.class(rs1));
+        let rs1: u64 = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        p.state().set_xreg(self.rd(p.state().ir()), self.class(rs1));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -847,7 +847,7 @@ impl Execution for FCLASSD {
 #[format(R)]
 #[code("0b111000100000?????000?????1010011")]
 #[derive(Debug)]
-struct FMVXD(InsnT);
+struct FMVXD();
 
 impl FloatInsn for FMVXD {}
 
@@ -856,8 +856,8 @@ impl Execution for FMVXD {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let data: RegT = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
-        p.state().set_xreg(self.rd(), data & p.state().config().xlen.mask());
+        let data: RegT = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff_ffff_ffff) as u64;
+        p.state().set_xreg(self.rd(p.state().ir()), data & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -867,7 +867,7 @@ impl Execution for FMVXD {
 #[format(R)]
 #[code("0b111100100000?????000?????1010011")]
 #[derive(Debug)]
-struct FMVDX(InsnT);
+struct FMVDX();
 
 impl FloatInsn for FMVDX {}
 
@@ -876,8 +876,8 @@ impl Execution for FMVDX {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let data: RegT = p.state().xreg(self.rs1());
-        f.set_freg(self.rd(), f.flen.padding(data as FRegT, FLen::F64));
+        let data: RegT = p.state().xreg(self.rs1(p.state().ir()));
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(data as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }

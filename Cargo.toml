@@ -32,5 +32,9 @@ path = "top_tests/riscv_tests.rs"
 name = "htif_test"
 path = "top_tests/htif_test.rs"
 
+[[bench]]
+name = "decode_bench"
+path = "top_tests/decode_bench.rs"
+
 [features]
 no-inline = []

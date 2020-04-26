@@ -18,10 +18,10 @@ impl InsnMap for SimpleInsnMap {
         self.0.insert(decoder.code(), Box::new(decoder));
     }
 
-    fn decode(&self, ir: InsnT) -> Result<Instruction, Exception> {
+    fn decode(&self, ir: InsnT) -> Result<&Instruction, Exception> {
         let decoder = self.0.values().find(|d| { d.matched(ir) });
         if let Some(d) = decoder {
-            Ok(d.decode(ir))
+            Ok(d.decode())
         } else {
             Err(Exception::IllegalInsn(ir))
         }

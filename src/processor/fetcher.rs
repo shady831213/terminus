@@ -7,14 +7,13 @@ use crate::processor::trap::Exception;
 use crate::processor::decode::*;
 use std::sync::Arc;
 use crate::devices::bus::Bus;
-use std::ops::Deref;
 use std::cell::RefCell;
 use std::mem::MaybeUninit;
 
 struct ICacheEntry {
     accessed: bool,
     tag: u64,
-    insn: Option<Instruction>,
+    insn: Option<(InsnT, &'static Instruction)>,
 }
 
 struct ICacheBasket {
@@ -36,12 +35,12 @@ impl ICacheBasket {
         }
     }
 
-    fn get_insn(&mut self, tag: u64) -> Option<&Instruction> {
+    fn get_insn(&mut self, tag: u64) -> Option<(InsnT, &'static Instruction)> {
         let mut ptr = self.ptr;
         let tail = self.tail();
         while ptr != tail {
             if self.entries[ptr as usize].tag == tag {
-                if let Some(ref i) = self.entries[ptr as usize].insn {
+                if let Some(i) = self.entries[ptr as usize].insn {
                     self.entries[ptr as usize].accessed = true;
                     self.ptr = ptr;
                     return Some(i);
@@ -77,7 +76,7 @@ impl ICacheBasket {
         }
     }
 
-    fn set_entry(&mut self, tag: u64, insn: &Instruction) {
+    fn set_entry(&mut self, tag: u64, ir:InsnT, insn: &'static Instruction) {
         let mut ptr = self.tail();
         let tail = self.ptr;
         while ptr != tail {
@@ -90,7 +89,7 @@ impl ICacheBasket {
         let e = &mut self.entries[ptr as usize];
         e.accessed = true;
         e.tag = tag;
-        e.insn = Some(insn.deref().deref().clone());
+        e.insn = Some((ir, insn));
         self.ptr = ptr;
     }
 
@@ -117,12 +116,12 @@ impl ICache {
         cache
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn get_insn(&mut self, addr: u64) -> Option<&Instruction> {
+    fn get_insn(&mut self, addr: u64) -> Option<(InsnT, &'static Instruction)> {
         self.baskets[((addr >> 1) as usize) & (self.size - 1)].get_insn(addr >> 1)
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn set_entry(&mut self, addr: u64, insn: &Instruction) {
-        self.baskets[((addr >> 1) as usize) & (self.size - 1)].set_entry(addr >> 1, insn)
+    fn set_entry(&mut self, addr: u64, ir:InsnT, insn: &'static Instruction) {
+        self.baskets[((addr >> 1) as usize) & (self.size - 1)].set_entry(addr >> 1, ir, insn)
     }
 
     fn invalid_all(&mut self) {
@@ -165,42 +164,48 @@ impl Fetcher {
         self.icache.borrow_mut().invalid_all()
     }
 
-    pub fn fetch(&self, pc: RegT, mmu: &Mmu) -> Result<Instruction, Exception> {
+    pub fn fetch(&self, pc: RegT, mmu: &Mmu) -> Result<&'static Instruction, Exception> {
         let mut icache = self.icache.borrow_mut();
         if pc.trailing_zeros() == 1 {
             let pa = mmu.translate(pc, 2, MmuOpt::Fetch)?;
-            if let Some(insn) = icache.get_insn(pa) {
-                Ok(insn.deref().deref().clone())
+            if let Some((ir, ref insn)) = icache.get_insn(pa) {
+                self.p.set_ir(ir);
+                Ok(insn)
             } else {
                 let data_low = self.fetch_u16_slow(pa, pc)?;
                 if data_low & 0x3 != 0x3 {
                     let data = data_low as u16 as InsnT;
                     let insn = GDECODER.decode(data)?;
-                    icache.set_entry(pa, &insn);
+                    icache.set_entry(pa, data, insn);
+                    self.p.set_ir(data);
                     Ok(insn)
                 } else {
                     let pa_high = mmu.translate(pc + 2, 2, MmuOpt::Fetch)?;
                     let data_high = self.fetch_u16_slow(pa_high, pc)?;
                     let data = data_low as u16 as InsnT | ((data_high as u16 as InsnT) << 16);
                     let insn = GDECODER.decode(data)?;
-                    icache.set_entry(pa, &insn);
+                    icache.set_entry(pa, data, insn);
+                    self.p.set_ir(data);
                     Ok(insn)
                 }
             }
         } else {
             let pa = mmu.translate(pc, 4, MmuOpt::Fetch)?;
-            if let Some(insn) = icache.get_insn(pa) {
-                Ok(insn.deref().deref().clone())
+            if let Some((ir, insn)) = icache.get_insn(pa) {
+                self.p.set_ir(ir);
+                Ok(insn)
             } else {
                 let data = self.fetch_u32_slow(pa, pc)?;
                 if data & 0x3 != 0x3 {
                     let data_low = data as u16 as InsnT;
                     let insn = GDECODER.decode(data_low)?;
-                    icache.set_entry(pa, &insn);
+                    icache.set_entry(pa, data, insn);
+                    self.p.set_ir(data);
                     Ok(insn)
                 } else {
                     let insn = GDECODER.decode(data)?;
-                    icache.set_entry(pa, &insn);
+                    icache.set_entry(pa, data, insn);
+                    self.p.set_ir(data);
                     Ok(insn)
                 }
             }

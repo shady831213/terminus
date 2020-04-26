@@ -38,95 +38,48 @@ pub fn expand(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2::TokenStrea
         let name_string = name.to_string();
         check_fields(data, name)?;
         Ok(quote!(
-            impl BitRange<InsnT> for #name {
-                fn bit_range(&self, msb: usize, lsb: usize) -> InsnT {
-                    let width = msb - lsb + 1;
-                    if width == (std::mem::size_of::<InsnT>() << 3) {
-                        self.0
-                    } else {
-                        let mask:InsnT = ((1 as InsnT) << (width as InsnT)) - 1;
-                        ((self.0 >> (lsb as InsnT)) & mask)
-                    }
-                }
-
-                fn set_bit_range(&mut self, msb: usize, lsb: usize, value: InsnT) {
-                    let width = msb - lsb + 1;
-                    let bitlen = (std::mem::size_of::<InsnT>() << 3);
-                    if width == bitlen {
-                        self.0 = value
-                    } else {
-                        let low = self.0 & (((1 as InsnT) << (lsb as InsnT)) - 1);
-                        let high = if msb == bitlen - 1 {0} else {(self.0 >> ((msb + 1) as InsnT)) << ((msb + 1) as InsnT)};
-                        let mask:InsnT = ((1 as InsnT) << (width as InsnT)) - 1;
-                        self.0 = high | low | (((value as InsnT) & mask) << (lsb as InsnT));
-                    }
-                }
-            }
             insn_format!(#name, #format);
             impl #name {
-                fn new(ir:InsnT) -> Instruction {
-                    if (ir & #mask != #code) {
-                        panic!(format!("ir 0x{:x} & mask 0x{:x} = 0x{:x}, expect 0x{:x}, it is not match code 0b{}!", ir, #mask, ir & #mask, #code, #code_str))
-                    }
-                    Instruction::new(#name(ir))
-                }
-                #[inline(always)]
-                fn _ir(&self) ->  InsnT {
-                    self.0
-                }
-            }
-            impl InsnClone for #name{
-                fn clone(&self) -> Instruction {
-                    #name::new(self.0)
+                fn new() -> Instruction {
+                    Instruction::new(#name())
                 }
             }
             impl InstructionImp for #name{}
 
-            struct #decoder_ident;
+            struct #decoder_ident(Instruction);
             impl Decoder for #decoder_ident {
-                #[inline(always)]
                 fn code(&self) ->  InsnT {
                     #code
                 }
-                #[inline(always)]
                 fn mask(&self) ->  InsnT {
                     #mask
                 }
-                #[inline(always)]
                 fn matched(&self, ir:InsnT) -> bool {
                     ir & self.mask() == self.code()
                 }
-                #[inline(always)]
-                fn decode(&self, ir:InsnT) -> Instruction {
-                    #name::new(ir)
+                fn decode(&self) -> &Instruction {
+                    &self.0
                 }
-                #[inline(always)]
                 fn name(&self) -> String{
                     #name_string.to_string()
                 }
             }
 
             #[distributed_slice(REGISTERY_INSN)]
-            static #registery_ident: fn(&mut GlobalInsnMap) = |map| {map.registery(#decoder_ident)};
+            static #registery_ident: fn(&mut GlobalInsnMap) = |map| {map.registery(#decoder_ident(#name::new()))};
         ))
     } else {
         Err(Error::new(name.span(), "Only Struct can derive"))
     }
 }
 
-fn check_fields(data: &DataStruct, name: &Ident) -> Result<bool> {
-    let msg = format!("expect \'struct {}(InsnT);\' !", name.to_string());
+fn check_fields(data: &DataStruct, name: &Ident) -> Result<()> {
+    let msg = format!("expect \'struct {}();\' !", name.to_string());
     if let syn::Fields::Unnamed(ref field) = data.fields {
-        if field.unnamed.len() != 1 {
+        if field.unnamed.len() != 0 {
             return Err(Error::new(field.paren_token.span, msg));
-        }
-        if let syn::Type::Path(ref path) = field.unnamed[0].ty {
-            if path.path.segments.len() != 1 || path.path.segments[0].ident != Ident::new("InsnT", Span::call_site()) {
-                return Err(Error::new(path.path.segments[0].ident.span(), msg));
-            }
-            return Ok(true);
         } else {
-            return Err(Error::new(name.span(), msg));
+            Ok(())
         }
     } else {
         Err(Error::new(name.span(), msg))

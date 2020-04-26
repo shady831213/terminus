@@ -264,7 +264,7 @@ impl ProcessorState {
         let cur_priv: u8 = (*self.privilege.borrow()).into();
         let csr_priv: u8 = ((id >> 8) & 0x3) as u8;
         if cur_priv < csr_priv {
-            return Err(Exception::IllegalInsn(*self.ir.borrow()));
+            return Err(Exception::IllegalInsn(self.ir()));
         }
         Ok(())
     }
@@ -278,7 +278,7 @@ impl ProcessorState {
         self.csr_privilege_check(trip_id)?;
         match self.extensions().iter().find_map(|e| { e.csr_read(self, trip_id) }) {
             Some(v) => Ok(v),
-            None => Err(Exception::IllegalInsn(*self.ir.borrow()))
+            None => Err(Exception::IllegalInsn(self.ir()))
         }
     }
 
@@ -287,7 +287,7 @@ impl ProcessorState {
         self.csr_privilege_check(trip_id)?;
         match self.extensions().iter().find_map(|e| { e.csr_write(self, trip_id, value) }) {
             Some(_) => Ok(()),
-            None => Err(Exception::IllegalInsn(*self.ir.borrow()))
+            None => Err(Exception::IllegalInsn(self.ir()))
         }
     }
 
@@ -295,7 +295,7 @@ impl ProcessorState {
         if self.icsrs().misa().get() & ((1 as RegT) << ((ext as u8 - 'a' as u8) as RegT)) != 0 {
             Ok(())
         } else {
-            Err(Exception::IllegalInsn(*self.ir.borrow()))
+            Err(Exception::IllegalInsn(self.ir()))
         }
     }
 
@@ -303,17 +303,17 @@ impl ProcessorState {
         if xlen == self.config().xlen {
             Ok(())
         } else {
-            Err(Exception::IllegalInsn(*self.ir.borrow()))
+            Err(Exception::IllegalInsn(self.ir()))
         }
     }
 
     pub fn check_privilege_level(&self, privilege: Privilege) -> Result<(), Exception> {
         match self.config().privilege_level() {
             PrivilegeLevel::M => if privilege != Privilege::M {
-                return Err(Exception::IllegalInsn(*self.ir.borrow()));
+                return Err(Exception::IllegalInsn(self.ir()));
             },
             PrivilegeLevel::MU => if privilege == Privilege::S {
-                return Err(Exception::IllegalInsn(*self.ir.borrow()));
+                return Err(Exception::IllegalInsn(self.ir()));
             }
             PrivilegeLevel::MSU => {}
         }
@@ -350,12 +350,16 @@ impl ProcessorState {
         *self.next_pc.borrow_mut() = pc
     }
 
-    pub fn next_pc(&self) -> RegT {
-        *self.next_pc.borrow()
+    pub fn ir(&self) -> InsnT {
+        *self.ir.borrow()
     }
 
-    fn ir(&self) -> InsnT {
-        *self.ir.borrow()
+    pub fn set_ir(&self, ir: InsnT) {
+        *self.ir.borrow_mut() = ir
+    }
+
+    pub fn next_pc(&self) -> RegT {
+        *self.next_pc.borrow()
     }
 
     pub fn insns_cnt(&self) -> u64 {
@@ -427,7 +431,6 @@ impl Processor {
     fn one_insn(&self) -> Result<(), Exception> {
         *self.state.pc.borrow_mut() = *self.state.next_pc.borrow();
         let inst = self.fetcher.fetch(*self.state.pc.borrow(), self.mmu())?;
-        *self.state.ir.borrow_mut() = inst.ir();
         match inst.execute(self) {
             Ok(_) => {
                 *self.state.insns_cnt.deref().borrow_mut() += 1;

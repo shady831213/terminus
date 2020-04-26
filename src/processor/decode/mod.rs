@@ -17,13 +17,13 @@ pub trait Decoder:Send+Sync {
     fn code(&self) -> InsnT;
     fn mask(&self) -> InsnT;
     fn matched(&self, ir: InsnT) -> bool;
-    fn decode(&self, ir: InsnT) -> Instruction;
+    fn decode(&self) -> &Instruction;
     fn name(&self) -> String;
 }
 
 pub trait InsnMap {
     fn registery<T: 'static + Decoder>(&mut self, decoder: T);
-    fn decode(&self, ir: InsnT) -> Result<Instruction, Exception>;
+    fn decode(&self, ir: InsnT) -> Result<&Instruction, Exception>;
     fn lock(&mut self) {}
 }
 

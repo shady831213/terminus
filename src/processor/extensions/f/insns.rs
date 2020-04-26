@@ -9,17 +9,17 @@ use std::cmp::Ordering;
 #[format(I)]
 #[code("0b?????????????????010?????0000111")]
 #[derive(Debug)]
-struct FLW(InsnT);
+struct FLW();
 
 impl FloatInsn for FLW {}
 
 impl Execution for FLW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1()));
-        let offset: Wrapping<RegT> = Wrapping(sext(self.imm() as RegT, self.imm_len()));
+        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
         let data = p.load_store().load_word((base + offset).0, p.mmu())?;
-        f.set_freg(self.rd(), f.flen.padding(data as FRegT, FLen::F32));
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(data as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -30,7 +30,7 @@ impl Execution for FLW {
 #[format(I)]
 #[code("0b?????????????????010?????0100111")]
 #[derive(Debug)]
-struct FSW(InsnT);
+struct FSW();
 
 impl FloatInsn for FSW {}
 
@@ -39,9 +39,9 @@ impl FStore for FSW {}
 impl Execution for FSW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1()));
-        let data = f.freg(self.src()) as u32;
-        p.load_store().store_word((base + self.offset()).0, data as RegT, p.mmu())?;
+        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let data = f.freg(self.src(p.state().ir())) as u32;
+        p.load_store().store_word((base + self.offset(p.state().ir())).0, data as RegT, p.mmu())?;
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -51,23 +51,23 @@ impl Execution for FSW {
 #[format(R)]
 #[code("0b0000000??????????????????1010011")]
 #[derive(Debug)]
-struct FADDS(InsnT);
+struct FADDS();
 
 impl FloatInsn for FADDS {}
 
 impl FCompute<u32, F32Traits> for FADDS {
-    fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
-        frs1.add(&frs2, Self::rm_from_bits(self.rm()), Some(fp_state))
+    fn opt(&self, ir:InsnT,frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
+        frs1.add(&frs2, Self::rm_from_bits(self.rm(ir)), Some(fp_state))
     }
 }
 
 impl Execution for FADDS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let rs2: u32 = f.flen.boxed(f.freg(self.rs2()), FLen::F32) as u32;
-        let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F32));
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let rs2: u32 = f.flen.boxed(f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -77,23 +77,23 @@ impl Execution for FADDS {
 #[format(R)]
 #[code("0b0000100??????????????????1010011")]
 #[derive(Debug)]
-struct FSUBS(InsnT);
+struct FSUBS();
 
 impl FloatInsn for FSUBS {}
 
 impl FCompute<u32, F32Traits> for FSUBS {
-    fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
-        frs1.sub(&frs2, Self::rm_from_bits(self.rm()), Some(fp_state))
+    fn opt(&self, ir:InsnT,frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
+        frs1.sub(&frs2, Self::rm_from_bits(self.rm(ir)), Some(fp_state))
     }
 }
 
 impl Execution for FSUBS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let rs2: u32 = f.flen.boxed(f.freg(self.rs2()), FLen::F32) as u32;
-        let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F32));
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let rs2: u32 = f.flen.boxed(f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -103,23 +103,23 @@ impl Execution for FSUBS {
 #[format(R)]
 #[code("0b0001000??????????????????1010011")]
 #[derive(Debug)]
-struct FMULS(InsnT);
+struct FMULS();
 
 impl FloatInsn for FMULS {}
 
 impl FCompute<u32, F32Traits> for FMULS {
-    fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
-        frs1.mul(&frs2, Self::rm_from_bits(self.rm()), Some(fp_state))
+    fn opt(&self, ir:InsnT,frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
+        frs1.mul(&frs2, Self::rm_from_bits(self.rm(ir)), Some(fp_state))
     }
 }
 
 impl Execution for FMULS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let rs2: u32 = f.flen.boxed(f.freg(self.rs2()), FLen::F32) as u32;
-        let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F32));
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let rs2: u32 = f.flen.boxed(f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -129,23 +129,23 @@ impl Execution for FMULS {
 #[format(R)]
 #[code("0b0001100??????????????????1010011")]
 #[derive(Debug)]
-struct FDIVS(InsnT);
+struct FDIVS();
 
 impl FloatInsn for FDIVS {}
 
 impl FCompute<u32, F32Traits> for FDIVS {
-    fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
-        frs1.div(&frs2, Self::rm_from_bits(self.rm()), Some(fp_state))
+    fn opt(&self, ir:InsnT,frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
+        frs1.div(&frs2, Self::rm_from_bits(self.rm(ir)), Some(fp_state))
     }
 }
 
 impl Execution for FDIVS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let rs2: u32 = f.flen.boxed(f.freg(self.rs2()), FLen::F32) as u32;
-        let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F32));
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let rs2: u32 = f.flen.boxed(f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -155,22 +155,22 @@ impl Execution for FDIVS {
 #[format(R)]
 #[code("0b10110000000?????????????1010011")]
 #[derive(Debug)]
-struct FSQRTS(InsnT);
+struct FSQRTS();
 
 impl FloatInsn for FSQRTS {}
 
 impl FCompute<u32, F32Traits> for FSQRTS {
-    fn opt(&self, frs1: F32, _: F32, _: F32, fp_state: &mut FPState) -> F32 {
-        frs1.sqrt(Self::rm_from_bits(self.rm()), Some(fp_state))
+    fn opt(&self, ir:InsnT,frs1: F32, _: F32, _: F32, fp_state: &mut FPState) -> F32 {
+        frs1.sqrt(Self::rm_from_bits(self.rm(ir)), Some(fp_state))
     }
 }
 
 impl Execution for FSQRTS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let res = self.compute(f.deref(), rs1, 0, 0)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F32));
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, 0, 0)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -180,12 +180,12 @@ impl Execution for FSQRTS {
 #[format(R)]
 #[code("0b0010100??????????000?????1010011")]
 #[derive(Debug)]
-struct FMINS(InsnT);
+struct FMINS();
 
 impl FloatInsn for FMINS {}
 
 impl FCompute<u32, F32Traits> for FMINS {
-    fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
+    fn opt(&self, _:InsnT,frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
         if frs1.is_nan() && frs2.is_nan() {
             return F32::quiet_nan();
         }
@@ -203,10 +203,10 @@ impl FCompute<u32, F32Traits> for FMINS {
 impl Execution for FMINS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let rs2: u32 = f.flen.boxed(f.freg(self.rs2()), FLen::F32) as u32;
-        let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F32));
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let rs2: u32 = f.flen.boxed(f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -216,12 +216,12 @@ impl Execution for FMINS {
 #[format(R)]
 #[code("0b0010100??????????001?????1010011")]
 #[derive(Debug)]
-struct FMAXS(InsnT);
+struct FMAXS();
 
 impl FloatInsn for FMAXS {}
 
 impl FCompute<u32, F32Traits> for FMAXS {
-    fn opt(&self, frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
+    fn opt(&self, _:InsnT,frs1: F32, frs2: F32, _: F32, fp_state: &mut FPState) -> F32 {
         if frs1.is_nan() && frs2.is_nan() {
             return F32::quiet_nan();
         }
@@ -239,10 +239,10 @@ impl FCompute<u32, F32Traits> for FMAXS {
 impl Execution for FMAXS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let rs2: u32 = f.flen.boxed(f.freg(self.rs2()), FLen::F32) as u32;
-        let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F32));
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let rs2: u32 = f.flen.boxed(f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -252,24 +252,24 @@ impl Execution for FMAXS {
 #[format(R)]
 #[code("0b?????00??????????????????1000011")]
 #[derive(Debug)]
-struct FMADDS(InsnT);
+struct FMADDS();
 
 impl FloatInsn for FMADDS {}
 
 impl FCompute<u32, F32Traits> for FMADDS {
-    fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
-        frs1.fused_mul_add(&frs2, &frs3, Self::rm_from_bits(self.rm()), Some(state))
+    fn opt(&self, ir:InsnT,frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
+        frs1.fused_mul_add(&frs2, &frs3, Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
 
 impl Execution for FMADDS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let rs2: u32 = f.flen.boxed(f.freg(self.rs2()), FLen::F32) as u32;
-        let rs3: u32 = f.flen.boxed(f.freg(self.rs3()), FLen::F32) as u32;
-        let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F32));
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let rs2: u32 = f.flen.boxed(f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
+        let rs3: u32 = f.flen.boxed(f.freg(self.rs3(p.state().ir())), FLen::F32) as u32;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, rs3)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -279,24 +279,24 @@ impl Execution for FMADDS {
 #[format(R)]
 #[code("0b?????00??????????????????1000111")]
 #[derive(Debug)]
-struct FMSUBS(InsnT);
+struct FMSUBS();
 
 impl FloatInsn for FMSUBS {}
 
 impl FCompute<u32, F32Traits> for FMSUBS {
-    fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
-        frs1.fused_mul_add(&frs2, &frs3.neg(), Self::rm_from_bits(self.rm()), Some(state))
+    fn opt(&self, ir:InsnT,frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
+        frs1.fused_mul_add(&frs2, &frs3.neg(), Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
 
 impl Execution for FMSUBS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let rs2: u32 = f.flen.boxed(f.freg(self.rs2()), FLen::F32) as u32;
-        let rs3: u32 = f.flen.boxed(f.freg(self.rs3()), FLen::F32) as u32;
-        let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F32));
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let rs2: u32 = f.flen.boxed(f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
+        let rs3: u32 = f.flen.boxed(f.freg(self.rs3(p.state().ir())), FLen::F32) as u32;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, rs3)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -307,24 +307,24 @@ impl Execution for FMSUBS {
 #[format(R)]
 #[code("0b?????00??????????????????1001011")]
 #[derive(Debug)]
-struct FMNSUBS(InsnT);
+struct FMNSUBS();
 
 impl FloatInsn for FMNSUBS {}
 
 impl FCompute<u32, F32Traits> for FMNSUBS {
-    fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
-        frs1.fused_mul_add(&frs2, &frs3.neg(), Self::rm_from_bits(self.rm()), Some(state)).neg()
+    fn opt(&self, ir:InsnT,frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
+        frs1.fused_mul_add(&frs2, &frs3.neg(), Self::rm_from_bits(self.rm(ir)), Some(state)).neg()
     }
 }
 
 impl Execution for FMNSUBS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let rs2: u32 = f.flen.boxed(f.freg(self.rs2()), FLen::F32) as u32;
-        let rs3: u32 = f.flen.boxed(f.freg(self.rs3()), FLen::F32) as u32;
-        let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F32));
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let rs2: u32 = f.flen.boxed(f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
+        let rs3: u32 = f.flen.boxed(f.freg(self.rs3(p.state().ir())), FLen::F32) as u32;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, rs3)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -334,24 +334,24 @@ impl Execution for FMNSUBS {
 #[format(R)]
 #[code("0b?????00??????????????????1001111")]
 #[derive(Debug)]
-struct FMNADDS(InsnT);
+struct FMNADDS();
 
 impl FloatInsn for FMNADDS {}
 
 impl FCompute<u32, F32Traits> for FMNADDS {
-    fn opt(&self, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
-        frs1.fused_mul_add(&frs2, &frs3, Self::rm_from_bits(self.rm()), Some(state)).neg()
+    fn opt(&self, ir:InsnT,frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
+        frs1.fused_mul_add(&frs2, &frs3, Self::rm_from_bits(self.rm(ir)), Some(state)).neg()
     }
 }
 
 impl Execution for FMNADDS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let rs2: u32 = f.flen.boxed(f.freg(self.rs2()), FLen::F32) as u32;
-        let rs3: u32 = f.flen.boxed(f.freg(self.rs3()), FLen::F32) as u32;
-        let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F32));
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let rs2: u32 = f.flen.boxed(f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
+        let rs3: u32 = f.flen.boxed(f.freg(self.rs3(p.state().ir())), FLen::F32) as u32;
+        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, rs3)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -362,14 +362,14 @@ impl Execution for FMNADDS {
 #[format(R)]
 #[code("0b110000000000?????????????1010011")]
 #[derive(Debug)]
-struct FCVTWS(InsnT);
+struct FCVTWS();
 
 impl FloatInsn for FCVTWS {}
 
 impl FToX<u32, F32Traits> for FCVTWS {
     type T = i32;
-    fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T {
-        if let Some(v) = frs1.to_i32(true, Self::rm_from_bits(self.rm()), Some(state)) {
+    fn opt(&self, ir:InsnT,frs1: F32, state: &mut FPState) -> Self::T {
+        if let Some(v) = frs1.to_i32(true, Self::rm_from_bits(self.rm(ir)), Some(state)) {
             v
         } else {
             if frs1.is_nan() || frs1.sign() == Sign::Positive {
@@ -384,9 +384,9 @@ impl FToX<u32, F32Traits> for FCVTWS {
 impl Execution for FCVTWS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let res = self.convert(f.deref(), rs1)? as u32;
-        p.state().set_xreg(self.rd(), sext(res as RegT, 32) & p.state().config().xlen.mask());
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let res = self.convert(p.state().ir(), f.deref(), rs1)? as u32;
+        p.state().set_xreg(self.rd(p.state().ir()), sext(res as RegT, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -396,14 +396,14 @@ impl Execution for FCVTWS {
 #[format(R)]
 #[code("0b110000000001?????????????1010011")]
 #[derive(Debug)]
-struct FCVTWUS(InsnT);
+struct FCVTWUS();
 
 impl FloatInsn for FCVTWUS {}
 
 impl FToX<u32, F32Traits> for FCVTWUS {
     type T = u32;
-    fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T {
-        if let Some(v) = frs1.to_u32(true, Self::rm_from_bits(self.rm()), Some(state)) {
+    fn opt(&self, ir:InsnT,frs1: F32, state: &mut FPState) -> Self::T {
+        if let Some(v) = frs1.to_u32(true, Self::rm_from_bits(self.rm(ir)), Some(state)) {
             v
         } else {
             if frs1.is_nan() || frs1.sign() == Sign::Positive {
@@ -418,9 +418,9 @@ impl FToX<u32, F32Traits> for FCVTWUS {
 impl Execution for FCVTWUS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let res = self.convert(f.deref(), rs1)?;
-        p.state().set_xreg(self.rd(), sext(res as RegT, 32) & p.state().config().xlen.mask());
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let res = self.convert(p.state().ir(), f.deref(), rs1)?;
+        p.state().set_xreg(self.rd(p.state().ir()), sext(res as RegT, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -430,14 +430,14 @@ impl Execution for FCVTWUS {
 #[format(R)]
 #[code("0b110000000010?????????????1010011")]
 #[derive(Debug)]
-struct FCVTLS(InsnT);
+struct FCVTLS();
 
 impl FloatInsn for FCVTLS {}
 
 impl FToX<u32, F32Traits> for FCVTLS {
     type T = i64;
-    fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T {
-        if let Some(v) = frs1.to_i64(true, Self::rm_from_bits(self.rm()), Some(state)) {
+    fn opt(&self, ir:InsnT,frs1: F32, state: &mut FPState) -> Self::T {
+        if let Some(v) = frs1.to_i64(true, Self::rm_from_bits(self.rm(ir)), Some(state)) {
             v
         } else {
             if frs1.is_nan() || frs1.sign() == Sign::Positive {
@@ -453,9 +453,9 @@ impl Execution for FCVTLS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let res = self.convert(f.deref(), rs1)? as u64;
-        p.state().set_xreg(self.rd(), res as RegT & p.state().config().xlen.mask());
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let res = self.convert(p.state().ir(), f.deref(), rs1)? as u64;
+        p.state().set_xreg(self.rd(p.state().ir()), res as RegT & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -465,14 +465,14 @@ impl Execution for FCVTLS {
 #[format(R)]
 #[code("0b110000000011?????????????1010011")]
 #[derive(Debug)]
-struct FCVTLUS(InsnT);
+struct FCVTLUS();
 
 impl FloatInsn for FCVTLUS {}
 
 impl FToX<u32, F32Traits> for FCVTLUS {
     type T = u64;
-    fn opt(&self, frs1: F32, state: &mut FPState) -> Self::T {
-        if let Some(v) = frs1.to_u64(true, Self::rm_from_bits(self.rm()), Some(state)) {
+    fn opt(&self, ir:InsnT,frs1: F32, state: &mut FPState) -> Self::T {
+        if let Some(v) = frs1.to_u64(true, Self::rm_from_bits(self.rm(ir)), Some(state)) {
             v
         } else {
             if frs1.is_nan() || frs1.sign() == Sign::Positive {
@@ -488,9 +488,9 @@ impl Execution for FCVTLUS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let res = self.convert(f.deref(), rs1)?;
-        p.state().set_xreg(self.rd(), res as RegT & p.state().config().xlen.mask());
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let res = self.convert(p.state().ir(), f.deref(), rs1)?;
+        p.state().set_xreg(self.rd(p.state().ir()), res as RegT & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -500,23 +500,23 @@ impl Execution for FCVTLUS {
 #[format(R)]
 #[code("0b110100000000?????????????1010011")]
 #[derive(Debug)]
-struct FCVTSW(InsnT);
+struct FCVTSW();
 
 impl FloatInsn for FCVTSW {}
 
 impl XToF<u32, F32Traits> for FCVTSW {
     type T = i32;
-    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
-        F32::from_i32(rs1, Self::rm_from_bits(self.rm()), Some(state))
+    fn opt(&self, ir:InsnT,rs1: Self::T, state: &mut FPState) -> F32 {
+        F32::from_i32(rs1, Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
 
 impl Execution for FCVTSW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: RegT = sext(p.state().xreg(self.rs1()), 32);
-        let fres = self.convert(f.deref(), rs1 as i32)?;
-        f.set_freg(self.rd(), f.flen.padding(fres as FRegT, FLen::F32));
+        let rs1: RegT = sext(p.state().xreg(self.rs1(p.state().ir())), 32);
+        let fres = self.convert(p.state().ir(), f.deref(), rs1 as i32)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(fres as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -526,23 +526,23 @@ impl Execution for FCVTSW {
 #[format(R)]
 #[code("0b110100000001?????????????1010011")]
 #[derive(Debug)]
-struct FCVTSWU(InsnT);
+struct FCVTSWU();
 
 impl FloatInsn for FCVTSWU {}
 
 impl XToF<u32, F32Traits> for FCVTSWU {
     type T = u32;
-    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
-        F32::from_u32(rs1, Self::rm_from_bits(self.rm()), Some(state))
+    fn opt(&self, ir:InsnT,rs1: Self::T, state: &mut FPState) -> F32 {
+        F32::from_u32(rs1, Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
 
 impl Execution for FCVTSWU {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: RegT = p.state().xreg(self.rs1()) & 0xffff_ffff;
-        let fres = self.convert(f.deref(), rs1 as u32)?;
-        f.set_freg(self.rd(), f.flen.padding(fres as FRegT, FLen::F32));
+        let rs1: RegT = p.state().xreg(self.rs1(p.state().ir())) & 0xffff_ffff;
+        let fres = self.convert(p.state().ir(), f.deref(), rs1 as u32)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(fres as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -552,14 +552,14 @@ impl Execution for FCVTSWU {
 #[format(R)]
 #[code("0b110100000010?????????????1010011")]
 #[derive(Debug)]
-struct FCVTSL(InsnT);
+struct FCVTSL();
 
 impl FloatInsn for FCVTSL {}
 
 impl XToF<u32, F32Traits> for FCVTSL {
     type T = i64;
-    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
-        F32::from_i64(rs1, Self::rm_from_bits(self.rm()), Some(state))
+    fn opt(&self, ir:InsnT,rs1: Self::T, state: &mut FPState) -> F32 {
+        F32::from_i64(rs1, Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
 
@@ -567,9 +567,9 @@ impl Execution for FCVTSL {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         let f = self.get_f_ext(p)?;
-        let rs1: RegT = p.state().xreg(self.rs1());
-        let fres = self.convert(f.deref(), rs1 as i64)?;
-        f.set_freg(self.rd(), f.flen.padding(fres as FRegT, FLen::F32));
+        let rs1: RegT = p.state().xreg(self.rs1(p.state().ir()));
+        let fres = self.convert(p.state().ir(), f.deref(), rs1 as i64)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(fres as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -579,14 +579,14 @@ impl Execution for FCVTSL {
 #[format(R)]
 #[code("0b110100000011?????????????1010011")]
 #[derive(Debug)]
-struct FCVTSLU(InsnT);
+struct FCVTSLU();
 
 impl FloatInsn for FCVTSLU {}
 
 impl XToF<u32, F32Traits> for FCVTSLU {
     type T = u64;
-    fn opt(&self, rs1: Self::T, state: &mut FPState) -> F32 {
-        F32::from_u64(rs1, Self::rm_from_bits(self.rm()), Some(state))
+    fn opt(&self, ir:InsnT,rs1: Self::T, state: &mut FPState) -> F32 {
+        F32::from_u64(rs1, Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
 
@@ -594,9 +594,9 @@ impl Execution for FCVTSLU {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         let f = self.get_f_ext(p)?;
-        let rs1: RegT = p.state().xreg(self.rs1());
-        let fres = self.convert(f.deref(), rs1 as u64)?;
-        f.set_freg(self.rd(), f.flen.padding(fres as FRegT, FLen::F32));
+        let rs1: RegT = p.state().xreg(self.rs1(p.state().ir()));
+        let fres = self.convert(p.state().ir(), f.deref(), rs1 as u64)?;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(fres as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -606,17 +606,17 @@ impl Execution for FCVTSLU {
 #[format(R)]
 #[code("0b0010000??????????000?????1010011")]
 #[derive(Debug)]
-struct FSGNJS(InsnT);
+struct FSGNJS();
 
 impl FloatInsn for FSGNJS {}
 
 impl Execution for FSGNJS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let rs2: u32 = f.flen.boxed(f.freg(self.rs2()), FLen::F32) as u32;
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let rs2: u32 = f.flen.boxed(f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
         let res = rs1 & ((1 << 31) - 1) | rs2 & (1 << 31);
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F32));
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -626,17 +626,17 @@ impl Execution for FSGNJS {
 #[format(R)]
 #[code("0b0010000??????????001?????1010011")]
 #[derive(Debug)]
-struct FSGNJNS(InsnT);
+struct FSGNJNS();
 
 impl FloatInsn for FSGNJNS {}
 
 impl Execution for FSGNJNS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let rs2: u32 = f.flen.boxed(f.freg(self.rs2()), FLen::F32) as u32;
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let rs2: u32 = f.flen.boxed(f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
         let res = rs1 & ((1 << 31) - 1) | !rs2 & (1 << 31);
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F32));
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -646,17 +646,17 @@ impl Execution for FSGNJNS {
 #[format(R)]
 #[code("0b0010000??????????010?????1010011")]
 #[derive(Debug)]
-struct FSGNJXS(InsnT);
+struct FSGNJXS();
 
 impl FloatInsn for FSGNJXS {}
 
 impl Execution for FSGNJXS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let rs2: u32 = f.flen.boxed(f.freg(self.rs2()), FLen::F32) as u32;
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let rs2: u32 = f.flen.boxed(f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
         let res = rs1 & ((1 << 31) - 1) | (rs1 ^ rs2) & (1 << 31);
-        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F32));
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(res as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -666,7 +666,7 @@ impl Execution for FSGNJXS {
 #[format(R)]
 #[code("0b1010000??????????010?????1010011")]
 #[derive(Debug)]
-struct FEQS(InsnT);
+struct FEQS();
 
 impl FloatInsn for FEQS {}
 
@@ -675,12 +675,12 @@ impl FCompare<u32, F32Traits> for FEQS {}
 impl Execution for FEQS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let rs2: u32 = f.flen.boxed(f.freg(self.rs2()), FLen::F32) as u32;
-        if let Some(Ordering::Equal) = self.compare(f.deref(), rs1, rs2, false)? {
-            p.state().set_xreg(self.rd(), 1);
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let rs2: u32 = f.flen.boxed(f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
+        if let Some(Ordering::Equal) = self.compare(p.state().ir(), f.deref(), rs1, rs2, false)? {
+            p.state().set_xreg(self.rd(p.state().ir()), 1);
         } else {
-            p.state().set_xreg(self.rd(), 0);
+            p.state().set_xreg(self.rd(p.state().ir()), 0);
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -691,7 +691,7 @@ impl Execution for FEQS {
 #[format(R)]
 #[code("0b1010000??????????001?????1010011")]
 #[derive(Debug)]
-struct FLTS(InsnT);
+struct FLTS();
 
 impl FloatInsn for FLTS {}
 
@@ -700,12 +700,12 @@ impl FCompare<u32, F32Traits> for FLTS {}
 impl Execution for FLTS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let rs2: u32 = f.flen.boxed(f.freg(self.rs2()), FLen::F32) as u32;
-        if let Some(Ordering::Less) = self.compare(f.deref(), rs1, rs2, true)? {
-            p.state().set_xreg(self.rd(), 1);
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let rs2: u32 = f.flen.boxed(f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
+        if let Some(Ordering::Less) = self.compare(p.state().ir(), f.deref(), rs1, rs2, true)? {
+            p.state().set_xreg(self.rd(p.state().ir()), 1);
         } else {
-            p.state().set_xreg(self.rd(), 0);
+            p.state().set_xreg(self.rd(p.state().ir()), 0);
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -716,7 +716,7 @@ impl Execution for FLTS {
 #[format(R)]
 #[code("0b1010000??????????000?????1010011")]
 #[derive(Debug)]
-struct FLES(InsnT);
+struct FLES();
 
 impl FloatInsn for FLES {}
 
@@ -725,15 +725,15 @@ impl FCompare<u32, F32Traits> for FLES {}
 impl Execution for FLES {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        let rs2: u32 = f.flen.boxed(f.freg(self.rs2()), FLen::F32) as u32;
-        let res = self.compare(f.deref(), rs1, rs2, true)?;
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        let rs2: u32 = f.flen.boxed(f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
+        let res = self.compare(p.state().ir(), f.deref(), rs1, rs2, true)?;
         if let Some(Ordering::Equal) = res {
-            p.state().set_xreg(self.rd(), 1);
+            p.state().set_xreg(self.rd(p.state().ir()), 1);
         } else if let Some(Ordering::Less) = res {
-            p.state().set_xreg(self.rd(), 1);
+            p.state().set_xreg(self.rd(p.state().ir()), 1);
         } else {
-            p.state().set_xreg(self.rd(), 0);
+            p.state().set_xreg(self.rd(p.state().ir()), 0);
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -745,7 +745,7 @@ impl Execution for FLES {
 #[format(R)]
 #[code("0b111000000000?????001?????1010011")]
 #[derive(Debug)]
-struct FCLASSS(InsnT);
+struct FCLASSS();
 
 impl FloatInsn for FCLASSS {}
 
@@ -754,8 +754,8 @@ impl FClass<u32, F32Traits> for FCLASSS {}
 impl Execution for FCLASSS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = f.flen.boxed(f.freg(self.rs1()), FLen::F32) as u32;
-        p.state().set_xreg(self.rd(), self.class(rs1));
+        let rs1: u32 = f.flen.boxed(f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
+        p.state().set_xreg(self.rd(p.state().ir()), self.class(rs1));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -765,15 +765,15 @@ impl Execution for FCLASSS {
 #[format(R)]
 #[code("0b111000000000?????000?????1010011")]
 #[derive(Debug)]
-struct FMVXW(InsnT);
+struct FMVXW();
 
 impl FloatInsn for FMVXW {}
 
 impl Execution for FMVXW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let data: RegT = (f.freg(self.rs1()) & 0xffff_ffff) as RegT;
-        p.state().set_xreg(self.rd(), sext(data, 32) & p.state().config().xlen.mask());
+        let data: RegT = (f.freg(self.rs1(p.state().ir())) & 0xffff_ffff) as RegT;
+        p.state().set_xreg(self.rd(p.state().ir()), sext(data, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -783,15 +783,15 @@ impl Execution for FMVXW {
 #[format(R)]
 #[code("0b111100000000?????000?????1010011")]
 #[derive(Debug)]
-struct FMVWX(InsnT);
+struct FMVWX();
 
 impl FloatInsn for FMVWX {}
 
 impl Execution for FMVWX {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
-        let data: RegT = p.state().xreg(self.rs1())& 0xffff_ffff;
-        f.set_freg(self.rd(), f.flen.padding(data as FRegT, FLen::F32));
+        let data: RegT = p.state().xreg(self.rs1(p.state().ir())) & 0xffff_ffff;
+        f.set_freg(self.rd(p.state().ir()), f.flen.padding(data as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }

@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 #[format(I)]
 #[code("0b00010000001000000000000001110011")]
 #[derive(Debug)]
-struct SRET(InsnT);
+struct SRET();
 
 impl Execution for SRET {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
@@ -15,7 +15,7 @@ impl Execution for SRET {
         let scsrs = p.state().scsrs();
         let tsr = mcsrs.mstatus().tsr();
         if tsr == 1 && p.state().privilege() == Privilege::S {
-            return Err(Exception::IllegalInsn(self.ir()));
+            return Err(Exception::IllegalInsn(p.state().ir()));
         }
         let spp = mcsrs.mstatus().spp();
         let spie = mcsrs.mstatus().spie();
@@ -39,14 +39,14 @@ impl Execution for SRET {
 #[format(I)]
 #[code("0b0001001??????????000000001110011")]
 #[derive(Debug)]
-struct SFENCEVMA(InsnT);
+struct SFENCEVMA();
 
 impl Execution for SFENCEVMA {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('s')?;
         p.state().check_privilege_level(Privilege::S)?;
         if p.state().privilege() == Privilege::S && p.state().icsrs().mstatus().tvm() == 1 {
-            return Err(Exception::IllegalInsn(self.ir()));
+            return Err(Exception::IllegalInsn(p.state().ir()));
         }
         p.mmu().flush_tlb();
         p.fetcher().flush_icache();

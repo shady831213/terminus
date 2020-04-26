@@ -122,9 +122,9 @@ impl InsnMap for TreeInsnMap {
         }
     }
 
-    fn decode(&self, ir: InsnT) -> Result<Instruction, Exception> {
+    fn decode(&self, ir: InsnT) -> Result<&Instruction, Exception> {
         if let Some(decoder) = self.0.get(ir) {
-            Ok(decoder.decode(ir))
+            Ok(decoder.decode())
         } else {
             Err(Exception::IllegalInsn(ir))
         }

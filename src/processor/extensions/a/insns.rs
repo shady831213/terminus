@@ -11,7 +11,7 @@ pub trait LRSCInsn: InstructionImp {
         if let Extension::A(ref a) = p.state().get_extension('a') {
             Ok(a.clone())
         } else {
-            Err(Exception::IllegalInsn(self.ir()))
+            Err(Exception::IllegalInsn(p.state().ir()))
         }
     }
 }
@@ -20,7 +20,7 @@ pub trait LRSCInsn: InstructionImp {
 #[format(R)]
 #[code("0b00010??00000?????010?????0101111")]
 #[derive(Debug)]
-struct LRW(InsnT);
+struct LRW();
 
 impl LRSCInsn for LRW {}
 
@@ -30,7 +30,7 @@ impl Execution for LRW {
         let mut lc_res = a.lc_res.borrow_mut();
         lc_res.valid = false;
         p.load_store().release();
-        let addr = p.state().xreg(self.rs1() );
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
         let success = p.load_store().acquire(addr, 4, p.mmu())?;
         let data = p.load_store().load_word(addr, p.mmu())?;
         if success {
@@ -39,7 +39,7 @@ impl Execution for LRW {
             lc_res.len = 4;
             lc_res.timestamp = p.state().insns_cnt();
         }
-        p.state().set_xreg(self.rd(), sext(data, 32) & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), sext(data, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -49,7 +49,7 @@ impl Execution for LRW {
 #[format(R)]
 #[code("0b00010??00000?????011?????0101111")]
 #[derive(Debug)]
-struct LRD(InsnT);
+struct LRD();
 
 impl LRSCInsn for LRD {}
 
@@ -60,7 +60,7 @@ impl Execution for LRD {
         let mut lc_res = a.lc_res.borrow_mut();
         lc_res.valid = false;
         p.load_store().release();
-        let addr = p.state().xreg(self.rs1() );
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
         let success = p.load_store().acquire(addr, 8, p.mmu())?;
         let data = p.load_store().load_double_word(addr, p.mmu())?;
         if success {
@@ -69,7 +69,7 @@ impl Execution for LRD {
             lc_res.len = 8;
             lc_res.timestamp = p.state().insns_cnt();
         }
-        p.state().set_xreg(self.rd(), data & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), data & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -79,15 +79,15 @@ impl Execution for LRD {
 #[format(R)]
 #[code("0b00011????????????010?????0101111")]
 #[derive(Debug)]
-struct SCW(InsnT);
+struct SCW();
 
 impl LRSCInsn for SCW {}
 
 impl Execution for SCW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         let a = self.get_a_ext(p)?;
-        let addr = p.state().xreg(self.rs1() );
-        let data = p.state().xreg(self.rs2());
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let data = p.state().xreg(self.rs2(p.state().ir()));
         let mut lc_res = a.lc_res.borrow_mut();
         let success = if lc_res.valid {
             if addr != lc_res.addr || lc_res.len != 4 {
@@ -103,7 +103,7 @@ impl Execution for SCW {
         }
         lc_res.valid = false;
         p.load_store().release();
-        p.state().set_xreg(self.rd(), (!success) as RegT);
+        p.state().set_xreg(self.rd(p.state().ir()), (!success) as RegT);
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -113,7 +113,7 @@ impl Execution for SCW {
 #[format(R)]
 #[code("0b00011????????????011?????0101111")]
 #[derive(Debug)]
-struct SCD(InsnT);
+struct SCD();
 
 impl LRSCInsn for SCD {}
 
@@ -121,8 +121,8 @@ impl Execution for SCD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         let a = self.get_a_ext(p)?;
-        let addr = p.state().xreg(self.rs1() );
-        let data = p.state().xreg(self.rs2());
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let data = p.state().xreg(self.rs2(p.state().ir()));
         let mut lc_res = a.lc_res.borrow_mut();
         let success = if lc_res.valid {
             if addr != lc_res.addr || lc_res.len != 8 {
@@ -138,7 +138,7 @@ impl Execution for SCD {
         }
         lc_res.valid = false;
         p.load_store().release();
-        p.state().set_xreg(self.rd(), (!success) as RegT);
+        p.state().set_xreg(self.rd(p.state().ir()), (!success) as RegT);
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -148,15 +148,15 @@ impl Execution for SCD {
 #[format(R)]
 #[code("0b00001????????????010?????0101111")]
 #[derive(Debug)]
-struct AMOSWAPW(InsnT);
+struct AMOSWAPW();
 
 impl Execution for AMOSWAPW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src = p.state().xreg(self.rs2());
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src = p.state().xreg(self.rs2(p.state().ir()));
         let data = p.load_store().amo_word(addr, |_| { src as u32 }, p.mmu())?;
-        p.state().set_xreg(self.rd(), sext(data, 32) & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), sext(data, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -166,16 +166,16 @@ impl Execution for AMOSWAPW {
 #[format(R)]
 #[code("0b00001????????????011?????0101111")]
 #[derive(Debug)]
-struct AMOSWAPD(InsnT);
+struct AMOSWAPD();
 
 impl Execution for AMOSWAPD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src = p.state().xreg(self.rs2());
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src = p.state().xreg(self.rs2(p.state().ir()));
         let data = p.load_store().amo_double_word(addr, |_| { src as u64 }, p.mmu())?;
-        p.state().set_xreg(self.rd(), data & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), data & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -185,17 +185,17 @@ impl Execution for AMOSWAPD {
 #[format(R)]
 #[code("0b00000????????????010?????0101111")]
 #[derive(Debug)]
-struct AMOADDW(InsnT);
+struct AMOADDW();
 
 impl Execution for AMOADDW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src: Wrapping<u32> = Wrapping(p.state().xreg(self.rs2()) as u32);
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src: Wrapping<u32> = Wrapping(p.state().xreg(self.rs2(p.state().ir())) as u32);
         let data = p.load_store().amo_word(addr, |read| {
             (src + Wrapping(read)).0
         }, p.mmu())?;
-        p.state().set_xreg(self.rd(), sext(data, 32) & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), sext(data, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -205,18 +205,18 @@ impl Execution for AMOADDW {
 #[format(R)]
 #[code("0b00000????????????011?????0101111")]
 #[derive(Debug)]
-struct AMOADDD(InsnT);
+struct AMOADDD();
 
 impl Execution for AMOADDD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src: Wrapping<u64> = Wrapping(p.state().xreg(self.rs2()) as u64);
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src: Wrapping<u64> = Wrapping(p.state().xreg(self.rs2(p.state().ir())) as u64);
         let data = p.load_store().amo_double_word(addr, |read| {
             (src + Wrapping(read)).0
         }, p.mmu())?;
-        p.state().set_xreg(self.rd(), data & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), data & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -226,17 +226,17 @@ impl Execution for AMOADDD {
 #[format(R)]
 #[code("0b01100????????????010?????0101111")]
 #[derive(Debug)]
-struct AMOANDW(InsnT);
+struct AMOANDW();
 
 impl Execution for AMOANDW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src = p.state().xreg(self.rs2()) as u32;
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src = p.state().xreg(self.rs2(p.state().ir())) as u32;
         let data = p.load_store().amo_word(addr, |read| {
             src & read
         }, p.mmu())?;
-        p.state().set_xreg(self.rd(), sext(data, 32) & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), sext(data, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -246,18 +246,18 @@ impl Execution for AMOANDW {
 #[format(R)]
 #[code("0b01100????????????011?????0101111")]
 #[derive(Debug)]
-struct AMOADND(InsnT);
+struct AMOADND();
 
 impl Execution for AMOADND {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src = p.state().xreg(self.rs2()) as u64;
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src = p.state().xreg(self.rs2(p.state().ir())) as u64;
         let data = p.load_store().amo_double_word(addr, |read| {
             src & read
         }, p.mmu())?;
-        p.state().set_xreg(self.rd(), data & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), data & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -267,17 +267,17 @@ impl Execution for AMOADND {
 #[format(R)]
 #[code("0b01000????????????010?????0101111")]
 #[derive(Debug)]
-struct AMOORW(InsnT);
+struct AMOORW();
 
 impl Execution for AMOORW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src = p.state().xreg(self.rs2()) as u32;
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src = p.state().xreg(self.rs2(p.state().ir())) as u32;
         let data = p.load_store().amo_word(addr, |read| {
             src | read
         }, p.mmu())?;
-        p.state().set_xreg(self.rd(), sext(data, 32) & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), sext(data, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -287,18 +287,18 @@ impl Execution for AMOORW {
 #[format(R)]
 #[code("0b01000????????????011?????0101111")]
 #[derive(Debug)]
-struct AMOORD(InsnT);
+struct AMOORD();
 
 impl Execution for AMOORD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src = p.state().xreg(self.rs2()) as u64;
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src = p.state().xreg(self.rs2(p.state().ir())) as u64;
         let data = p.load_store().amo_double_word(addr, |read| {
             src | read
         }, p.mmu())?;
-        p.state().set_xreg(self.rd(), data & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), data & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -308,17 +308,17 @@ impl Execution for AMOORD {
 #[format(R)]
 #[code("0b00100????????????010?????0101111")]
 #[derive(Debug)]
-struct AMOXORW(InsnT);
+struct AMOXORW();
 
 impl Execution for AMOXORW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src = p.state().xreg(self.rs2()) as u32;
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src = p.state().xreg(self.rs2(p.state().ir())) as u32;
         let data = p.load_store().amo_word(addr, |read| {
             src ^ read
         }, p.mmu())?;
-        p.state().set_xreg(self.rd(), sext(data, 32) & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), sext(data, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -328,18 +328,18 @@ impl Execution for AMOXORW {
 #[format(R)]
 #[code("0b00100????????????011?????0101111")]
 #[derive(Debug)]
-struct AMOXORD(InsnT);
+struct AMOXORD();
 
 impl Execution for AMOXORD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src = p.state().xreg(self.rs2()) as u64;
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src = p.state().xreg(self.rs2(p.state().ir())) as u64;
         let data = p.load_store().amo_double_word(addr, |read| {
             src ^ read
         }, p.mmu())?;
-        p.state().set_xreg(self.rd(), data & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), data & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -349,17 +349,17 @@ impl Execution for AMOXORD {
 #[format(R)]
 #[code("0b10100????????????010?????0101111")]
 #[derive(Debug)]
-struct AMOMAXW(InsnT);
+struct AMOMAXW();
 
 impl Execution for AMOMAXW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src = p.state().xreg(self.rs2()) as u32 as i32;
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src = p.state().xreg(self.rs2(p.state().ir())) as u32 as i32;
         let data = p.load_store().amo_word(addr, |read| {
             max(src, read as u32 as i32) as u32
         }, p.mmu())?;
-        p.state().set_xreg(self.rd(), sext(data, 32) & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), sext(data, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -369,18 +369,18 @@ impl Execution for AMOMAXW {
 #[format(R)]
 #[code("0b10100????????????011?????0101111")]
 #[derive(Debug)]
-struct AMOMAXD(InsnT);
+struct AMOMAXD();
 
 impl Execution for AMOMAXD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src = p.state().xreg(self.rs2()) as u64 as i64;
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src = p.state().xreg(self.rs2(p.state().ir())) as u64 as i64;
         let data = p.load_store().amo_double_word(addr, |read| {
             max(src, read as u64 as i64) as u64
         }, p.mmu())?;
-        p.state().set_xreg(self.rd(), data & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), data & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -390,17 +390,17 @@ impl Execution for AMOMAXD {
 #[format(R)]
 #[code("0b10000????????????010?????0101111")]
 #[derive(Debug)]
-struct AMOMINW(InsnT);
+struct AMOMINW();
 
 impl Execution for AMOMINW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src = p.state().xreg(self.rs2()) as u32 as i32;
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src = p.state().xreg(self.rs2(p.state().ir())) as u32 as i32;
         let data = p.load_store().amo_word(addr, |read| {
             min(src, read as u32 as i32) as u32
         }, p.mmu())?;
-        p.state().set_xreg(self.rd(), sext(data, 32) & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), sext(data, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -410,18 +410,18 @@ impl Execution for AMOMINW {
 #[format(R)]
 #[code("0b10000????????????011?????0101111")]
 #[derive(Debug)]
-struct AMOMIND(InsnT);
+struct AMOMIND();
 
 impl Execution for AMOMIND {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src = p.state().xreg(self.rs2()) as u64 as i64;
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src = p.state().xreg(self.rs2(p.state().ir())) as u64 as i64;
         let data = p.load_store().amo_double_word(addr, |read| {
             min(src, read as u64 as i64) as u64
         }, p.mmu())?;
-        p.state().set_xreg(self.rd(), data & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), data & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -431,17 +431,17 @@ impl Execution for AMOMIND {
 #[format(R)]
 #[code("0b11100????????????010?????0101111")]
 #[derive(Debug)]
-struct AMOMAXUW(InsnT);
+struct AMOMAXUW();
 
 impl Execution for AMOMAXUW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src = p.state().xreg(self.rs2()) as u32;
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src = p.state().xreg(self.rs2(p.state().ir())) as u32;
         let data = p.load_store().amo_word(addr, |read| {
             max(src, read)
         }, p.mmu())?;
-        p.state().set_xreg(self.rd(), sext(data, 32) & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), sext(data, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -451,18 +451,18 @@ impl Execution for AMOMAXUW {
 #[format(R)]
 #[code("0b11100????????????011?????0101111")]
 #[derive(Debug)]
-struct AMOMAXUD(InsnT);
+struct AMOMAXUD();
 
 impl Execution for AMOMAXUD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src = p.state().xreg(self.rs2()) as u64;
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src = p.state().xreg(self.rs2(p.state().ir())) as u64;
         let data = p.load_store().amo_double_word(addr, |read| {
             max(src, read)
         }, p.mmu())?;
-        p.state().set_xreg(self.rd(), data & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), data & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -472,17 +472,17 @@ impl Execution for AMOMAXUD {
 #[format(R)]
 #[code("0b11000????????????010?????0101111")]
 #[derive(Debug)]
-struct AMOMINUW(InsnT);
+struct AMOMINUW();
 
 impl Execution for AMOMINUW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src = p.state().xreg(self.rs2() ) as u32;
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src = p.state().xreg(self.rs2(p.state().ir()) ) as u32;
         let data = p.load_store().amo_word(addr, |read| {
             min(src, read)
         }, p.mmu())?;
-        p.state().set_xreg(self.rd(), sext(data, 32) & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), sext(data, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -492,18 +492,18 @@ impl Execution for AMOMINUW {
 #[format(R)]
 #[code("0b11000????????????011?????0101111")]
 #[derive(Debug)]
-struct AMOMINUD(InsnT);
+struct AMOMINUD();
 
 impl Execution for AMOMINUD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = p.state().xreg(self.rs1() );
-        let src = p.state().xreg(self.rs2() ) as u64;
+        let addr = p.state().xreg(self.rs1(p.state().ir()) );
+        let src = p.state().xreg(self.rs2(p.state().ir()) ) as u64;
         let data = p.load_store().amo_double_word(addr, |read| {
             min(src, read)
         }, p.mmu())?;
-        p.state().set_xreg(self.rd(), data & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(p.state().ir()), data & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
