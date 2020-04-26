@@ -74,7 +74,14 @@ impl<T> TreeNode<T> {
 
     fn get(&self, key: InsnT) -> Option<&T> {
         if self.level == insn_len() {
-            return self.value.iter().find(|(v, m)| { (*m)(key, v) }).map(|(v, _)|{v});
+            if let Some((ref v, ref m)) = self.value {
+                if (*m)(key, v) {
+                    return Some(v)
+                } else {
+                    return None
+                }
+            }
+            unreachable!()
         } else {
             if key & ((1 as InsnT) << self.level as InsnT) == 0 {
                 if let Some(n) = self.left {
