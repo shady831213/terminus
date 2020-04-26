@@ -17,18 +17,18 @@ impl TLB {
             size: 256,
         }
     }
-    #[inline(never)]
+    #[cfg_attr(feature = "no-inline", inline(never))]
     pub fn get_ppn(&self, vpn: u64) -> Option<u64> {
-        let e = &self.entries[(vpn as usize) & (self.size - 1)];
+        let e = unsafe{self.entries.get_unchecked((vpn as usize) & (self.size - 1))};
         if e.valid && e.vpn == vpn {
             Some(e.ppn)
         } else {
             None
         }
     }
-    #[inline(never)]
+    #[cfg_attr(feature = "no-inline", inline(never))]
     pub fn set_entry(&mut self, vpn: u64, ppn: u64) {
-        let e = &mut self.entries[(vpn as usize) & (self.size - 1)];
+        let e = unsafe{self.entries.get_unchecked_mut((vpn as usize) & (self.size - 1))};
         e.valid = true;
         e.vpn = vpn;
         e.ppn = ppn;

@@ -39,14 +39,15 @@ impl ICacheBasket {
         let mut ptr = self.ptr;
         let tail = self.tail();
         while ptr != tail {
-            if self.entries[ptr as usize].tag == tag {
-                if let Some(i) = self.entries[ptr as usize].insn {
-                    self.entries[ptr as usize].accessed = true;
+            let e = unsafe{self.entries.get_unchecked_mut(ptr as usize)};
+            if e.tag == tag {
+                if let Some(i) = e.insn {
+                    e.accessed = true;
                     self.ptr = ptr;
                     return Some(i);
                 }
             }
-            self.entries[ptr as usize].accessed = false;
+            e.accessed = false;
             ptr = Self::next_ptr(ptr);
         }
         None
@@ -80,13 +81,13 @@ impl ICacheBasket {
         let mut ptr = self.tail();
         let tail = self.ptr;
         while ptr != tail {
-            let e = &self.entries[ptr as usize];
+            let e = unsafe{self.entries.get_unchecked(ptr as usize)};
             if e.insn.is_none() || !e.accessed {
                 break;
             }
             ptr = Self::prev_ptr(ptr);
         }
-        let e = &mut self.entries[ptr as usize];
+        let e = unsafe{self.entries.get_unchecked_mut(ptr as usize)};
         e.accessed = true;
         e.tag = tag;
         e.insn = Some((ir, insn));
@@ -117,11 +118,11 @@ impl ICache {
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
     fn get_insn(&mut self, addr: u64) -> Option<(InsnT, &'static Instruction)> {
-        self.baskets[((addr >> 1) as usize) & (self.size - 1)].get_insn(addr >> 1)
+        unsafe {self.baskets.get_unchecked_mut(((addr >> 1) as usize) & (self.size - 1))}.get_insn(addr >> 1)
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
     fn set_entry(&mut self, addr: u64, ir:InsnT, insn: &'static Instruction) {
-        self.baskets[((addr >> 1) as usize) & (self.size - 1)].set_entry(addr >> 1, ir, insn)
+        unsafe {self.baskets.get_unchecked_mut(((addr >> 1) as usize) & (self.size - 1))}.set_entry(addr >> 1, ir, insn)
     }
 
     fn invalid_all(&mut self) {
