@@ -1,36 +1,17 @@
 use crate::prelude::*;
 use terminus_global::{XLen, RegT};
 use crate::processor::extensions::s::csrs::*;
-use num_enum::IntoPrimitive;
 use crate::devices::bus::Bus;
 
-#[derive(IntoPrimitive, Debug, Eq, PartialEq)]
-#[repr(u8)]
-pub enum PteMode {
-    Bare = 0,
-    Sv32 = 1,
-    Sv39 = 8,
-    Sv48 = 9,
-    Sv57 = 10,
-    Sv64 = 11,
-}
-
-impl PteMode {
-    fn new(value: u8) -> PteMode {
-        match value {
-            0 => PteMode::Bare,
-            1 => PteMode::Sv32,
-            8 => PteMode::Sv39,
-            9 => PteMode::Sv48,
-            10 => PteMode::Sv57,
-            11 => PteMode::Sv64,
-            _ => unreachable!()
-        }
-    }
-}
+pub const PTE_BARE: u8 = 0;
+pub const PTE_SV32: u8 = 1;
+pub const PTE_SV39: u8 = 8;
+pub const PTE_SV48: u8 = 9;
+// pub const PTE_SV57: u8 = 10;
+// pub const PTE_SV64: u8 = 11;
 
 pub struct PteInfo {
-    pub mode: PteMode,
+    pub mode: u8,
     pub level: usize,
     pub size_shift: usize,
     pub page_size_shift: usize,
@@ -40,21 +21,21 @@ impl PteInfo {
     pub fn new(satp: &Satp) -> PteInfo {
         match satp.xlen {
             XLen::X32 => PteInfo {
-                mode: PteMode::new(satp.mode() as u8),
+                mode: satp.mode() as u8,
                 level: 2,
                 size_shift: 2,
                 page_size_shift: 12,
             },
             XLen::X64 => {
-                let mode = PteMode::new(satp.mode() as u8);
+                let mode = satp.mode() as u8;
                 let level = match mode {
-                    PteMode::Sv39 => 3,
-                    PteMode::Sv48 => 4,
-                    PteMode::Bare => 0,
+                    PTE_SV39 => 3,
+                    PTE_SV48 => 4,
+                    PTE_BARE => 0,
                     _ => unreachable!()
                 };
                 PteInfo {
-                    mode,
+                    mode: mode,
                     level,
                     size_shift: 3,
                     page_size_shift: 12,
@@ -444,11 +425,11 @@ pub enum Vaddr {
 }
 
 impl Vaddr {
-    pub fn new(mode: &PteMode, addr: RegT) -> Vaddr {
+    pub fn new(mode: u8, addr: RegT) -> Vaddr {
         match mode {
-            PteMode::Sv32 => Vaddr::Sv32(Sv32Vaddr(addr)),
-            PteMode::Sv39 => Vaddr::Sv39(Sv39Vaddr(addr)),
-            PteMode::Sv48 => Vaddr::Sv48(Sv48Vaddr(addr)),
+            PTE_SV32 => Vaddr::Sv32(Sv32Vaddr(addr)),
+            PTE_SV39 => Vaddr::Sv39(Sv39Vaddr(addr)),
+            PTE_SV48 => Vaddr::Sv48(Sv48Vaddr(addr)),
             _ => panic!(format!("unsupported PteMode {:?}", mode))
         }
     }
@@ -497,11 +478,11 @@ pub enum Pte {
 }
 
 impl Pte {
-    pub fn new(mode: &PteMode, value: RegT) -> Pte {
+    pub fn new(mode: u8, value: RegT) -> Pte {
         match mode {
-            PteMode::Sv32 => Pte::Sv32(Sv32Pte(value)),
-            PteMode::Sv39 => Pte::Sv39(Sv39Pte(value)),
-            PteMode::Sv48 => Pte::Sv48(Sv48Pte(value)),
+            PTE_SV32 => Pte::Sv32(Sv32Pte(value)),
+            PTE_SV39 => Pte::Sv39(Sv39Pte(value)),
+            PTE_SV48 => Pte::Sv48(Sv48Pte(value)),
             _ => panic!(format!("unsupported PteMode {:?}", mode))
         }
     }
@@ -515,7 +496,7 @@ impl Pte {
             }
             _ => unreachable!()
         };
-        Ok(Pte::new(&info.mode, value))
+        Ok(Pte::new(info.mode, value))
     }
 
     pub fn store(&self, bus: &Bus, addr: u64) -> Result<(), u64> {

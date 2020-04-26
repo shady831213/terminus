@@ -57,7 +57,7 @@ impl MmuOpt {
 pub struct Mmu {
     p: Rc<ProcessorState>,
     bus: Arc<Bus>,
-    icsrs:Rc<ICsrs>,
+    icsrs: Rc<ICsrs>,
     fetch_tlb: RefCell<TLB>,
     load_tlb: RefCell<TLB>,
     store_tlb: RefCell<TLB>,
@@ -68,7 +68,7 @@ impl Mmu {
         Mmu {
             p: p.clone(),
             bus: bus.clone(),
-            icsrs:p.icsrs(),
+            icsrs: p.icsrs(),
             fetch_tlb: RefCell::new(TLB::new()),
             load_tlb: RefCell::new(TLB::new()),
             store_tlb: RefCell::new(TLB::new()),
@@ -230,10 +230,10 @@ impl Mmu {
         if privilege == 3 {
             return Ok(va as u64);
         }
-        if info.mode == PteMode::Bare {
+        if info.mode == PTE_BARE {
             return Ok(va as u64);
         }
-        let vaddr = Vaddr::new(&info.mode, va);
+        let vaddr = Vaddr::new(info.mode, va);
         let mut tlb = match opt {
             MmuOpt::Fetch => self.fetch_tlb.borrow_mut(),
             MmuOpt::Load => self.load_tlb.borrow_mut(),
