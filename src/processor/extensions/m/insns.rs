@@ -28,9 +28,9 @@ struct MUL(InsnT);
 impl Execution for MUL {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('m')?;
-        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
-        let rs2: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2() as RegT));
-        p.state().set_xreg(self.rd() as RegT, (rs1 * rs2).0 & p.state().config().xlen.mask());
+        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1()));
+        let rs2: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2()));
+        p.state().set_xreg(self.rd(), (rs1 * rs2).0 & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -45,9 +45,9 @@ struct MULH(InsnT);
 impl Execution for MULH {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('m')?;
-        let rs1 = BigInt::from(sext(p.state().xreg(self.rs1() as RegT), p.state().config().xlen.len()) as SRegT);
-        let rs2 = BigInt::from(sext(p.state().xreg(self.rs2() as RegT), p.state().config().xlen.len()) as SRegT);
-        p.state().set_xreg(self.rd() as RegT, bigint_to_reg((rs1 * rs2) >> p.state().config().xlen.len(), p.state().config().xlen.size()) & p.state().config().xlen.mask());
+        let rs1 = BigInt::from(sext(p.state().xreg(self.rs1()), p.state().config().xlen.len()) as SRegT);
+        let rs2 = BigInt::from(sext(p.state().xreg(self.rs2()), p.state().config().xlen.len()) as SRegT);
+        p.state().set_xreg(self.rd(), bigint_to_reg((rs1 * rs2) >> p.state().config().xlen.len(), p.state().config().xlen.size()) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -62,10 +62,10 @@ struct MULHSU(InsnT);
 impl Execution for MULHSU {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('m')?;
-        let rs1 = BigInt::from(sext(p.state().xreg(self.rs1() as RegT), p.state().config().xlen.len()) as SRegT);
-        let rs2 = BigInt::from(p.state().xreg(self.rs2() as RegT) & p.state().config().xlen.mask());
+        let rs1 = BigInt::from(sext(p.state().xreg(self.rs1()), p.state().config().xlen.len()) as SRegT);
+        let rs2 = BigInt::from(p.state().xreg(self.rs2()) & p.state().config().xlen.mask());
         let product = (rs1 * rs2) >> p.state().config().xlen.len();
-        p.state().set_xreg(self.rd() as RegT, bigint_to_reg(product, p.state().config().xlen.size()) & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(), bigint_to_reg(product, p.state().config().xlen.size()) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -80,9 +80,9 @@ struct MULHU(InsnT);
 impl Execution for MULHU {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('m')?;
-        let rs1 = BigInt::from(p.state().xreg(self.rs1() as RegT) & p.state().config().xlen.mask());
-        let rs2 = BigInt::from(p.state().xreg(self.rs2() as RegT) & p.state().config().xlen.mask());
-        p.state().set_xreg(self.rd() as RegT, bigint_to_reg((rs1 * rs2) >> p.state().config().xlen.len(), p.state().config().xlen.size()) & p.state().config().xlen.mask());
+        let rs1 = BigInt::from(p.state().xreg(self.rs1()) & p.state().config().xlen.mask());
+        let rs2 = BigInt::from(p.state().xreg(self.rs2()) & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(), bigint_to_reg((rs1 * rs2) >> p.state().config().xlen.len(), p.state().config().xlen.size()) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -98,9 +98,9 @@ impl Execution for MULW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('m')?;
         p.state().check_xlen(XLen::X64)?;
-        let rs1: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs1() as RegT), 32));
-        let rs2: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs2() as RegT), 32));
-        p.state().set_xreg(self.rd() as RegT, sext((rs1 * rs2).0, 32) & p.state().config().xlen.mask());
+        let rs1: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs1()), 32));
+        let rs2: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs2()), 32));
+        p.state().set_xreg(self.rd(), sext((rs1 * rs2).0, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -116,12 +116,12 @@ struct DIV(InsnT);
 impl Execution for DIV {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('m')?;
-        let rs1: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs1() as RegT), p.state().config().xlen.len()) as SRegT);
-        let rs2: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs2() as RegT), p.state().config().xlen.len()) as SRegT);
+        let rs1: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs1()), p.state().config().xlen.len()) as SRegT);
+        let rs2: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs2()), p.state().config().xlen.len()) as SRegT);
         if rs2 == Wrapping(0 as SRegT) {
-            p.state().set_xreg(self.rd() as RegT, (-1 as SRegT) as RegT & p.state().config().xlen.mask());
+            p.state().set_xreg(self.rd(), (-1 as SRegT) as RegT & p.state().config().xlen.mask());
         } else {
-            p.state().set_xreg(self.rd() as RegT, (rs1 / rs2).0 as RegT & p.state().config().xlen.mask());
+            p.state().set_xreg(self.rd(), (rs1 / rs2).0 as RegT & p.state().config().xlen.mask());
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -137,12 +137,12 @@ struct DIVU(InsnT);
 impl Execution for DIVU {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('m')?;
-        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
-        let rs2: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2() as RegT));
+        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1()));
+        let rs2: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2()));
         if rs2 == Wrapping(0 as RegT) {
-            p.state().set_xreg(self.rd() as RegT, (-1 as SRegT) as RegT & p.state().config().xlen.mask());
+            p.state().set_xreg(self.rd(), (-1 as SRegT) as RegT & p.state().config().xlen.mask());
         } else {
-            p.state().set_xreg(self.rd() as RegT, (rs1 / rs2).0 & p.state().config().xlen.mask());
+            p.state().set_xreg(self.rd(), (rs1 / rs2).0 & p.state().config().xlen.mask());
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -159,12 +159,12 @@ impl Execution for DIVW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('m')?;
         p.state().check_xlen(XLen::X64)?;
-        let rs1: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs1() as RegT), 32) as SRegT);
-        let rs2: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs2() as RegT), 32) as SRegT);
+        let rs1: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs1()), 32) as SRegT);
+        let rs2: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs2()), 32) as SRegT);
         if rs2 == Wrapping(0 as SRegT) {
-            p.state().set_xreg(self.rd() as RegT, (-1 as SRegT) as RegT & p.state().config().xlen.mask());
+            p.state().set_xreg(self.rd(), (-1 as SRegT) as RegT & p.state().config().xlen.mask());
         } else {
-            p.state().set_xreg(self.rd() as RegT, sext((rs1 / rs2).0 as RegT, 32) & p.state().config().xlen.mask());
+            p.state().set_xreg(self.rd(), sext((rs1 / rs2).0 as RegT, 32) & p.state().config().xlen.mask());
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -181,14 +181,14 @@ impl Execution for DIVUW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('m')?;
         p.state().check_xlen(XLen::X64)?;
-        let rs1_u: RegT = p.state().xreg(self.rs1() as RegT) & 0xffff_ffff;
+        let rs1_u: RegT = p.state().xreg(self.rs1()) & 0xffff_ffff;
         let rs1: Wrapping<RegT> = Wrapping(rs1_u);
-        let rs2_u: RegT = p.state().xreg(self.rs2() as RegT) & 0xffff_ffff;
+        let rs2_u: RegT = p.state().xreg(self.rs2()) & 0xffff_ffff;
         let rs2: Wrapping<RegT> = Wrapping(rs2_u);
         if rs2 == Wrapping(0 as RegT) {
-            p.state().set_xreg(self.rd() as RegT, (-1 as SRegT) as RegT & p.state().config().xlen.mask());
+            p.state().set_xreg(self.rd(), (-1 as SRegT) as RegT & p.state().config().xlen.mask());
         } else {
-            p.state().set_xreg(self.rd() as RegT, sext((rs1 / rs2).0 as RegT, 32) & p.state().config().xlen.mask());
+            p.state().set_xreg(self.rd(), sext((rs1 / rs2).0 as RegT, 32) & p.state().config().xlen.mask());
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -204,12 +204,12 @@ struct REM(InsnT);
 impl Execution for REM {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('m')?;
-        let rs1: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs1() as RegT), p.state().config().xlen.len()) as SRegT);
-        let rs2: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs2() as RegT), p.state().config().xlen.len()) as SRegT);
+        let rs1: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs1()), p.state().config().xlen.len()) as SRegT);
+        let rs2: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs2()), p.state().config().xlen.len()) as SRegT);
         if rs2 == Wrapping(0 as SRegT) {
-            p.state().set_xreg(self.rd() as RegT, rs1.0 as RegT & p.state().config().xlen.mask());
+            p.state().set_xreg(self.rd(), rs1.0 as RegT & p.state().config().xlen.mask());
         } else {
-            p.state().set_xreg(self.rd() as RegT, (rs1 % rs2).0 as RegT & p.state().config().xlen.mask());
+            p.state().set_xreg(self.rd(), (rs1 % rs2).0 as RegT & p.state().config().xlen.mask());
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -225,12 +225,12 @@ struct REMU(InsnT);
 impl Execution for REMU {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('m')?;
-        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
-        let rs2: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2() as RegT));
+        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1()));
+        let rs2: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2()));
         if rs2 == Wrapping(0 as RegT) {
-            p.state().set_xreg(self.rd() as RegT, rs1.0 & p.state().config().xlen.mask());
+            p.state().set_xreg(self.rd(), rs1.0 & p.state().config().xlen.mask());
         } else {
-            p.state().set_xreg(self.rd() as RegT, (rs1 % rs2).0 & p.state().config().xlen.mask());
+            p.state().set_xreg(self.rd(), (rs1 % rs2).0 & p.state().config().xlen.mask());
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -247,12 +247,12 @@ impl Execution for REMW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('m')?;
         p.state().check_xlen(XLen::X64)?;
-        let rs1: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs1() as RegT), 32) as SRegT);
-        let rs2: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs2() as RegT), 32) as SRegT);
+        let rs1: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs1()), 32) as SRegT);
+        let rs2: Wrapping<SRegT> = Wrapping(sext(p.state().xreg(self.rs2()), 32) as SRegT);
         if rs2 == Wrapping(0 as SRegT) {
-            p.state().set_xreg(self.rd() as RegT, sext(rs1.0 as RegT, 32) & p.state().config().xlen.mask());
+            p.state().set_xreg(self.rd(), sext(rs1.0 as RegT, 32) & p.state().config().xlen.mask());
         } else {
-            p.state().set_xreg(self.rd() as RegT, sext((rs1 % rs2).0 as RegT, 32) & p.state().config().xlen.mask());
+            p.state().set_xreg(self.rd(), sext((rs1 % rs2).0 as RegT, 32) & p.state().config().xlen.mask());
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -269,14 +269,14 @@ impl Execution for REMUW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('m')?;
         p.state().check_xlen(XLen::X64)?;
-        let rs1_u: RegT = p.state().xreg(self.rs1() as RegT) & 0xffff_ffff;
+        let rs1_u: RegT = p.state().xreg(self.rs1()) & 0xffff_ffff;
         let rs1: Wrapping<RegT> = Wrapping(rs1_u);
-        let rs2_u: RegT = p.state().xreg(self.rs2() as RegT) & 0xffff_ffff;
+        let rs2_u: RegT = p.state().xreg(self.rs2()) & 0xffff_ffff;
         let rs2: Wrapping<RegT> = Wrapping(rs2_u);
         if rs2 == Wrapping(0 as RegT) {
-            p.state().set_xreg(self.rd() as RegT, sext(rs1.0, 32) & p.state().config().xlen.mask());
+            p.state().set_xreg(self.rd(), sext(rs1.0, 32) & p.state().config().xlen.mask());
         } else {
-            p.state().set_xreg(self.rd() as RegT, sext((rs1 % rs2).0 as RegT, 32) & p.state().config().xlen.mask());
+            p.state().set_xreg(self.rd(), sext((rs1 % rs2).0 as RegT, 32) & p.state().config().xlen.mask());
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())

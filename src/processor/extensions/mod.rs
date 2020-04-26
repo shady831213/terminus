@@ -23,16 +23,16 @@ use v::*;
 use std::rc::Rc;
 
 trait HasCsr {
-    fn csr_write(&self, state: &ProcessorState, addr: RegT, value: RegT) -> Option<()>;
-    fn csr_read(&self, state: &ProcessorState, addr: RegT) -> Option<RegT>;
+    fn csr_write(&self, state: &ProcessorState, addr: InsnT, value: RegT) -> Option<()>;
+    fn csr_read(&self, state: &ProcessorState, addr: InsnT) -> Option<RegT>;
 }
 
 
 trait NoCsr {
-    fn csr_write(&self, _: &ProcessorState, _: RegT, _: RegT) -> Option<()> {
+    fn csr_write(&self, _: &ProcessorState, _: InsnT, _: RegT) -> Option<()> {
         None
     }
-    fn csr_read(&self, _: &ProcessorState, _: RegT) -> Option<RegT> {
+    fn csr_read(&self, _: &ProcessorState, _: InsnT) -> Option<RegT> {
         None
     }
 }
@@ -88,7 +88,7 @@ impl Extension {
     //         _ => None
     //     }
     // }
-    pub fn csr_write(&self, state: &ProcessorState, addr: RegT, value: RegT) -> Option<()> {
+    pub fn csr_write(&self, state: &ProcessorState, addr: InsnT, value: RegT) -> Option<()> {
         match self {
             Extension::A(a) => a.csr_write(state, addr, value),
             Extension::C(c) => c.csr_write(state, addr, value),
@@ -102,7 +102,7 @@ impl Extension {
             _  => None
         }
     }
-    pub fn csr_read(&self, state: &ProcessorState, addr: RegT) -> Option<RegT> {
+    pub fn csr_read(&self, state: &ProcessorState, addr: InsnT) -> Option<RegT> {
         match self {
             Extension::A(a) => a.csr_read(state, addr),
             Extension::C(c) => c.csr_read(state, addr),

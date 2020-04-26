@@ -16,10 +16,10 @@ impl Execution for FLD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
+        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1()));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm() as RegT, self.imm_len()));
         let data = p.load_store().load_double_word((base + offset).0, p.mmu())?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(data as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(data as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -40,7 +40,7 @@ impl Execution for FSD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1() as RegT));
+        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1()));
         let data = f.freg(self.src()) as u64;
         p.load_store().store_double_word((base + self.offset()).0, data as RegT, p.mmu())?;
         p.state().set_pc(p.state().pc() + 4);
@@ -66,10 +66,10 @@ impl Execution for FADDD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -93,10 +93,10 @@ impl Execution for FSUBD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -120,10 +120,10 @@ impl Execution for FMULD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -147,10 +147,10 @@ impl Execution for FDIVD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -174,9 +174,9 @@ impl Execution for FSQRTD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = self.compute(f.deref(), rs1, 0, 0)?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -210,10 +210,10 @@ impl Execution for FMIND {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -247,10 +247,10 @@ impl Execution for FMAXD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = self.compute(f.deref(), rs1, rs2, 0)?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -274,11 +274,11 @@ impl Execution for FMADDD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs3: u64 = (f.freg(self.rs3() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs3: u64 = (f.freg(self.rs3()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -302,11 +302,11 @@ impl Execution for FMSUBD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs3: u64 = (f.freg(self.rs3() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs3: u64 = (f.freg(self.rs3()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -331,11 +331,11 @@ impl Execution for FMNSUBD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs3: u64 = (f.freg(self.rs3() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs3: u64 = (f.freg(self.rs3()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -359,11 +359,11 @@ impl Execution for FMNADDD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs3: u64 = (f.freg(self.rs3() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs3: u64 = (f.freg(self.rs3()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = self.compute(f.deref(), rs1, rs2, rs3)?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -397,9 +397,9 @@ impl Execution for FCVTWD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = self.convert(f.deref(), rs1)? as u32;
-        p.state().set_xreg(self.rd() as RegT, sext(res as RegT, 32) & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(), sext(res as RegT, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -432,9 +432,9 @@ impl Execution for FCVTWUD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = self.convert(f.deref(), rs1)?;
-        p.state().set_xreg(self.rd() as RegT, sext(res as RegT, 32) & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(), sext(res as RegT, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -468,9 +468,9 @@ impl Execution for FCVTLD {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = self.convert(f.deref(), rs1)? as u64;
-        p.state().set_xreg(self.rd() as RegT, res as RegT & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(), res as RegT & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -504,9 +504,9 @@ impl Execution for FCVTLUD {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = self.convert(f.deref(), rs1)?;
-        p.state().set_xreg(self.rd() as RegT, res as RegT & p.state().config().xlen.mask());
+        p.state().set_xreg(self.rd(), res as RegT & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -531,9 +531,9 @@ impl Execution for FCVTDW {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: RegT = sext(p.state().xreg(self.rs1() as RegT), 32);
+        let rs1: RegT = sext(p.state().xreg(self.rs1()), 32);
         let fres = self.convert(f.deref(), rs1 as i32)?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(fres as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(fres as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -558,9 +558,9 @@ impl Execution for FCVTDWU {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: RegT = p.state().xreg(self.rs1() as RegT) & 0xffff_ffff;
+        let rs1: RegT = p.state().xreg(self.rs1()) & 0xffff_ffff;
         let fres = self.convert(f.deref(), rs1 as u32)?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(fres as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(fres as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -586,9 +586,9 @@ impl Execution for FCVTDL {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: RegT = p.state().xreg(self.rs1() as RegT);
+        let rs1: RegT = p.state().xreg(self.rs1());
         let fres = self.convert(f.deref(), rs1 as i64)?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(fres as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(fres as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -614,9 +614,9 @@ impl Execution for FCVTDLU {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: RegT = p.state().xreg(self.rs1() as RegT);
+        let rs1: RegT = p.state().xreg(self.rs1());
         let fres = self.convert(f.deref(), rs1 as u64)?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(fres as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(fres as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -641,9 +641,9 @@ impl Execution for FCVTSD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
         let fres = self.convert(f.deref(), rs1)?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(fres as FRegT, FLen::F32));
+        f.set_freg(self.rd(), f.flen.padding(fres as FRegT, FLen::F32));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -669,9 +669,9 @@ impl Execution for FCVTDS {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u32 = (f.freg(self.rs1() as RegT) & 0xffff_ffff) as u32;
+        let rs1: u32 = (f.freg(self.rs1()) & 0xffff_ffff) as u32;
         let fres = self.convert(f.deref(), rs1)?;
-        f.set_freg(self.rd() as RegT, f.flen.padding(fres as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(fres as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -689,10 +689,10 @@ impl Execution for FSGNJD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = rs1 & ((1 << 63) - 1) | rs2 & (1 << 63);
-        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -710,10 +710,10 @@ impl Execution for FSGNJND {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = rs1 & ((1 << 63) - 1) | !rs2 & (1 << 63);
-        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -731,10 +731,10 @@ impl Execution for FSGNJXD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = rs1 & ((1 << 63) - 1) | (rs1 ^ rs2) & (1 << 63);
-        f.set_freg(self.rd() as RegT, f.flen.padding(res as FRegT, FLen::F64));
+        f.set_freg(self.rd(), f.flen.padding(res as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -754,12 +754,12 @@ impl Execution for FEQD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
         if let Some(Ordering::Equal) = self.compare(f.deref(), rs1, rs2, false)? {
-            p.state().set_xreg(self.rd() as RegT, 1);
+            p.state().set_xreg(self.rd(), 1);
         } else {
-            p.state().set_xreg(self.rd() as RegT, 0);
+            p.state().set_xreg(self.rd(), 0);
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -780,12 +780,12 @@ impl Execution for FLTD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
         if let Some(Ordering::Less) = self.compare(f.deref(), rs1, rs2, true)? {
-            p.state().set_xreg(self.rd() as RegT, 1);
+            p.state().set_xreg(self.rd(), 1);
         } else {
-            p.state().set_xreg(self.rd() as RegT, 0);
+            p.state().set_xreg(self.rd(), 0);
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -806,15 +806,15 @@ impl Execution for FLED {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        let rs2: u64 = (f.freg(self.rs2() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        let rs2: u64 = (f.freg(self.rs2()) & 0xffff_ffff_ffff_ffff) as u64;
         let res = self.compare(f.deref(), rs1, rs2, true)?;
         if let Some(Ordering::Equal) = res {
-            p.state().set_xreg(self.rd() as RegT, 1);
+            p.state().set_xreg(self.rd(), 1);
         } else if let Some(Ordering::Less) = res {
-            p.state().set_xreg(self.rd() as RegT, 1);
+            p.state().set_xreg(self.rd(), 1);
         } else {
-            p.state().set_xreg(self.rd() as RegT, 0);
+            p.state().set_xreg(self.rd(), 0);
         }
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -836,8 +836,8 @@ impl Execution for FCLASSD {
     fn execute(&self, p: &Processor) -> Result<(), Exception> {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let rs1: u64 = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        p.state().set_xreg(self.rd() as RegT, self.class(rs1));
+        let rs1: u64 = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        p.state().set_xreg(self.rd(), self.class(rs1));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -856,8 +856,8 @@ impl Execution for FMVXD {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let data: RegT = (f.freg(self.rs1() as RegT) & 0xffff_ffff_ffff_ffff) as u64;
-        p.state().set_xreg(self.rd() as RegT, data & p.state().config().xlen.mask());
+        let data: RegT = (f.freg(self.rs1()) & 0xffff_ffff_ffff_ffff) as u64;
+        p.state().set_xreg(self.rd(), data & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }
@@ -876,8 +876,8 @@ impl Execution for FMVDX {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let data: RegT = p.state().xreg(self.rs1() as RegT);
-        f.set_freg(self.rd() as RegT, f.flen.padding(data as FRegT, FLen::F64));
+        let data: RegT = p.state().xreg(self.rs1());
+        f.set_freg(self.rd(), f.flen.padding(data as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }

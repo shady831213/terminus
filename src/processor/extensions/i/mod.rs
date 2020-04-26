@@ -99,13 +99,13 @@ impl ExtensionI {
 }
 
 impl HasCsr for ExtensionI {
-    fn csr_write(&self, state: &ProcessorState, addr: RegT, value: RegT) -> Option<()> {
+    fn csr_write(&self, state: &ProcessorState, addr: InsnT, value: RegT) -> Option<()> {
         if value & ((1 as RegT) << (('c' as u8 - 'a' as u8) as RegT)) == 0 && addr == 0x301 && state.pc().trailing_zeros() == 1 {
             return Some(())
         }
         self.csrs.write(addr, value)
     }
-    fn csr_read(&self, state: &ProcessorState, addr: RegT) -> Option<RegT> {
+    fn csr_read(&self, state: &ProcessorState, addr: InsnT) -> Option<RegT> {
         let addr_high = addr & 0xff0;
         if (addr_high == 0xc80 || addr_high == 0xc90 || addr_high == 0xb80 || addr_high == 0xb90) && state.config().xlen != XLen::X32 {
             return None

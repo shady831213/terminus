@@ -2,7 +2,7 @@ use crate::processor::ProcessorState;
 use std::cell::{RefCell, Ref};
 use std::rc::Rc;
 use crate::processor::extensions::{HasCsr, NoStepCb};
-use terminus_global::RegT;
+use terminus_global::{RegT, InsnT};
 
 pub mod float;
 mod insns;
@@ -144,12 +144,12 @@ impl ExtensionF {
         e
     }
 
-    pub fn freg(&self, id: RegT) -> FRegT {
+    pub fn freg(&self, id: InsnT) -> FRegT {
         let trip_id = id & 0x1f;
         (*self.freg.borrow())[trip_id as usize]
     }
 
-    pub fn set_freg(&self, id: RegT, value: FRegT) {
+    pub fn set_freg(&self, id: InsnT, value: FRegT) {
         let trip_id = id & 0x1f;
         *self.dirty.borrow_mut() = 0x3;
         (*self.freg.borrow_mut())[trip_id as usize] = value
@@ -165,11 +165,11 @@ impl ExtensionF {
 }
 
 impl HasCsr for ExtensionF {
-    fn csr_write(&self, _: &ProcessorState, addr: RegT, value: RegT) -> Option<()> {
+    fn csr_write(&self, _: &ProcessorState, addr: InsnT, value: RegT) -> Option<()> {
         *self.dirty.borrow_mut() = 0x3;
         self.csrs.write(addr, value)
     }
-    fn csr_read(&self, _: &ProcessorState, addr: RegT) -> Option<RegT> {
+    fn csr_read(&self, _: &ProcessorState, addr: InsnT) -> Option<RegT> {
         if self.dirty() == 0 {
             None
         } else {

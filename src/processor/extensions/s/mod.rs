@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use crate::processor::{ProcessorState, Privilege};
 use crate::processor::extensions::{HasCsr, NoStepCb};
-use terminus_global::RegT;
+use terminus_global::{RegT, InsnT};
 use std::cell::RefCell;
 
 mod insns;
@@ -165,14 +165,14 @@ impl ExtensionS {
 }
 
 impl HasCsr for ExtensionS {
-    fn csr_write(&self, state:&ProcessorState, addr: RegT, value: RegT) -> Option<()> {
+    fn csr_write(&self, state:&ProcessorState, addr: InsnT, value: RegT) -> Option<()> {
         //stap
         if addr == 0x180 && state.privilege() == Privilege::S && *self.tvm.borrow() {
             return None;
         }
         self.csrs.write(addr, value)
     }
-    fn csr_read(&self, state:&ProcessorState, addr: RegT) -> Option<RegT> {
+    fn csr_read(&self, state:&ProcessorState, addr: InsnT) -> Option<RegT> {
         //stap
         if addr == 0x180 && state.privilege() == Privilege::S && *self.tvm.borrow() {
             return None;

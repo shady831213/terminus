@@ -216,14 +216,14 @@ impl<'a> Maps<'a> {
                     }
                 }
 
-                pub fn write(&self, addr:RegT, value:RegT)->Option<()> {
+                pub fn write(&self, addr:InsnT, value:RegT)->Option<()> {
                     match addr {
                         #write_matchs
                         _ => None
                     }
                 }
 
-                pub fn read(&self, addr:RegT) -> Option<RegT> {
+                pub fn read(&self, addr:InsnT) -> Option<RegT> {
                     match addr {
                         #read_matchs
                         _ => None

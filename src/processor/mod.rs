@@ -260,7 +260,7 @@ impl ProcessorState {
         &self.config
     }
 
-    fn csr_privilege_check(&self, id: RegT) -> Result<(), Exception> {
+    fn csr_privilege_check(&self, id: InsnT) -> Result<(), Exception> {
         let cur_priv: u8 = (*self.privilege.borrow()).into();
         let csr_priv: u8 = ((id >> 8) & 0x3) as u8;
         if cur_priv < csr_priv {
@@ -273,7 +273,7 @@ impl ProcessorState {
         self.hartid
     }
 
-    pub fn csr(&self, id: RegT) -> Result<RegT, Exception> {
+    pub fn csr(&self, id: InsnT) -> Result<RegT, Exception> {
         let trip_id = id & 0xfff;
         self.csr_privilege_check(trip_id)?;
         match self.extensions().iter().find_map(|e| { e.csr_read(self, trip_id) }) {
@@ -282,7 +282,7 @@ impl ProcessorState {
         }
     }
 
-    pub fn set_csr(&self, id: RegT, value: RegT) -> Result<(), Exception> {
+    pub fn set_csr(&self, id: InsnT, value: RegT) -> Result<(), Exception> {
         let trip_id = id & 0xfff;
         self.csr_privilege_check(trip_id)?;
         match self.extensions().iter().find_map(|e| { e.csr_write(self, trip_id, value) }) {
@@ -362,7 +362,7 @@ impl ProcessorState {
         *self.insns_cnt.deref().borrow()
     }
 
-    pub fn xreg(&self, id: RegT) -> RegT {
+    pub fn xreg(&self, id: InsnT) -> RegT {
         let trip_id = id & 0x1f;
         if trip_id == 0 {
             0
@@ -371,7 +371,7 @@ impl ProcessorState {
         }
     }
 
-    pub fn set_xreg(&self, id: RegT, value: RegT) {
+    pub fn set_xreg(&self, id: InsnT, value: RegT) {
         let trip_id = id & 0x1f;
         if trip_id != 0 {
             (*self.xreg.borrow_mut())[trip_id as usize] = value

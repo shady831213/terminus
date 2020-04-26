@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::convert::TryFrom;
 use crate::processor::trap::Exception;
-use terminus_global::RegT;
+use terminus_global::{RegT, InsnT};
 use std::rc::Rc;
 use std::sync::Arc;
 use crate::processor::ProcessorState;
@@ -90,17 +90,17 @@ impl Mmu {
                                 let low = if *idx == 0 {
                                     0
                                 } else {
-                                    self.icsrs.read(0x3b0 + ((*idx - 1) as u8 as RegT)).unwrap()
+                                    self.icsrs.read(0x3b0 + ((*idx - 1) as u8 as InsnT)).unwrap()
                                 };
-                                let high = self.icsrs.read(0x3b0 + (*idx as u8 as RegT)).unwrap();
+                                let high = self.icsrs.read(0x3b0 + (*idx as u8 as InsnT)).unwrap();
                                 trail_addr >= low && trail_addr < high
                             }
                             PmpAType::NA4 => {
-                                let pmpaddr = self.icsrs.read(0x3b0 + (*idx as u8 as RegT)).unwrap();
+                                let pmpaddr = self.icsrs.read(0x3b0 + (*idx as u8 as InsnT)).unwrap();
                                 trail_addr == pmpaddr
                             }
                             PmpAType::NAPOT => {
-                                let pmpaddr = self.icsrs.read(0x3b0 + (*idx as u8 as RegT)).unwrap();
+                                let pmpaddr = self.icsrs.read(0x3b0 + (*idx as u8 as InsnT)).unwrap();
                                 let trialing_ones = (!pmpaddr).trailing_zeros();
                                 (trail_addr >> trialing_ones) == (pmpaddr >> trialing_ones)
                             }

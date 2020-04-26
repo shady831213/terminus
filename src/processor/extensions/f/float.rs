@@ -1,4 +1,5 @@
 extern crate simple_soft_float;
+
 use crate::prelude::*;
 use crate::processor::extensions::f::ExtensionF;
 use crate::processor::extensions::Extension;
@@ -12,7 +13,7 @@ pub use simple_soft_float::{F64, F32, Sign, F64Traits, F32Traits, FPState};
 pub trait FloatInsn: InstructionImp {
     fn get_f_ext(&self, p: &Processor) -> Result<Rc<ExtensionF>, Exception> {
         p.state().check_extension('f')?;
-        if let Extension::F(ref f) = p.state().get_extension('f'){
+        if let Extension::F(ref f) = p.state().get_extension('f') {
             if f.dirty() == 0 {
                 Err(Exception::IllegalInsn(self.ir()))
             } else {
@@ -53,8 +54,8 @@ pub trait FStore: FloatInsn {
         let low = self.rd() as RegT;
         Wrapping(sext(high << 5 | low, self.imm_len()))
     }
-    fn src(&self) -> RegT {
-        (self.imm() & 0x1f) as RegT
+    fn src(&self) -> InsnT {
+        self.imm() & 0x1f
     }
 }
 
