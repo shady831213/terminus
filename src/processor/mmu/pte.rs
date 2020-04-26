@@ -1,4 +1,3 @@
-use crate::prelude::*;
 use terminus_global::{XLen, RegT};
 use crate::processor::extensions::s::csrs::*;
 use crate::devices::bus::Bus;
@@ -96,303 +95,211 @@ impl From<u8> for PteAttr {
     }
 }
 
-macro_rules! default_bitrange {
-    ($name:ident) => {
-        impl BitRange<RegT> for $name {
-            fn bit_range(&self, msb: usize, lsb: usize) -> RegT {
-                let width = msb - lsb + 1;
-                if width == 64 {
-                    self.0
-                } else {
-                    let mask: RegT = ((1 as RegT) << (width as RegT)) - 1;
-                    (self.0 >> (lsb as RegT)) & mask
-                }
-            }
 
-            fn set_bit_range(&mut self, msb: usize, lsb: usize, value: RegT) {
-                let width = msb - lsb + 1;
-                let bitlen = 64;
-                if width == bitlen {
-                    self.0 = value
-                } else {
-                    let low = self.0 & (((1 as RegT) << (lsb as RegT)) - 1);
-                    let high = if msb == bitlen - 1 { 0 } else { (self.0 >> ((msb + 1) as RegT)) << ((msb + 1) as RegT) };
-                    let mask: RegT = ((1 as RegT) << (width as RegT)) - 1;
-                    self.0 = high | low | (((value as RegT) & mask) << (lsb as RegT));
-                }
-            }
-        }
-    };
-}
-
-
-bitfield! {
 pub struct Sv32Vaddr(RegT);
-no default BitRange;
-impl Debug;
-vpn1,_:31, 22;
-vpn0,_:21, 12;
-offset,_:11,0;
-}
-
-default_bitrange!(Sv32Vaddr);
 
 impl Sv32Vaddr {
-    fn vpn(&self, level: usize) -> Option<RegT> {
+    fn vpn(&self, level: usize) -> RegT {
         match level {
-            0 => Some(self.vpn0()),
-            1 => Some(self.vpn1()),
-            _ => None
+            0 => (self.0 >> 12) & 0x3ff,
+            1 => (self.0 >> 22) & 0x3ff,
+            _ => unreachable!()
         }
     }
     fn value(&self) -> RegT {
         self.0
     }
     fn vpn_all(&self) -> RegT {
-        self.vpn1() << 10 | self.vpn0()
+        (self.0 >> 12) & 0xfffff
+    }
+    fn offset(&self) -> RegT {
+        self.0 & 0xfff
     }
 }
 
-bitfield! {
 pub struct Sv32Paddr(RegT);
-no default BitRange;
-impl Debug;
-ppn1,set_ppn1:33, 22;
-ppn0,set_ppn0:21, 12;
-offset,set_offset:11,0;
-}
-
-default_bitrange!(Sv32Paddr);
 
 impl Sv32Paddr {
-    // fn ppn(&self, level: usize) -> Option<RegT> {
-    //     match level {
-    //         0 => Some(self.ppn0()),
-    //         1 => Some(self.ppn1()),
-    //         _ => None
-    //     }
-    // }
-
     fn set_ppn(&mut self, level: usize, ppn: RegT) {
         match level {
-            0 => self.set_ppn0(ppn),
-            1 => self.set_ppn1(ppn),
+            0 => self.0 = self.0 & 0xffffffff_ffc00fff | (ppn & 0x3ff) << 12,
+            1 => self.0 = self.0 & 0xfffffffc_003fffff | (ppn & 0xfff) << 22,
             _ => {}
         }
     }
     fn value(&self) -> RegT {
-        self.0 & ((1 << 32) - 1)
+        self.0 & ((1 << 34) - 1)
     }
+    // fn offset(&self) -> RegT {
+    //     self.0 & 0xfff
+    // }
 }
 
-bitfield! {
 pub struct Sv32Pte(RegT);
-no default BitRange;
-impl Debug;
-ppn1,_:31, 20;
-ppn0,_:19, 10;
-rsw,_:9,8;
-attr_raw,set_attr_raw:7,0;
-}
-default_bitrange!(Sv32Pte);
+
 impl Sv32Pte {
-    fn ppn(&self, level: usize) -> Option<RegT> {
+    fn ppn(&self, level: usize) -> RegT {
         match level {
-            0 => Some(self.ppn0()),
-            1 => Some(self.ppn1()),
-            _ => None
+            0 => (self.0 >> 10) & 0x3ff,
+            1 => (self.0 >> 20) & 0xfff,
+            _ => unreachable!()
         }
     }
     fn ppn_all(&self) -> RegT {
-        self.ppn1() << 10 | self.ppn0()
+        (self.0 >> 10) & 0x3fffff
     }
     fn value(&self) -> RegT {
         self.0
     }
+    // fn rsw(&self) -> RegT {
+    //     (self.0 >> 8) & 0x3
+    // }
+    fn attr(&self) -> PteAttr {
+        PteAttr::from(self.0 as u8)
+    }
+    fn set_attr(&mut self, attr: &PteAttr) {
+        self.0 = self.0 & 0xffffffff_fffffff0 | attr.0 as RegT
+    }
 }
 
-bitfield! {
 pub struct Sv39Vaddr(RegT);
-no default BitRange;
-impl Debug;
-vpn2,_:38, 30;
-vpn1,_:29, 21;
-vpn0,_:20, 12;
-offset,_:11,0;
-}
-default_bitrange!(Sv39Vaddr);
 
 impl Sv39Vaddr {
-    fn vpn(&self, level: usize) -> Option<RegT> {
+    fn vpn(&self, level: usize) -> RegT {
         match level {
-            0 => Some(self.vpn0()),
-            1 => Some(self.vpn1()),
-            2 => Some(self.vpn2()),
-            _ => None
+            0 => (self.0 >> 12) & 0x1ff,
+            1 => (self.0 >> 21) & 0x1ff,
+            2 => (self.0 >> 30) & 0x1ff,
+            _ => unreachable!()
         }
     }
     fn value(&self) -> RegT {
         self.0
     }
-    fn vpn_all(&self) -> RegT { self.vpn2() << 18 | self.vpn1() << 9 | self.vpn0() }
+    fn vpn_all(&self) -> RegT {
+        (self.0 >> 12) & 0x7ffffff
+    }
+    fn offset(&self) -> RegT {
+        self.0 & 0xfff
+    }
 }
 
-bitfield! {
 pub struct Sv39Paddr(RegT);
-no default BitRange;
-impl Debug;
-ppn2,set_ppn2:55, 30;
-ppn1,set_ppn1:29, 21;
-ppn0,set_ppn0:20, 12;
-offset,set_offset:11,0;
-}
-default_bitrange!(Sv39Paddr);
 
 impl Sv39Paddr {
-    // fn ppn(&self, level: usize) -> Option<RegT> {
-    //     match level {
-    //         0 => Some(self.ppn0()),
-    //         1 => Some(self.ppn1()),
-    //         2 => Some(self.ppn2()),
-    //         _ => None
-    //     }
-    // }
-
     fn set_ppn(&mut self, level: usize, ppn: RegT) {
         match level {
-            0 => self.set_ppn0(ppn),
-            1 => self.set_ppn1(ppn),
-            2 => self.set_ppn2(ppn),
+            0 => self.0 = self.0 & 0xffffffff_ffe00fff | (ppn & 0x1ff) << 12,
+            1 => self.0 = self.0 & 0xffffffff_c01fffff | (ppn & 0x1ff) << 21,
+            2 => self.0 = self.0 & 0xff000000_3fffffff | (ppn & 0x3ffffff) << 30,
             _ => {}
         }
     }
+    // fn offset(&self) -> RegT {
+    //     self.0 & 0xfff
+    // }
     fn value(&self) -> RegT {
-        self.0 & ((1 << 39) - 1)
+        self.0 & ((1 << 56) - 1)
     }
 }
 
-bitfield! {
 pub struct Sv39Pte(RegT);
-no default BitRange;
-impl Debug;
-ppn2,_:53, 28;
-ppn1,_:27, 19;
-ppn0,_:18, 10;
-rsw,_:9,8;
-attr_raw,set_attr_raw:7,0;
-}
-default_bitrange!(Sv39Pte);
 
 impl Sv39Pte {
-    fn ppn(&self, level: usize) -> Option<RegT> {
+    fn ppn(&self, level: usize) -> RegT {
         match level {
-            0 => Some(self.ppn0()),
-            1 => Some(self.ppn1()),
-            2 => Some(self.ppn2()),
-            _ => None
+            0 => (self.0 >> 10) & 0x1ff,
+            1 => (self.0 >> 19) & 0x1ff,
+            2 => (self.0 >> 28) & 0x3ffffff,
+            _ => unreachable!()
         }
     }
     fn ppn_all(&self) -> RegT {
-        self.ppn2() << 18 | self.ppn1() << 9 | self.ppn0()
+        (self.0 >> 10) & 0xfff_ffffffff
     }
     fn value(&self) -> RegT {
         self.0
     }
+    // fn rsw(&self) -> RegT {
+    //     (self.0 >> 8) & 0x3
+    // }
+    fn attr(&self) -> PteAttr {
+        PteAttr::from(self.0 as u8)
+    }
+    fn set_attr(&mut self, attr: &PteAttr) {
+        self.0 = self.0 & 0xffffffff_fffffff0 | attr.0 as RegT
+    }
 }
 
-bitfield! {
 pub struct Sv48Vaddr(RegT);
-no default BitRange;
-impl Debug;
-vpn3,_:47, 39;
-vpn2,_:38, 30;
-vpn1,_:29, 21;
-vpn0,_:20, 12;
-offset,_:11,0;
-}
-default_bitrange!(Sv48Vaddr);
 
 impl Sv48Vaddr {
-    fn vpn(&self, level: usize) -> Option<RegT> {
+    fn vpn(&self, level: usize) -> RegT {
         match level {
-            0 => Some(self.vpn0()),
-            1 => Some(self.vpn1()),
-            2 => Some(self.vpn2()),
-            3 => Some(self.vpn3()),
-            _ => None
+            0 => (self.0 >> 12) & 0x1ff,
+            1 => (self.0 >> 21) & 0x1ff,
+            2 => (self.0 >> 30) & 0x1ff,
+            3 => (self.0 >> 39) & 0x1ff,
+            _ => unreachable!()
         }
     }
     fn value(&self) -> RegT {
         self.0
     }
-    fn vpn_all(&self) -> RegT { self.vpn3() << 27 | self.vpn2() << 18 | self.vpn1() << 9 | self.vpn0() }
+    fn vpn_all(&self) -> RegT {
+        (self.0 >> 12) & 0xf_ffffffff
+    }
+    fn offset(&self) -> RegT {
+        self.0 & 0xfff
+    }
 }
 
-bitfield! {
 pub struct Sv48Paddr(RegT);
-no default BitRange;
-impl Debug;
-ppn3,set_ppn3:55, 39;
-ppn2,set_ppn2:38, 30;
-ppn1,set_ppn1:29, 21;
-ppn0,set_ppn0:20, 12;
-offset,set_offset:11,0;
-}
-default_bitrange!(Sv48Paddr);
 
 impl Sv48Paddr {
-    // fn ppn(&self, level: usize) -> Option<RegT> {
-    //     match level {
-    //         0 => Some(self.ppn0()),
-    //         1 => Some(self.ppn1()),
-    //         2 => Some(self.ppn2()),
-    //         3 => Some(self.ppn3()),
-    //         _ => None
-    //     }
-    // }
-
     fn set_ppn(&mut self, level: usize, ppn: RegT) {
         match level {
-            0 => self.set_ppn0(ppn),
-            1 => self.set_ppn1(ppn),
-            2 => self.set_ppn2(ppn),
-            3 => self.set_ppn3(ppn),
+            0 => self.0 = self.0 & 0xffffffff_ffe00fff | (ppn & 0x1ff) << 12,
+            1 => self.0 = self.0 & 0xffffffff_c01fffff | (ppn & 0x1ff) << 21,
+            2 => self.0 = self.0 & 0xffffff80_3fffffff | (ppn & 0x1ff) << 30,
+            3 => self.0 = self.0 & 0xff00007f_ffffffff | (ppn & 0x1ffff) << 39,
             _ => {}
         }
     }
+    // fn offset(&self) -> RegT {
+    //     self.0 & 0xfff
+    // }
     fn value(&self) -> RegT {
-        self.0 & ((1 << 48) - 1)
+        self.0 & ((1 << 56) - 1)
     }
 }
 
-bitfield! {
 pub struct Sv48Pte(RegT);
-no default BitRange;
-impl Debug;
-ppn3,_:53, 37;
-ppn2,_:36, 28;
-ppn1,_:27, 19;
-ppn0,_:18, 10;
-rsw,_:9,8;
-attr_raw,set_attr_raw:7,0;
-}
-default_bitrange!(Sv48Pte);
 
 impl Sv48Pte {
-    fn ppn(&self, level: usize) -> Option<RegT> {
+    fn ppn(&self, level: usize) -> RegT {
         match level {
-            0 => Some(self.ppn0()),
-            1 => Some(self.ppn1()),
-            2 => Some(self.ppn2()),
-            3 => Some(self.ppn3()),
-            _ => None
+            0 => (self.0 >> 10) & 0x1ff,
+            1 => (self.0 >> 19) & 0x1ff,
+            2 => (self.0 >> 28) & 0x1ff,
+            3 => (self.0 >> 37) & 0x1ffff,
+            _ => unreachable!()
         }
     }
     fn ppn_all(&self) -> RegT {
-        self.ppn3() << 27 | self.ppn2() << 18 | self.ppn1() << 9 | self.ppn0()
+        (self.0 >> 10) & 0xfff_ffffffff
     }
     fn value(&self) -> RegT {
         self.0
+    }
+    // fn rsw(&self) -> RegT {
+    //     (self.0 >> 8) & 0x3
+    // }
+    fn attr(&self) -> PteAttr {
+        PteAttr::from(self.0 as u8)
+    }
+    fn set_attr(&mut self, attr: &PteAttr) {
+        self.0 = self.0 & 0xffffffff_fffffff0 | attr.0 as RegT
     }
 }
 
@@ -434,10 +341,9 @@ impl Vaddr {
         }
     }
     pt_export!(Vaddr, pub offset, RegT);
-    pt_export!(Vaddr, pub vpn, Option<RegT>, level:usize);
+    pt_export!(Vaddr, pub vpn, RegT, level:usize);
     pt_export!(Vaddr, pub vpn_all, RegT);
     pt_export!(Vaddr, pub value, RegT);
-    // pt_export!(Vaddr, value, RegT);
 }
 
 pub enum Paddr {
@@ -449,17 +355,15 @@ pub enum Paddr {
 impl Paddr {
     pub fn new(vaddr: &Vaddr, pte: &Pte, info: &PteInfo, level: usize) -> Paddr {
         let mut pa = match vaddr {
-            Vaddr::Sv32(addr) => Paddr::Sv32(Sv32Paddr(addr.value())),
-            Vaddr::Sv39(addr) => Paddr::Sv39(Sv39Paddr(addr.value())),
-            Vaddr::Sv48(addr) => Paddr::Sv48(Sv48Paddr(addr.value()))
+            Vaddr::Sv32(addr) => Paddr::Sv32(Sv32Paddr(addr.vpn_all() << 12 | addr.offset())),
+            Vaddr::Sv39(addr) => Paddr::Sv39(Sv39Paddr(addr.vpn_all() << 12 | addr.offset())),
+            Vaddr::Sv48(addr) => Paddr::Sv48(Sv48Paddr(addr.vpn_all() << 12 | addr.offset()))
         };
         for i in level..info.level {
-            pa.set_ppn(i, pte.ppn(i).unwrap())
+            pa.set_ppn(i, pte.ppn(i))
         }
         pa
     }
-    // pt_export!(Paddr, pub offset, RegT);
-    // pt_export!(Paddr, pub ppn, Option<RegT>, level:usize);
     pt_export!(Paddr, pub value, RegT);
 
     pub fn set_ppn(&mut self, level: usize, ppn: RegT) {
@@ -506,20 +410,16 @@ impl Pte {
         }
     }
 
-    // pt_export!(Pte, pub rsw, RegT);
-    pt_export!(Pte, pub ppn, Option<RegT>, level:usize);
+    pt_export!(Pte, pub ppn, RegT, level:usize);
     pt_export!(Pte, pub ppn_all, RegT);
-    pt_export!(Pte, attr_raw, RegT);
+    pt_export!(Pte, pub attr, PteAttr);
     pt_export!(Pte, pub value, RegT);
-    pub fn attr(&self) -> PteAttr {
-        (self.attr_raw() as u8).into()
-    }
 
-    pub fn set_attr(&mut self, attr: PteAttr) {
+    pub fn set_attr(&mut self, attr: &PteAttr) {
         match self {
-            Pte::Sv32(addr) => addr.set_attr_raw(attr.0 as RegT),
-            Pte::Sv39(addr) => addr.set_attr_raw(attr.0 as RegT),
-            Pte::Sv48(addr) => addr.set_attr_raw(attr.0 as RegT),
+            Pte::Sv32(addr) => addr.set_attr(attr),
+            Pte::Sv39(addr) => addr.set_attr(attr),
+            Pte::Sv48(addr) => addr.set_attr(attr),
         }
     }
 }

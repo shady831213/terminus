@@ -166,7 +166,7 @@ impl Mmu {
         let mut pte_addr: u64;
         loop {
             //step 2
-            pte_addr = (a + (vaddr.vpn(level).unwrap() << (info.size_shift as RegT))) as u64;
+            pte_addr = (a + (vaddr.vpn(level) << (info.size_shift as RegT))) as u64;
             if !self.check_pmp(pte_addr, 1 << info.size_shift, &MmuOpt::Load, &1) {
                 return Err(opt.access_exception(vaddr.value()));
             }
@@ -193,7 +193,7 @@ impl Mmu {
         self.check_pte_privilege(vaddr.value(), &leaf_pte.attr(), opt, privilege)?;
         //step 6
         for l in 0..level {
-            if leaf_pte.ppn(l).unwrap() != 0 {
+            if leaf_pte.ppn(l) != 0 {
                 return Err(opt.pagefault_exception(vaddr.value()));
             }
         }
@@ -206,7 +206,7 @@ impl Mmu {
                 if !self.check_pmp(pte_addr, 1 << info.size_shift, &MmuOpt::Store, &1) {
                     return Err(opt.access_exception(vaddr.value()));
                 }
-                leaf_pte.set_attr(new_attr);
+                leaf_pte.set_attr(&new_attr);
                 if leaf_pte.store(self.bus.deref(), pte_addr).is_err() {
                     return Err(opt.access_exception(vaddr.value()));
                 }
