@@ -17,6 +17,7 @@ pub struct PteInfo {
 }
 
 impl PteInfo {
+    #[cfg_attr(feature = "no-inline", inline(never))]
     pub fn new(satp: &Satp) -> PteInfo {
         match satp.xlen {
             XLen::X32 => PteInfo {
@@ -306,6 +307,7 @@ impl Sv48Pte {
 
 macro_rules! pt_export {
     ($name:ident, $vis:vis $method:ident, $rt:ty, $($args:ident : $ty:ty),*) => {
+        #[cfg_attr(feature = "no-inline", inline(never))]
        $vis fn $method(&self, $($args : $ty,)*) -> $rt {
             match self {
                 $name::Sv32(addr) => addr.$method($($args),*),
@@ -315,6 +317,7 @@ macro_rules! pt_export {
         }
     };
     ($name:ident, $vis:vis $method:ident, $rt:ty) => {
+        #[cfg_attr(feature = "no-inline", inline(never))]
         $vis fn $method(&self) -> $rt {
             match self {
                 $name::Sv32(addr) => addr.$method(),
@@ -332,6 +335,7 @@ pub enum Vaddr {
 }
 
 impl Vaddr {
+    #[cfg_attr(feature = "no-inline", inline(never))]
     pub fn new(mode: u8, addr: RegT) -> Vaddr {
         match mode {
             PTE_SV32 => Vaddr::Sv32(Sv32Vaddr(addr)),

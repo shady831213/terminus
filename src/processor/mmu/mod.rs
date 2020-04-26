@@ -4,7 +4,7 @@ use crate::processor::trap::Exception;
 use terminus_global::{RegT, InsnT};
 use std::rc::Rc;
 use std::sync::Arc;
-use crate::processor::ProcessorState;
+use crate::processor::{ProcessorState, Privilege};
 use terminus_macros::*;
 use crate::devices::bus::Bus;
 use crate::processor::extensions::i::csrs::ICsrs;
@@ -118,7 +118,7 @@ impl Mmu {
             *privilege == 3
         }
     }
-
+    #[cfg_attr(feature = "no-inline", inline(never))]
     fn get_privileage(&self, opt: &MmuOpt) -> u8 {
         let is_mprv = self.icsrs.mstatus().mprv() == 1;
         let mpp = self.icsrs.mstatus().mpp() as u8 & 3;
@@ -226,10 +226,10 @@ impl Mmu {
 
     pub fn translate(&self, va: RegT, len: RegT, opt: MmuOpt) -> Result<u64, Exception> {
         let privilege = self.get_privileage(&opt);
-        let info = PteInfo::new(self.p.scsrs().satp().deref());
         if privilege == 3 {
             return Ok(va as u64);
         }
+        let info = PteInfo::new(self.p.scsrs().satp().deref());
         if info.mode == PTE_BARE {
             return Ok(va as u64);
         }
