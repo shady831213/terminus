@@ -7,15 +7,108 @@ use crate::processor::decode::*;
 use std::sync::Arc;
 use crate::devices::bus::Bus;
 use std::cell::RefCell;
+use std::mem::MaybeUninit;
 
 struct ICacheEntry {
+    accessed: bool,
     tag: u64,
     insn: Option<(InsnT, &'static Instruction)>,
 }
 
+struct ICacheBasket {
+    ptr: u8,
+    entries: [ICacheEntry; 4],
+}
+
+impl ICacheBasket {
+    fn new() -> ICacheBasket {
+        ICacheBasket {
+            ptr: 0,
+            entries: unsafe {
+                let mut arr: MaybeUninit<[ICacheEntry; 4]> = MaybeUninit::uninit();
+                for i in 0..4 {
+                    (arr.as_mut_ptr() as *mut ICacheEntry).add(i).write(ICacheEntry { accessed: false, tag: 0, insn: None });
+                }
+                arr.assume_init()
+            },
+        }
+    }
+
+    fn get_insn(&mut self, tag: u64) -> Option<&(InsnT, &'static Instruction)> {
+        let mut ptr = self.ptr;
+        let tail = self.tail();
+        while ptr != tail {
+            let e = unsafe { self.entries.get_unchecked_mut(ptr as usize) };
+            if e.tag == tag {
+                if e.insn.is_some() {
+                    e.accessed = true;
+                    self.ptr = ptr;
+                    break;
+                }
+            }
+            e.accessed = false;
+            ptr = Self::next_ptr(ptr);
+        }
+        if ptr != tail {
+            return unsafe { self.entries.get_unchecked(ptr as usize) }.insn.as_ref();
+        }
+        None
+    }
+
+    fn next_ptr(p: u8) -> u8 {
+        if p == 3 {
+            0
+        } else {
+            p + 1
+        }
+    }
+
+    fn prev_ptr(p: u8) -> u8 {
+        if p == 0 {
+            3
+        } else {
+            p - 1
+        }
+    }
+
+    fn tail(&self) -> u8 {
+        if self.ptr == 0 {
+            3
+        } else {
+            self.ptr - 1
+        }
+    }
+
+    fn set_entry(&mut self, tag: u64, ir: InsnT, insn: &'static Instruction) {
+        let mut ptr = self.tail();
+        let tail = self.ptr;
+        while ptr != tail {
+            let e = unsafe { self.entries.get_unchecked(ptr as usize) };
+            if e.insn.is_none() || !e.accessed {
+                break;
+            }
+            ptr = Self::prev_ptr(ptr);
+        }
+        let e = unsafe { self.entries.get_unchecked_mut(ptr as usize) };
+        e.accessed = true;
+        e.tag = tag;
+        e.insn = Some((ir, insn));
+        self.ptr = ptr;
+    }
+
+    fn invalid_all(&mut self) {
+        self.entries.iter_mut().for_each(|e| { e.insn = None })
+    }
+
+    fn invalid_by_vpn(&mut self, vpn: u64) {
+        self.entries.iter_mut().for_each(|e| { if vpn == e.tag >> 11 { e.insn = None } })
+    }
+}
+
+
 struct ICache {
     size: usize,
-    baskets: Vec<ICacheEntry>,
+    baskets: Vec<ICacheBasket>,
 }
 
 impl ICache {
@@ -25,36 +118,25 @@ impl ICache {
             baskets: Vec::with_capacity(size),
         };
         for _ in 0..size {
-            cache.baskets.push(ICacheEntry { tag: 0, insn: None })
+            cache.baskets.push(ICacheBasket::new())
         };
         cache
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
     fn get_insn(&mut self, addr: u64) -> Option<&(InsnT, &'static Instruction)> {
-        let e = unsafe { self.baskets.get_unchecked(((addr >> 1) as usize) & (self.size - 1)) };
-        if let Some(ref insn) = e.insn {
-            if e.tag == addr >> 1 {
-                Some(insn)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
+        unsafe { self.baskets.get_unchecked_mut(((addr >> 1) as usize) & (self.size - 1)) }.get_insn(addr >> 1)
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
     fn set_entry(&mut self, addr: u64, ir: InsnT, insn: &'static Instruction) {
-        let e = unsafe { self.baskets.get_unchecked_mut(((addr >> 1) as usize) & (self.size - 1)) };
-        e.tag = addr >> 1;
-        e.insn = Some((ir, insn));
+        unsafe { self.baskets.get_unchecked_mut(((addr >> 1) as usize) & (self.size - 1)) }.set_entry(addr >> 1, ir, insn)
     }
 
     fn invalid_all(&mut self) {
-        self.baskets.iter_mut().for_each(|b| { b.insn = None })
+        self.baskets.iter_mut().for_each(|b| { b.invalid_all() })
     }
 
     fn invalid_by_vpn(&mut self, vpn: u64) {
-        self.baskets.iter_mut().for_each(|b| { if vpn == b.tag >> 11 { b.insn = None } })
+        self.baskets.iter_mut().for_each(|b| { b.invalid_by_vpn(vpn) })
     }
 }
 
