@@ -16,45 +16,45 @@ impl LoadStore {
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    pub fn load_byte(&self, state: &ProcessorState, addr: RegT, data: &mut u8, mmu: &Mmu) -> Result<(), Exception> {
+    pub fn load_byte(&self, state: &ProcessorState, addr: &RegT, data: &mut u8, mmu: &Mmu) -> Result<(), Exception> {
         let pa = mmu.ls_translate(state, addr, 1, MmuOpt::Load)?;
         match self.bus.read_u8(&pa, data) {
             Ok(_) => Ok(()),
-            Err(_) => Err(Exception::LoadAccess(addr)),
+            Err(_) => Err(Exception::LoadAccess(*addr)),
         }
     }
 
-    pub fn load_half_word(&self, state: &ProcessorState, addr: RegT, data: &mut u16, mmu: &Mmu) -> Result<(), Exception> {
+    pub fn load_half_word(&self, state: &ProcessorState, addr: &RegT, data: &mut u16, mmu: &Mmu) -> Result<(), Exception> {
         if addr.trailing_zeros() < 1 {
-            return Err(Exception::LoadMisaligned(addr));
+            return Err(Exception::LoadMisaligned(*addr));
         }
         let pa = mmu.ls_translate(state, addr, 2, MmuOpt::Load)?;
         match self.bus.read_u16(&pa, data) {
             Ok(_) => Ok(()),
-            Err(_) => Err(Exception::LoadAccess(addr)),
+            Err(_) => Err(Exception::LoadAccess(*addr)),
         }
     }
-    pub fn load_word(&self, state: &ProcessorState, addr: RegT, data: &mut u32, mmu: &Mmu) -> Result<(), Exception> {
+    pub fn load_word(&self, state: &ProcessorState, addr: &RegT, data: &mut u32, mmu: &Mmu) -> Result<(), Exception> {
         if addr.trailing_zeros() < 2 {
-            return Err(Exception::LoadMisaligned(addr));
+            return Err(Exception::LoadMisaligned(*addr));
         }
         let pa = mmu.ls_translate(state, addr, 4, MmuOpt::Load)?;
         match self.bus.read_u32(&pa, data) {
             Ok(_) => Ok(()),
-            Err(_) => Err(Exception::LoadAccess(addr)),
+            Err(_) => Err(Exception::LoadAccess(*addr)),
         }
     }
-    pub fn load_double_word(&self, state: &ProcessorState, addr: RegT, data: &mut u64, mmu: &Mmu) -> Result<(), Exception> {
+    pub fn load_double_word(&self, state: &ProcessorState, addr: &RegT, data: &mut u64, mmu: &Mmu) -> Result<(), Exception> {
         if addr.trailing_zeros() < 3 {
-            return Err(Exception::LoadMisaligned(addr));
+            return Err(Exception::LoadMisaligned(*addr));
         }
         let pa = mmu.ls_translate(state, addr, 8, MmuOpt::Load)?;
         match self.bus.read_u64(&pa, data) {
             Ok(_) => Ok(()),
-            Err(_) => Err(Exception::LoadAccess(addr)),
+            Err(_) => Err(Exception::LoadAccess(*addr)),
         }
     }
-    pub fn store_byte(&self, state: &ProcessorState, addr: RegT, data: &u8, mmu: &Mmu) -> Result<(), Exception> {
+    pub fn store_byte(&self, state: &ProcessorState, addr: &RegT, data: &u8, mmu: &Mmu) -> Result<(), Exception> {
         let pa = mmu.ls_translate(state, addr, 1, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 1) {
             if lock_holder != state.hartid {
@@ -63,12 +63,12 @@ impl LoadStore {
         }
         match self.bus.write_u8(&pa, data) {
             Ok(_) => Ok(()),
-            Err(_) => Err(Exception::StoreAccess(addr)),
+            Err(_) => Err(Exception::StoreAccess(*addr)),
         }
     }
-    pub fn store_half_word(&self, state: &ProcessorState, addr: RegT, data: &u16, mmu: &Mmu) -> Result<(), Exception> {
+    pub fn store_half_word(&self, state: &ProcessorState, addr: &RegT, data: &u16, mmu: &Mmu) -> Result<(), Exception> {
         if addr.trailing_zeros() < 1 {
-            return Err(Exception::StoreMisaligned(addr));
+            return Err(Exception::StoreMisaligned(*addr));
         }
         let pa = mmu.ls_translate(state, addr, 2, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 2) {
@@ -78,12 +78,12 @@ impl LoadStore {
         }
         match self.bus.write_u16(&pa, data) {
             Ok(_) => Ok(()),
-            Err(_) => Err(Exception::StoreAccess(addr)),
+            Err(_) => Err(Exception::StoreAccess(*addr)),
         }
     }
-    pub fn store_word(&self, state: &ProcessorState, addr: RegT, data: &u32, mmu: &Mmu) -> Result<(), Exception> {
+    pub fn store_word(&self, state: &ProcessorState, addr: &RegT, data: &u32, mmu: &Mmu) -> Result<(), Exception> {
         if addr.trailing_zeros() < 2 {
-            return Err(Exception::StoreMisaligned(addr));
+            return Err(Exception::StoreMisaligned(*addr));
         }
         let pa = mmu.ls_translate(state, addr, 4, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 4) {
@@ -93,12 +93,12 @@ impl LoadStore {
         }
         match self.bus.write_u32(&pa, data) {
             Ok(_) => Ok(()),
-            Err(_) => Err(Exception::StoreAccess(addr)),
+            Err(_) => Err(Exception::StoreAccess(*addr)),
         }
     }
-    pub fn store_double_word(&self, state: &ProcessorState, addr: RegT, data: &u64, mmu: &Mmu) -> Result<(), Exception> {
+    pub fn store_double_word(&self, state: &ProcessorState, addr: &RegT, data: &u64, mmu: &Mmu) -> Result<(), Exception> {
         if addr.trailing_zeros() < 3 {
-            return Err(Exception::StoreMisaligned(addr));
+            return Err(Exception::StoreMisaligned(*addr));
         }
         let pa = mmu.ls_translate(state, addr, 8, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 8) {
@@ -108,13 +108,13 @@ impl LoadStore {
         }
         match self.bus.write_u64(&pa, data) {
             Ok(_) => Ok(()),
-            Err(_) => Err(Exception::StoreAccess(addr)),
+            Err(_) => Err(Exception::StoreAccess(*addr)),
         }
     }
 
-    pub fn amo_word<F: Fn(u32) -> u32>(&self, state: &ProcessorState, addr: RegT, f: F, mmu: &Mmu) -> Result<RegT, Exception> {
+    pub fn amo_word<F: Fn(u32) -> u32>(&self, state: &ProcessorState, addr: &RegT, f: F, mmu: &Mmu) -> Result<RegT, Exception> {
         if addr.trailing_zeros() < 2 {
-            return Err(Exception::StoreMisaligned(addr));
+            return Err(Exception::StoreMisaligned(*addr));
         }
         let pa = mmu.ls_translate(state, addr, 4, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 4) {
@@ -124,12 +124,12 @@ impl LoadStore {
         }
         match self.bus.amo_u32(&pa, f) {
             Ok(data) => Ok(data as RegT),
-            Err(_) => Err(Exception::StoreAccess(addr)),
+            Err(_) => Err(Exception::StoreAccess(*addr)),
         }
     }
-    pub fn amo_double_word<F: Fn(u64) -> u64>(&self, state: &ProcessorState, addr: RegT, f: F, mmu: &Mmu) -> Result<RegT, Exception> {
+    pub fn amo_double_word<F: Fn(u64) -> u64>(&self, state: &ProcessorState, addr: &RegT, f: F, mmu: &Mmu) -> Result<RegT, Exception> {
         if addr.trailing_zeros() < 3 {
-            return Err(Exception::StoreMisaligned(addr));
+            return Err(Exception::StoreMisaligned(*addr));
         }
         let pa = mmu.ls_translate(state, addr, 8, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 8) {
@@ -139,18 +139,18 @@ impl LoadStore {
         }
         match self.bus.amo_u64(&pa, f) {
             Ok(data) => Ok(data as RegT),
-            Err(_) => Err(Exception::StoreAccess(addr)),
+            Err(_) => Err(Exception::StoreAccess(*addr)),
         }
     }
 
-    pub fn acquire(&self, state: &ProcessorState, addr: RegT, len: u64, mmu: &Mmu) -> Result<bool, Exception> {
+    pub fn acquire(&self, state: &ProcessorState, addr: &RegT, len: usize, mmu: &Mmu) -> Result<bool, Exception> {
         let pa = mmu.ls_translate(state, addr, len, MmuOpt::Load)?;
-        Ok(self.bus.acquire(pa, len, state.hartid))
+        Ok(self.bus.acquire(&pa, len, state.hartid))
     }
 
-    pub fn check_lock(&self, state: &ProcessorState, addr: RegT, len: u64, mmu: &Mmu) -> Result<bool, Exception> {
+    pub fn check_lock(&self, state: &ProcessorState, addr: &RegT, len: usize, mmu: &Mmu) -> Result<bool, Exception> {
         let pa = mmu.ls_translate(state, addr, len, MmuOpt::Store)?;
-        if let Some(holder) = self.bus.lock_holder(pa, len) {
+        if let Some(holder) = self.bus.lock_holder(&pa, len) {
             if holder == state.hartid {
                 Ok(true)
             } else {

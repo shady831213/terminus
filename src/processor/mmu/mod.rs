@@ -73,10 +73,10 @@ impl Mmu {
         PmpCfgsIter::new(state.icsrs(), PhantomData)
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn match_pmpcfg_entry(&self, state: &ProcessorState, addr: u64, len: usize) -> Option<PmpCfgEntry> {
+    fn match_pmpcfg_entry(&self, state: &ProcessorState, addr: &u64, len: usize) -> Option<PmpCfgEntry> {
         self.pmpcfgs_iter(state).enumerate()
             .find(|(idx, entry)| {
-                ((addr >> 2)..((addr + len as u64 - 1) >> 2) + 1)
+                ((*addr >> 2)..((*addr + len as u64 - 1) >> 2) + 1)
                     .map(|trail_addr| {
                         match PmpAType::try_from(entry.a()).unwrap() {
                             PmpAType::OFF => false,
@@ -105,7 +105,7 @@ impl Mmu {
             .map(|(_, entry)| { entry })
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn check_pmp(&self, state: &ProcessorState, addr: u64, len: usize, opt: &MmuOpt, privilege: &u8) -> bool {
+    fn check_pmp(&self, state: &ProcessorState, addr: &u64, len: usize, opt: &MmuOpt, privilege: &u8) -> bool {
         if let Some(entry) = self.match_pmpcfg_entry(state, addr, len) {
             *privilege == 3 && entry.l() == 0 || opt.pmp_match(&entry)
         } else {
@@ -161,7 +161,7 @@ impl Mmu {
         loop {
             //step 2
             pte_addr = (a + (vaddr.vpn(level) << (info.size_shift as RegT))) as u64;
-            if !self.check_pmp(state, pte_addr, 1 << info.size_shift, &MmuOpt::Load, &1) {
+            if !self.check_pmp(state, &pte_addr, 1 << info.size_shift, &MmuOpt::Load, &1) {
                 return Err(opt.access_exception(vaddr.value()));
             }
             let pte = match Pte::load(info, self.bus.deref(), &pte_addr) {
@@ -197,7 +197,7 @@ impl Mmu {
                 let mut new_attr = leaf_pte.attr();
                 new_attr.set_a(1);
                 new_attr.set_d((*opt == MmuOpt::Store) as u8);
-                if !self.check_pmp(state, pte_addr, 1 << info.size_shift, &MmuOpt::Store, &1) {
+                if !self.check_pmp(state, &pte_addr, 1 << info.size_shift, &MmuOpt::Store, &1) {
                     return Err(opt.access_exception(vaddr.value()));
                 }
                 leaf_pte.set_attr(&new_attr);
@@ -225,7 +225,7 @@ impl Mmu {
     }
 
     #[cfg_attr(feature = "no-inline", inline(never))]
-    pub fn ls_translate(&self, state: &ProcessorState, va: RegT, len: RegT, opt: MmuOpt) -> Result<u64, Exception> {
+    pub fn ls_translate(&self, state: &ProcessorState, va: &RegT, len: usize, opt: MmuOpt) -> Result<u64, Exception> {
         self.translate(state, va, len, opt, self.get_privileage(state, &opt), match opt {
             MmuOpt::Store => self.store_tlb.borrow_mut(),
             MmuOpt::Load => self.load_tlb.borrow_mut(),
@@ -234,22 +234,22 @@ impl Mmu {
     }
 
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn translate(&self, state: &ProcessorState, va: RegT, len: RegT, opt: MmuOpt, privilege: u8, tlb: &mut TLB) -> Result<u64, Exception> {
+    fn translate(&self, state: &ProcessorState, va: &RegT, len: usize, opt: MmuOpt, privilege: u8, tlb: &mut TLB) -> Result<u64, Exception> {
         if privilege == 3 {
-            return Ok(va as u64);
+            return Ok(*va as u64);
         }
         let info = PteInfo::new(state.scsrs().satp().deref());
         if info.mode == PTE_BARE {
-            return Ok(va as u64);
+            return Ok(*va as u64);
         }
-        let vaddr = Vaddr::new(info.mode, va);
+        let vaddr = Vaddr::new(info.mode, *va);
         if let Some(ppn) = tlb.get_ppn(vaddr.vpn_all()) {
             let pa = (*ppn << (info.page_size_shift as u64)) | vaddr.offset();
             return Ok(pa);
         }
         match self.pt_walk(state, &vaddr, &opt, &privilege, &info) {
-            Ok(pa) => if !self.check_pmp(state, pa, len as usize, &opt, &privilege) {
-                return Err(opt.access_exception(va));
+            Ok(pa) => if !self.check_pmp(state, &pa, len as usize, &opt, &privilege) {
+                return Err(opt.access_exception(*va));
             } else {
                 tlb.set_entry(vaddr.vpn_all(), pa >> (info.page_size_shift as u64));
                 Ok(pa)
@@ -261,7 +261,7 @@ impl Mmu {
     }
 
     #[cfg_attr(feature = "no-inline", inline(never))]
-    pub fn fetch_translate(&self, state: &ProcessorState, va: RegT, len: RegT) -> Result<u64, Exception> {
+    pub fn fetch_translate(&self, state: &ProcessorState, va: &RegT, len: usize) -> Result<u64, Exception> {
         self.translate(state, va, len, MmuOpt::Fetch, (*state.privilege()).into(), self.fetch_tlb.borrow_mut().deref_mut())
     }
 }
@@ -287,31 +287,31 @@ fn pmp_basic_test() {
 
     let p = sys.processor(0).unwrap();
     //no valid region
-    assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), 0, 1), None);
+    assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), &0, 1), None);
     //NA4
     p.state().icsrs().pmpcfg0_mut().set_bit_range(4, 3, PmpAType::NA4.into());
     p.state().icsrs().pmpaddr0_mut().set(0x8000_0000 >> 2);
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x8000_0000, 4).is_some());
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x8000_0000, 5).is_none());
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x8000_0000, 4).is_some());
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x8000_0000, 5).is_none());
 
     //NAPOT
     p.state().icsrs().pmpcfg3_mut().set_bit_range(4, 3, PmpAType::NAPOT.into());
     p.state().icsrs().pmpaddr12_mut().set((0x2000_0000 + 0x1_0000 - 1) >> 2);
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x2000_0000, 4).is_some());
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x2000_ffff, 1).is_some());
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x2000_ffff, 2).is_none());
-    assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), 0x2000_ffff, 1), p.mmu().match_pmpcfg_entry(p.state(), 0x2000_0000, 4));
-    assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), 0x1000_ffff, 1), None);
-    assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), 0x2001_0000, 4), None);
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x2000_0000, 4).is_some());
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x2000_ffff, 1).is_some());
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x2000_ffff, 2).is_none());
+    assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), &0x2000_ffff, 1), p.mmu().match_pmpcfg_entry(p.state(), &0x2000_0000, 4));
+    assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), &0x1000_ffff, 1), None);
+    assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), &0x2001_0000, 4), None);
     //TOR
     p.state().icsrs().pmpcfg3_mut().set_bit_range(12, 11, PmpAType::TOR.into());
     p.state().icsrs().pmpaddr13_mut().set((0x2000_0000 + 0x1_0000) >> 2);
     p.state().icsrs().pmpcfg3_mut().set_bit_range(20, 19, PmpAType::TOR.into());
     p.state().icsrs().pmpaddr14_mut().set((0x2000_0000 + 0x2_0000) >> 2);
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x2001_0000, 4).is_some());
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x2001_ffff, 1).is_some());
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x2001_ffff, 2).is_none());
-    assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), 0x2002_0000, 4), None);
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x2001_0000, 4).is_some());
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x2001_ffff, 1).is_some());
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x2001_ffff, 2).is_none());
+    assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), &0x2002_0000, 4), None);
     p.state().icsrs().pmpcfg3_mut().set_bit_range(23, 23, 1);
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x2001_0000, 4).is_some());
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x2001_0000, 4).is_some());
 }

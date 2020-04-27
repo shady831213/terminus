@@ -93,7 +93,7 @@ impl Fetcher {
         let mut icache = self.icache.borrow_mut();
         let pc = state.pc();
         if pc.trailing_zeros() == 1 {
-            let pa = mmu.fetch_translate(state, *pc, 2)?;
+            let pa = mmu.fetch_translate(state, pc, 2)?;
             if let Some(res) = icache.get_insn(pa) {
                 Ok(*res)
             } else {
@@ -105,7 +105,11 @@ impl Fetcher {
                     icache.set_entry(pa, data, insn);
                     Ok((data, insn))
                 } else {
-                    let pa_high = mmu.fetch_translate(state, *pc + 2, 2)?;
+                    let pa_high = if (*pc & 0xfff) == 0xffe {
+                        mmu.fetch_translate(state, &(*pc + 2), 2)?
+                    } else {
+                        pa + 2
+                    };
                     let mut data_high = 0;
                     self.fetch_u16_slow(&pa_high, pc, &mut data_high)?;
                     let data = data_low as u16 as InsnT | ((data_high as u16 as InsnT) << 16);
@@ -115,7 +119,7 @@ impl Fetcher {
                 }
             }
         } else {
-            let pa = mmu.fetch_translate(state, *pc, 4)?;
+            let pa = mmu.fetch_translate(state, pc, 4)?;
             if let Some(res) = icache.get_insn(pa) {
                 Ok(*res)
             } else {

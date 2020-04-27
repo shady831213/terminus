@@ -5,14 +5,14 @@ use std::cell::{RefCell, Ref, RefMut};
 #[derive(Debug)]
 struct LockEntry {
     addr: u64,
-    len: u64,
+    len: usize,
     holder: usize,
 }
 
 impl LockEntry {
-    fn lock_holder(&self, addr: u64, len: u64) -> Option<usize> {
-        if addr >= self.addr && addr < self.addr + self.len || addr + len - 1 >= self.addr && addr + len - 1 < self.addr + self.len ||
-            self.addr >= addr && self.addr < addr + len || self.addr + self.len - 1 >= addr && self.addr + self.len - 1 < addr + len {
+    fn lock_holder(&self, addr: &u64, len: usize) -> Option<usize> {
+        if *addr >= self.addr && *addr < self.addr + self.len as u64 || *addr + len as u64 - 1 >= self.addr && *addr + len as u64 - 1 < self.addr + self.len as u64 ||
+            self.addr >= *addr && self.addr < *addr + len as u64 || self.addr + self.len as u64 - 1 >= *addr && self.addr + self.len as u64 - 1 < *addr + len as u64 {
             Some(self.holder)
         } else {
             None
@@ -33,12 +33,12 @@ impl Bus {
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    pub fn acquire(&self, addr: u64, len: u64, who: usize) -> bool {
+    pub fn acquire(&self, addr: &u64, len: usize, who: usize) -> bool {
         let mut lock_table = self.lock_table.borrow_mut();
         if lock_table.iter().find(|entry| {
             if let Some(lock_owner) = entry.lock_holder(addr, len) {
                 if who == lock_owner {
-                    panic!(format!("master {} try to lock {:#x} - {:#x} twice!", who, addr, addr + len))
+                    panic!(format!("master {} try to lock {:#x} - {:#x} twice!", who, *addr, *addr + len as u64))
                 }
                 true
             } else {
@@ -48,7 +48,7 @@ impl Bus {
             false
         } else {
             lock_table.push(LockEntry {
-                addr,
+                addr: *addr,
                 len,
                 holder: who,
             });
@@ -56,7 +56,7 @@ impl Bus {
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    pub fn lock_holder(&self, addr: u64, len: u64) -> Option<usize> {
+    pub fn lock_holder(&self, addr: &u64, len: usize) -> Option<usize> {
         let lock_table = self.lock_table.borrow();
         if let Some(e) = lock_table.iter().find_map(|entry| { entry.lock_holder(addr, len) }) {
             Some(e)
@@ -65,14 +65,14 @@ impl Bus {
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    pub fn invalid_lock(&self, addr: u64, len: u64, who: usize) {
+    pub fn invalid_lock(&self, addr: &u64, len: usize, who: usize) {
         let mut lock_table = self.lock_table.borrow_mut();
         if let Some((i, _)) = lock_table.iter().enumerate().find(|(_, entry)| {
             if let Some(lock_owner) = entry.lock_holder(addr, len) {
                 if who == lock_owner {
                     true
                 } else {
-                    panic!(format!("master {} try to release {:#x} - {:#x} but haven't owned the lock! lock_table:{:?}", who, addr, addr + len, lock_table))
+                    panic!(format!("master {} try to release {:#x} - {:#x} but haven't owned the lock! lock_table:{:?}", who, *addr, *addr + len as u64, lock_table))
                 }
             } else {
                 false
@@ -80,7 +80,7 @@ impl Bus {
         }) {
             lock_table.remove(i);
         } else {
-            panic!(format!("master {} try to release {:#x} - {:#x} but haven't owned the lock! lock_table:{:?}", who, addr, addr + len, lock_table))
+            panic!(format!("master {} try to release {:#x} - {:#x} but haven't owned the lock! lock_table:{:?}", who, addr, *addr + len as u64, lock_table))
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
@@ -103,11 +103,12 @@ impl Bus {
     }
 
     pub fn write_u8(&self, addr: &u64, data: &u8) -> Result<(), u64> {
-        self.space.borrow().write_bytes(addr, unsafe { std::slice::from_raw_parts(data as *const u8, 1) })
+        self.space.borrow().write_u8(addr, *data)
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
     pub fn read_u8(&self, addr: &u64, data: &mut u8) -> Result<(), u64> {
-        self.space.borrow().read_bytes(addr, unsafe { std::slice::from_raw_parts_mut(data as *mut u8, 1) })
+        *data = self.space.borrow().read_u8(addr)?;
+        Ok(())
     }
 
     pub fn write_u16(&self, addr: &u64, data: &u16) -> Result<(), u64> {

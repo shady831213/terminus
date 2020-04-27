@@ -30,13 +30,13 @@ impl Execution for LRW {
             let mut lc_res = a.lc_res.borrow_mut();
             lc_res.valid = false;
             p.load_store().release(p.state());
-            let addr = *p.state().xreg(self.rs1(p.state().ir()));
+            let addr = p.state().xreg(self.rs1(p.state().ir()));
             let success = p.load_store().acquire(p.state(), addr, 4, p.mmu())?;
             let mut data: u32 = 0;
             p.load_store().load_word(p.state(), addr, &mut data, p.mmu())?;
             if success {
                 lc_res.valid = true;
-                lc_res.addr = addr;
+                lc_res.addr = *addr;
                 lc_res.len = 4;
                 lc_res.timestamp = *p.state().insns_cnt().borrow();
             }
@@ -68,13 +68,13 @@ impl Execution for LRD {
             let mut lc_res = a.lc_res.borrow_mut();
             lc_res.valid = false;
             p.load_store().release(state);
-            let addr = *state.xreg(self.rs1(state.ir()));
+            let addr = state.xreg(self.rs1(state.ir()));
             let success = p.load_store().acquire(state, addr, 8, p.mmu())?;
             let mut data: u64 = 0;
             p.load_store().load_double_word(state, addr, &mut data, p.mmu())?;
             if success {
                 lc_res.valid = true;
-                lc_res.addr = addr;
+                lc_res.addr = *addr;
                 lc_res.len = 8;
                 lc_res.timestamp = *state.insns_cnt().borrow();
             }
@@ -102,11 +102,11 @@ impl Execution for SCW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let success = {
             let a = self.get_a_ext(p)?;
-            let addr = *p.state().xreg(self.rs1(p.state().ir()));
+            let addr = p.state().xreg(self.rs1(p.state().ir()));
             let data = p.state().xreg(self.rs2(p.state().ir()));
             let mut lc_res = a.lc_res.borrow_mut();
             let success = if lc_res.valid {
-                if addr != lc_res.addr || lc_res.len != 4 {
+                if *addr != lc_res.addr || lc_res.len != 4 {
                     false
                 } else {
                     p.load_store().check_lock(p.state(), addr, 4, p.mmu())?
@@ -143,11 +143,11 @@ impl Execution for SCD {
         let success = {
             p.state().check_xlen(XLen::X64)?;
             let a = self.get_a_ext(p)?;
-            let addr = *p.state().xreg(self.rs1(p.state().ir()));
+            let addr = p.state().xreg(self.rs1(p.state().ir()));
             let data = p.state().xreg(self.rs2(p.state().ir()));
             let mut lc_res = a.lc_res.borrow_mut();
             let success = if lc_res.valid {
-                if addr != lc_res.addr || lc_res.len != 8 {
+                if *addr != lc_res.addr || lc_res.len != 8 {
                     false
                 } else {
                     p.load_store().check_lock(p.state(), addr, 8, p.mmu())?
@@ -180,7 +180,7 @@ struct AMOSWAPW();
 impl Execution for AMOSWAPW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir()));
         let data = p.load_store().amo_word(p.state(), addr, |_| { src as u32 }, p.mmu())?;
         let rd = self.rd(p.state().ir());
@@ -202,7 +202,7 @@ impl Execution for AMOSWAPD {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir()));
         let data = p.load_store().amo_double_word(p.state(), addr, |_| { src as u64 }, p.mmu())?;
         let rd = self.rd(p.state().ir());
@@ -223,7 +223,7 @@ struct AMOADDW();
 impl Execution for AMOADDW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src: Wrapping<u32> = Wrapping(*p.state().xreg(self.rs2(p.state().ir())) as u32);
         let data = p.load_store().amo_word(p.state(), addr, |read| {
             (src + Wrapping(read)).0
@@ -247,7 +247,7 @@ impl Execution for AMOADDD {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src: Wrapping<u64> = Wrapping(*p.state().xreg(self.rs2(p.state().ir())) as u64);
         let data = p.load_store().amo_double_word(p.state(), addr, |read| {
             (src + Wrapping(read)).0
@@ -270,7 +270,7 @@ struct AMOANDW();
 impl Execution for AMOANDW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u32;
         let data = p.load_store().amo_word(p.state(), addr, |read| {
             src & read
@@ -294,7 +294,7 @@ impl Execution for AMOADND {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u64;
         let data = p.load_store().amo_double_word(p.state(), addr, |read| {
             src & read
@@ -317,7 +317,7 @@ struct AMOORW();
 impl Execution for AMOORW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u32;
         let data = p.load_store().amo_word(p.state(), addr, |read| {
             src | read
@@ -341,7 +341,7 @@ impl Execution for AMOORD {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u64;
         let data = p.load_store().amo_double_word(p.state(), addr, |read| {
             src | read
@@ -364,7 +364,7 @@ struct AMOXORW();
 impl Execution for AMOXORW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u32;
         let data = p.load_store().amo_word(p.state(), addr, |read| {
             src ^ read
@@ -388,7 +388,7 @@ impl Execution for AMOXORD {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u64;
         let data = p.load_store().amo_double_word(p.state(), addr, |read| {
             src ^ read
@@ -411,7 +411,7 @@ struct AMOMAXW();
 impl Execution for AMOMAXW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u32 as i32;
         let data = p.load_store().amo_word(p.state(), addr, |read| {
             max(src, read as u32 as i32) as u32
@@ -435,7 +435,7 @@ impl Execution for AMOMAXD {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u64 as i64;
         let data = p.load_store().amo_double_word(p.state(), addr, |read| {
             max(src, read as u64 as i64) as u64
@@ -458,7 +458,7 @@ struct AMOMINW();
 impl Execution for AMOMINW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u32 as i32;
         let data = p.load_store().amo_word(p.state(), addr, |read| {
             min(src, read as u32 as i32) as u32
@@ -482,7 +482,7 @@ impl Execution for AMOMIND {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u64 as i64;
         let data = p.load_store().amo_double_word(p.state(), addr, |read| {
             min(src, read as u64 as i64) as u64
@@ -505,7 +505,7 @@ struct AMOMAXUW();
 impl Execution for AMOMAXUW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u32;
         let data = p.load_store().amo_word(p.state(), addr, |read| {
             max(src, read)
@@ -529,7 +529,7 @@ impl Execution for AMOMAXUD {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u64;
         let data = p.load_store().amo_double_word(p.state(), addr, |read| {
             max(src, read)
@@ -552,7 +552,7 @@ struct AMOMINUW();
 impl Execution for AMOMINUW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u32;
         let data = p.load_store().amo_word(p.state(), addr, |read| {
             min(src, read)
@@ -576,7 +576,7 @@ impl Execution for AMOMINUD {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         p.state().check_extension('a')?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
+        let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u64;
         let data = p.load_store().amo_double_word(p.state(), addr, |read| {
             min(src, read)
