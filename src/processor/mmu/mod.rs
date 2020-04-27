@@ -201,7 +201,7 @@ impl Mmu {
                     return Err(opt.access_exception(vaddr.value()));
                 }
                 leaf_pte.set_attr(&new_attr);
-                if leaf_pte.store(self.bus.deref(), pte_addr).is_err() {
+                if leaf_pte.store(self.bus.deref(), &pte_addr).is_err() {
                     return Err(opt.access_exception(vaddr.value()));
                 }
             } else {

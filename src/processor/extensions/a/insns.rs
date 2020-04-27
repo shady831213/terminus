@@ -103,7 +103,7 @@ impl Execution for SCW {
         let success = {
             let a = self.get_a_ext(p)?;
             let addr = *p.state().xreg(self.rs1(p.state().ir()));
-            let data = *p.state().xreg(self.rs2(p.state().ir()));
+            let data = p.state().xreg(self.rs2(p.state().ir()));
             let mut lc_res = a.lc_res.borrow_mut();
             let success = if lc_res.valid {
                 if addr != lc_res.addr || lc_res.len != 4 {
@@ -115,7 +115,7 @@ impl Execution for SCW {
                 false
             };
             if success {
-                p.load_store().store_word(p.state(), addr, data, p.mmu())?
+                p.load_store().store_word(p.state(), addr, unsafe{ &*(data as *const RegT as *const u32)}, p.mmu())?
             }
             lc_res.valid = false;
             p.load_store().release(p.state());
@@ -144,7 +144,7 @@ impl Execution for SCD {
             p.state().check_xlen(XLen::X64)?;
             let a = self.get_a_ext(p)?;
             let addr = *p.state().xreg(self.rs1(p.state().ir()));
-            let data = *p.state().xreg(self.rs2(p.state().ir()));
+            let data = p.state().xreg(self.rs2(p.state().ir()));
             let mut lc_res = a.lc_res.borrow_mut();
             let success = if lc_res.valid {
                 if addr != lc_res.addr || lc_res.len != 8 {

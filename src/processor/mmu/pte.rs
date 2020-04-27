@@ -411,10 +411,10 @@ impl Pte {
         Ok(Pte::new(info.mode, value))
     }
 
-    pub fn store(&self, bus: &Bus, addr: u64) -> Result<(), u64> {
+    pub fn store(&self, bus: &Bus, addr: &u64) -> Result<(), u64> {
         match self {
-            Pte::Sv32(_) => bus.write_u32(addr, self.value() as u32),
-            _ => bus.write_u64(addr, self.value() as u64)
+            Pte::Sv32(_) => bus.write_u32(addr, &(self.value() as u32)),
+            _ => bus.write_u64(addr, &(self.value() as u64))
         }
     }
 

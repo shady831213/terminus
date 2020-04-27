@@ -937,8 +937,8 @@ impl Store for SB {}
 impl Execution for SB {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
-        let data = *p.state().xreg(self.src(p.state().ir()));
-        p.load_store.store_byte(p.state(), (base + self.offset(p.state().ir())).0, data, p.mmu())?;
+        let data = p.state().xreg(self.src(p.state().ir()));
+        p.load_store.store_byte(p.state(), (base + self.offset(p.state().ir())).0, unsafe{ &*(data as *const RegT as *const u8)}, p.mmu())?;
         let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
@@ -956,8 +956,8 @@ impl Store for SH {}
 impl Execution for SH {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
-        let data = *p.state().xreg(self.src(p.state().ir()));
-        p.load_store.store_half_word(p.state(), (base + self.offset(p.state().ir())).0, data, p.mmu())?;
+        let data = p.state().xreg(self.src(p.state().ir()));
+        p.load_store.store_half_word(p.state(), (base + self.offset(p.state().ir())).0, unsafe{ &*(data as *const RegT as *const u16)}, p.mmu())?;
         let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
@@ -975,8 +975,8 @@ impl Store for SW {}
 impl Execution for SW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
-        let data = *p.state().xreg(self.src(p.state().ir()));
-        p.load_store.store_word(p.state(), (base + self.offset(p.state().ir())).0, data, p.mmu())?;
+        let data = p.state().xreg(self.src(p.state().ir()));
+        p.load_store.store_word(p.state(), (base + self.offset(p.state().ir())).0, unsafe{ &*(data as *const RegT as *const u32)}, p.mmu())?;
         let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
@@ -995,7 +995,7 @@ impl Execution for SD {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
-        let data = *p.state().xreg(self.src(p.state().ir()));
+        let data = p.state().xreg(self.src(p.state().ir()));
         p.load_store.store_double_word(p.state(), (base + self.offset(p.state().ir())).0, data, p.mmu())?;
         let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);

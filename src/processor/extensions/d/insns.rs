@@ -45,8 +45,8 @@ impl Execution for FSD {
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
-        let data = *f.freg(self.src(p.state().ir())) as u64;
-        p.load_store().store_double_word(p.state(), (base + self.offset(p.state().ir())).0, data as RegT, p.mmu())?;
+        let data = f.freg(self.src(p.state().ir()));
+        p.load_store().store_double_word(p.state(), (base + self.offset(p.state().ir())).0, unsafe{ &*(data as *const FRegT as *const u64)}, p.mmu())?;
         let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())

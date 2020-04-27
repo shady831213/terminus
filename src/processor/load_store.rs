@@ -54,19 +54,19 @@ impl LoadStore {
             Err(_) => Err(Exception::LoadAccess(addr)),
         }
     }
-    pub fn store_byte(&self, state: &ProcessorState, addr: RegT, data: RegT, mmu: &Mmu) -> Result<(), Exception> {
+    pub fn store_byte(&self, state: &ProcessorState, addr: RegT, data: &u8, mmu: &Mmu) -> Result<(), Exception> {
         let pa = mmu.ls_translate(state, addr, 1, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 1) {
             if lock_holder != state.hartid {
                 self.bus.invalid_lock(addr, 1, lock_holder);
             }
         }
-        match self.bus.write_u8(pa, data as u8) {
+        match self.bus.write_u8(&pa, data) {
             Ok(_) => Ok(()),
             Err(_) => Err(Exception::StoreAccess(addr)),
         }
     }
-    pub fn store_half_word(&self, state: &ProcessorState, addr: RegT, data: RegT, mmu: &Mmu) -> Result<(), Exception> {
+    pub fn store_half_word(&self, state: &ProcessorState, addr: RegT, data: &u16, mmu: &Mmu) -> Result<(), Exception> {
         if addr.trailing_zeros() < 1 {
             return Err(Exception::StoreMisaligned(addr));
         }
@@ -76,12 +76,12 @@ impl LoadStore {
                 self.bus.invalid_lock(addr, 2, lock_holder);
             }
         }
-        match self.bus.write_u16(pa, data as u16) {
+        match self.bus.write_u16(&pa, data) {
             Ok(_) => Ok(()),
             Err(_) => Err(Exception::StoreAccess(addr)),
         }
     }
-    pub fn store_word(&self, state: &ProcessorState, addr: RegT, data: RegT, mmu: &Mmu) -> Result<(), Exception> {
+    pub fn store_word(&self, state: &ProcessorState, addr: RegT, data: &u32, mmu: &Mmu) -> Result<(), Exception> {
         if addr.trailing_zeros() < 2 {
             return Err(Exception::StoreMisaligned(addr));
         }
@@ -91,12 +91,12 @@ impl LoadStore {
                 self.bus.invalid_lock(addr, 4, lock_holder);
             }
         }
-        match self.bus.write_u32(pa, data as u32) {
+        match self.bus.write_u32(&pa, data) {
             Ok(_) => Ok(()),
             Err(_) => Err(Exception::StoreAccess(addr)),
         }
     }
-    pub fn store_double_word(&self, state: &ProcessorState, addr: RegT, data: RegT, mmu: &Mmu) -> Result<(), Exception> {
+    pub fn store_double_word(&self, state: &ProcessorState, addr: RegT, data: &u64, mmu: &Mmu) -> Result<(), Exception> {
         if addr.trailing_zeros() < 3 {
             return Err(Exception::StoreMisaligned(addr));
         }
@@ -106,7 +106,7 @@ impl LoadStore {
                 self.bus.invalid_lock(addr, 8, lock_holder);
             }
         }
-        match self.bus.write_u64(pa, data as u64) {
+        match self.bus.write_u64(&pa, data) {
             Ok(_) => Ok(()),
             Err(_) => Err(Exception::StoreAccess(addr)),
         }
