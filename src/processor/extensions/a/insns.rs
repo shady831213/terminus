@@ -32,7 +32,8 @@ impl Execution for LRW {
             p.load_store().release(p.state());
             let addr = *p.state().xreg(self.rs1(p.state().ir()));
             let success = p.load_store().acquire(p.state(), addr, 4, p.mmu())?;
-            let data = p.load_store().load_word(p.state(), addr, p.mmu())?;
+            let mut data: u32 = 0;
+            p.load_store().load_word(p.state(), addr, &mut data, p.mmu())?;
             if success {
                 lc_res.valid = true;
                 lc_res.addr = addr;
@@ -42,7 +43,7 @@ impl Execution for LRW {
             data
         };
         let rd = self.rd(p.state().ir());
-        let value = sext(data, 32) & p.state().config().xlen.mask();
+        let value = sext(data as RegT, 32) & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
@@ -69,7 +70,8 @@ impl Execution for LRD {
             p.load_store().release(state);
             let addr = *state.xreg(self.rs1(state.ir()));
             let success = p.load_store().acquire(state, addr, 8, p.mmu())?;
-            let data = p.load_store().load_double_word(state, addr, p.mmu())?;
+            let mut data: u64 = 0;
+            p.load_store().load_double_word(state, addr, &mut data, p.mmu())?;
             if success {
                 lc_res.valid = true;
                 lc_res.addr = addr;

@@ -18,7 +18,8 @@ impl Execution for FLW {
         let f = self.get_f_ext(p)?;
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
-        let data = p.load_store().load_word(p.state(), (base + offset).0, p.mmu())?;
+        let mut data: u32 = 0;
+        p.load_store().load_word(p.state(), (base + offset).0, &mut data, p.mmu())?;
         let pc = *p.state().pc() + 4;
         let rd = self.rd(p.state().ir());
         let value = f.flen.padding(data as FRegT, FLen::F32);

@@ -1,5 +1,6 @@
 use terminus_spaceport::space::Space;
 use std::cell::{RefCell, Ref, RefMut};
+use terminus_global::RegT;
 
 
 #[derive(Debug)]
@@ -89,49 +90,55 @@ impl Bus {
         lock_table.retain(|e| { e.holder != who })
     }
 
-    pub fn amo_u32<F: Fn(u32) -> u32>(&self, addr: u64, f: F) -> Result<u32, u64> {
-        let read = self.read_u32(addr)?;
+    pub fn amo_u32<F: Fn(u32) -> u32>(&self, addr: &u64, f: F) -> Result<u32, u64> {
+        let mut read:u32 = 0;
+        self.read_u32(addr, &mut read)?;
         let write = f(read);
-        self.write_u32(addr, write)?;
+        self.write_u32(*addr, write)?;
         Ok(read)
     }
-    pub fn amo_u64<F: Fn(u64) -> u64>(&self, addr: u64, f: F) -> Result<u64, u64> {
-        let read = self.read_u64(addr)?;
+    pub fn amo_u64<F: Fn(u64) -> u64>(&self, addr: &u64, f: F) -> Result<u64, u64> {
+        let mut read:u64 = 0;
+        self.read_u64(addr, &mut read)?;
         let write = f(read);
-        self.write_u64(addr, write)?;
+        self.write_u64(*addr, write)?;
         Ok(read)
     }
 
     pub fn write_u8(&self, addr: u64, data: u8) -> Result<(), u64> {
-        self.space.borrow().write_u8(addr,data)
+        self.space.borrow().write_u8(addr, data)
     }
-
-    pub fn read_u8(&self, addr: &u64) -> Result<u8, u64> {
-        self.space.borrow().read_u8(*addr)
+    #[cfg_attr(feature = "no-inline", inline(never))]
+    pub fn read_u8(&self, addr: &u64, data: &mut u8) -> Result<(), u64> {
+        *data = self.space.borrow().read_u8(*addr)?;
+        Ok(())
     }
 
     pub fn write_u16(&self, addr: u64, data: u16) -> Result<(), u64> {
-        self.space.borrow().write_u16(addr,data)
+        self.space.borrow().write_u16(addr, data)
     }
 
-    pub fn read_u16(&self, addr: u64) -> Result<u16, u64> {
-        self.space.borrow().read_u16(addr)
+    pub fn read_u16(&self, addr: &u64, data: &mut u16) -> Result<(), u64> {
+        *data = self.space.borrow().read_u16(*addr)?;
+        Ok(())
     }
 
     pub fn write_u32(&self, addr: u64, data: u32) -> Result<(), u64> {
-        self.space.borrow().write_u32(addr,data)
+        self.space.borrow().write_u32(addr, data)
     }
 
-    pub fn read_u32(&self, addr: u64) -> Result<u32, u64> {
-        self.space.borrow().read_u32(addr)
+    pub fn read_u32(&self, addr: &u64, data: &mut u32) -> Result<(), u64> {
+        *data = self.space.borrow().read_u32(*addr)?;
+        Ok(())
     }
 
     pub fn write_u64(&self, addr: u64, data: u64) -> Result<(), u64> {
-        self.space.borrow().write_u64(addr,data)
+        self.space.borrow().write_u64(addr, data)
     }
 
-    pub fn read_u64(&self, addr: u64) -> Result<u64, u64> {
-        self.space.borrow().read_u64(addr)
+    pub fn read_u64(&self, addr: &u64, data: &mut u64) -> Result<(), u64> {
+        *data = self.space.borrow().read_u64(*addr)?;
+        Ok(())
     }
 
     pub fn space(&self) -> Ref<'_, Space> {

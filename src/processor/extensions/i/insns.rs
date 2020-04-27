@@ -779,9 +779,10 @@ impl Execution for LB {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
-        let data = p.load_store().load_byte(p.state(), (base + offset).0, p.mmu())?;
+        let mut data: u8 = 0;
+        p.load_store().load_byte(p.state(), (base + offset).0, &mut data, p.mmu())?;
         let rd = self.rd(p.state().ir());
-        let value = sext(data, 8) & p.state().config().xlen.mask();
+        let value = sext(data as RegT, 8) & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
@@ -800,11 +801,11 @@ impl Execution for LBU {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
-        let data = p.load_store().load_byte(p.state(), (base + offset).0, p.mmu())?;
+        let mut data: u8 = 0;
+        p.load_store().load_byte(p.state(), (base + offset).0, &mut data, p.mmu())?;
         let rd = self.rd(p.state().ir());
-        let value = data;
         let pc = *p.state().pc() + 4;
-        p.state_mut().set_xreg(rd, value);
+        p.state_mut().set_xreg(rd, data as RegT);
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -820,9 +821,10 @@ impl Execution for LH {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
-        let data = p.load_store().load_half_word(p.state(), (base + offset).0, p.mmu())?;
+        let mut data: u16 = 0;
+        p.load_store().load_half_word(p.state(), (base + offset).0, &mut data, p.mmu())?;
         let rd = self.rd(p.state().ir());
-        let value = sext(data, 16) & p.state().config().xlen.mask();
+        let value = sext(data as RegT, 16) & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
@@ -840,11 +842,11 @@ impl Execution for LHU {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
-        let data = p.load_store().load_half_word(p.state(), (base + offset).0, p.mmu())?;
+        let mut data: u16 = 0;
+        p.load_store().load_half_word(p.state(), (base + offset).0, &mut data, p.mmu())?;
         let rd = self.rd(p.state().ir());
-        let value = data;
         let pc = *p.state().pc() + 4;
-        p.state_mut().set_xreg(rd, value);
+        p.state_mut().set_xreg(rd, data as RegT);
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -860,9 +862,10 @@ impl Execution for LW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
-        let data = p.load_store().load_word(p.state(), (base + offset).0, p.mmu())?;
+        let mut data: u32 = 0;
+        p.load_store().load_word(p.state(), (base + offset).0, &mut data, p.mmu())?;
         let rd = self.rd(p.state().ir());
-        let value = sext(data, 32) & p.state().config().xlen.mask();
+        let value = sext(data as RegT, 32) & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
@@ -881,11 +884,11 @@ impl Execution for LWU {
         p.state().check_xlen(XLen::X64)?;
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
-        let data = p.load_store().load_word(p.state(), (base + offset).0, p.mmu())?;
+        let mut data: u32 = 0;
+        p.load_store().load_word(p.state(), (base + offset).0, &mut data, p.mmu())?;
         let rd = self.rd(p.state().ir());
-        let value = data;
         let pc = *p.state().pc() + 4;
-        p.state_mut().set_xreg(rd, value);
+        p.state_mut().set_xreg(rd, data as RegT);
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -902,11 +905,11 @@ impl Execution for LD {
         p.state().check_xlen(XLen::X64)?;
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
-        let data = p.load_store().load_double_word(p.state(), (base + offset).0, p.mmu())?;
+        let mut data: u64 = 0;
+        p.load_store().load_double_word(p.state(), (base + offset).0, &mut data,p.mmu())?;
         let rd = self.rd(p.state().ir());
-        let value = data;
         let pc = *p.state().pc() + 4;
-        p.state_mut().set_xreg(rd, value);
+        p.state_mut().set_xreg(rd, data as RegT);
         p.state_mut().set_pc(pc);
         Ok(())
     }

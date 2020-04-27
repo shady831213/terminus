@@ -394,13 +394,17 @@ impl Pte {
             _ => panic!(format!("unsupported PteMode {:?}", mode))
         }
     }
-    pub fn load(info: &PteInfo, bus: &Bus, addr: u64) -> Result<Pte, u64> {
+    pub fn load(info: &PteInfo, bus: &Bus, addr: &u64) -> Result<Pte, u64> {
         let value = match info.size_shift {
             2 => {
-                bus.read_u32(addr)? as RegT
+                let mut data:u32= 0;
+                bus.read_u32(addr,&mut data)?;
+                data as RegT
             }
             3 => {
-                bus.read_u64(addr)? as RegT
+                let mut data:u64= 0;
+                bus.read_u64(addr,&mut data)?;
+                data as RegT
             }
             _ => unreachable!()
         };

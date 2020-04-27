@@ -15,41 +15,42 @@ impl LoadStore {
             bus: bus.clone(),
         }
     }
-
-    pub fn load_byte(&self, state: &ProcessorState, addr: RegT, mmu: &Mmu) -> Result<RegT, Exception> {
+    #[cfg_attr(feature = "no-inline", inline(never))]
+    pub fn load_byte(&self, state: &ProcessorState, addr: RegT, data: &mut u8, mmu: &Mmu) -> Result<(), Exception> {
         let pa = mmu.ls_translate(state, addr, 1, MmuOpt::Load)?;
-        match self.bus.read_u8(&pa) {
-            Ok(data) => Ok(data as RegT),
+        match self.bus.read_u8(&pa, data) {
+            Ok(_) => Ok(()),
             Err(_) => Err(Exception::LoadAccess(addr)),
         }
     }
-    pub fn load_half_word(&self, state: &ProcessorState, addr: RegT, mmu: &Mmu) -> Result<RegT, Exception> {
+
+    pub fn load_half_word(&self, state: &ProcessorState, addr: RegT, data: &mut u16, mmu: &Mmu) -> Result<(), Exception> {
         if addr.trailing_zeros() < 1 {
             return Err(Exception::LoadMisaligned(addr));
         }
         let pa = mmu.ls_translate(state, addr, 2, MmuOpt::Load)?;
-        match self.bus.read_u16(pa) {
-            Ok(data) => Ok(data as RegT),
+        match self.bus.read_u16(&pa, data) {
+            Ok(_) => Ok(()),
             Err(_) => Err(Exception::LoadAccess(addr)),
         }
     }
-    pub fn load_word(&self, state: &ProcessorState, addr: RegT, mmu: &Mmu) -> Result<RegT, Exception> {
+    pub fn load_word(&self, state: &ProcessorState, addr: RegT, data: &mut u32, mmu: &Mmu) -> Result<(), Exception> {
         if addr.trailing_zeros() < 2 {
             return Err(Exception::LoadMisaligned(addr));
         }
         let pa = mmu.ls_translate(state, addr, 4, MmuOpt::Load)?;
-        match self.bus.read_u32(pa) {
-            Ok(data) => Ok(data as RegT),
+        match self.bus.read_u32(&pa, data) {
+            Ok(_) => Ok(()),
             Err(_) => Err(Exception::LoadAccess(addr)),
         }
     }
-    pub fn load_double_word(&self, state: &ProcessorState, addr: RegT, mmu: &Mmu) -> Result<RegT, Exception> {
+    pub fn load_double_word(&self, state: &ProcessorState, addr: RegT, data: &mut u64, mmu: &Mmu) -> Result<(), Exception> {
         if addr.trailing_zeros() < 3 {
             return Err(Exception::LoadMisaligned(addr));
         }
         let pa = mmu.ls_translate(state, addr, 8, MmuOpt::Load)?;
-        match self.bus.read_u64(pa) {
-            Ok(data) => Ok(data as RegT),
+        match self.bus.read_u64(&pa, data) {
+            Ok(_) => Ok(()),
             Err(_) => Err(Exception::LoadAccess(addr)),
         }
     }
@@ -121,7 +122,7 @@ impl LoadStore {
                 self.bus.invalid_lock(addr, 4, lock_holder);
             }
         }
-        match self.bus.amo_u32(pa, f) {
+        match self.bus.amo_u32(&pa, f) {
             Ok(data) => Ok(data as RegT),
             Err(_) => Err(Exception::StoreAccess(addr)),
         }
@@ -136,7 +137,7 @@ impl LoadStore {
                 self.bus.invalid_lock(addr, 8, lock_holder);
             }
         }
-        match self.bus.amo_u64(pa, f) {
+        match self.bus.amo_u64(&pa, f) {
             Ok(data) => Ok(data as RegT),
             Err(_) => Err(Exception::StoreAccess(addr)),
         }

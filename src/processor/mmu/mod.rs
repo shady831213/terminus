@@ -164,7 +164,7 @@ impl Mmu {
             if !self.check_pmp(state, pte_addr, 1 << info.size_shift, &MmuOpt::Load, &1) {
                 return Err(opt.access_exception(vaddr.value()));
             }
-            let pte = match Pte::load(info, self.bus.deref(), pte_addr) {
+            let pte = match Pte::load(info, self.bus.deref(), &pte_addr) {
                 Ok(pte) => pte,
                 Err(_) => return Err(opt.access_exception(vaddr.value()))
             };

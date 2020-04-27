@@ -67,19 +67,21 @@ impl Fetcher {
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn fetch_u16_slow(&self, addr: u64, pc: u64) -> Result<InsnT, Exception> {
-        match self.bus.read_u16(addr) {
-            Ok(data) => {
-                Ok(data as InsnT)
+    fn fetch_u16_slow(&self, addr: &u64, pc: &u64, data: &mut u16) -> Result<(), Exception> {
+        match self.bus.read_u16(addr, data) {
+            Ok(_) => {
+                Ok(())
             }
-            Err(_) => Err(Exception::FetchAccess(pc)),
+            Err(_) => Err(Exception::FetchAccess(*pc)),
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn fetch_u32_slow(&self, addr: u64, pc: u64) -> Result<InsnT, Exception> {
-        match self.bus.read_u32(addr) {
-            Ok(data) => Ok(data as InsnT),
-            Err(_) => Err(Exception::FetchAccess(pc))
+    fn fetch_u32_slow(&self, addr: &u64, pc: &u64, data: &mut u32) -> Result<(), Exception> {
+        match self.bus.read_u32(addr, data) {
+            Ok(_) => {
+                Ok(())
+            }
+            Err(_) => Err(Exception::FetchAccess(*pc)),
         }
     }
 
@@ -89,21 +91,23 @@ impl Fetcher {
 
     pub fn fetch(&self, state: &ProcessorState, mmu: &Mmu) -> Result<(InsnT, &'static Instruction), Exception> {
         let mut icache = self.icache.borrow_mut();
-        let pc = *state.pc();
+        let pc = state.pc();
         if pc.trailing_zeros() == 1 {
-            let pa = mmu.fetch_translate(state, pc, 2)?;
+            let pa = mmu.fetch_translate(state, *pc, 2)?;
             if let Some(res) = icache.get_insn(pa) {
                 Ok(*res)
             } else {
-                let data_low = self.fetch_u16_slow(pa, pc)?;
+                let mut data_low = 0;
+                self.fetch_u16_slow(&pa, pc, &mut data_low)?;
                 if data_low & 0x3 != 0x3 {
                     let data = data_low as u16 as InsnT;
                     let insn = GDECODER.decode(data)?;
                     icache.set_entry(pa, data, insn);
                     Ok((data, insn))
                 } else {
-                    let pa_high = mmu.fetch_translate(state, pc + 2, 2)?;
-                    let data_high = self.fetch_u16_slow(pa_high, pc)?;
+                    let pa_high = mmu.fetch_translate(state, *pc + 2, 2)?;
+                    let mut data_high = 0;
+                    self.fetch_u16_slow(&pa_high, pc, &mut data_high)?;
                     let data = data_low as u16 as InsnT | ((data_high as u16 as InsnT) << 16);
                     let insn = GDECODER.decode(data)?;
                     icache.set_entry(pa, data, insn);
@@ -111,11 +115,12 @@ impl Fetcher {
                 }
             }
         } else {
-            let pa = mmu.fetch_translate(state, pc, 4)?;
+            let pa = mmu.fetch_translate(state, *pc, 4)?;
             if let Some(res) = icache.get_insn(pa) {
                 Ok(*res)
             } else {
-                let data = self.fetch_u32_slow(pa, pc)?;
+                let mut data = 0;
+                self.fetch_u32_slow(&pa, pc, &mut data)?;
                 if data & 0x3 != 0x3 {
                     let data_low = data as u16 as InsnT;
                     let insn = GDECODER.decode(data_low)?;
