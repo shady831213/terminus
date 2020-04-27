@@ -8,13 +8,13 @@ use std::convert::TryFrom;
 struct SRET();
 
 impl Execution for SRET {
-    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+    fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('s')?;
         p.state().check_privilege_level(Privilege::S)?;
         let mcsrs = p.state().icsrs();
         let scsrs = p.state().scsrs();
         let tsr = mcsrs.mstatus().tsr();
-        if tsr == 1 && p.state().privilege() == Privilege::S {
+        if tsr == 1 && *p.state().privilege() == Privilege::S {
             return Err(Exception::IllegalInsn(p.state().ir()));
         }
         let spp = mcsrs.mstatus().spp();
@@ -23,14 +23,16 @@ impl Execution for SRET {
         mcsrs.mstatus_mut().set_spie(1);
         let u_value: u8 = Privilege::U.into();
         mcsrs.mstatus_mut().set_spp(u_value as RegT);
-        p.state().set_privilege(Privilege::try_from(spp as u8).unwrap());
         p.mmu().flush_tlb();
         p.fetcher().flush_icache();
         if p.state().check_extension('c').is_err() {
-            p.state().set_pc((scsrs.sepc().get() >> 2) << 2);
+            let pc = (scsrs.sepc().get() >> 2) << 2;
+            p.state_mut().set_pc(pc);
         } else {
-            p.state().set_pc(scsrs.sepc().get());
+            let pc = scsrs.sepc().get();
+            p.state_mut().set_pc(pc);
         }
+        p.state_mut().set_privilege(Privilege::try_from(spp as u8).unwrap());
         Ok(())
     }
 }
@@ -42,15 +44,16 @@ impl Execution for SRET {
 struct SFENCEVMA();
 
 impl Execution for SFENCEVMA {
-    fn execute(&self, p: &Processor) -> Result<(), Exception> {
+    fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('s')?;
         p.state().check_privilege_level(Privilege::S)?;
-        if p.state().privilege() == Privilege::S && p.state().icsrs().mstatus().tvm() == 1 {
+        if *p.state().privilege() == Privilege::S && p.state().icsrs().mstatus().tvm() == 1 {
             return Err(Exception::IllegalInsn(p.state().ir()));
         }
         p.mmu().flush_tlb();
         p.fetcher().flush_icache();
-        p.state().set_pc(p.state().pc() + 4);
+        let pc = p.state().pc() + 4;
+        p.state_mut().set_pc(pc);
         Ok(())
     }
 }

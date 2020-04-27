@@ -16,7 +16,7 @@ fn main() {
         extensions: vec!['m', 'f', 'd', 's', 'u', 'c', 'a'].into_boxed_slice(),
         freq: 1000000000,
     }; num_cores];
-    let sys = System::new("sys", Path::new("examples/linux/image/br-base-bin-nodisk").to_str().expect("image not found!"), configs, 10000000);
+    let mut sys = System::new("sys", Path::new("examples/linux/image/br-base-bin-nodisk").to_str().expect("image not found!"), configs, 10000000);
     sys.register_memory("main_memory", 0x80000000, &GHEAP.alloc(0x80000000, 1).expect("main_memory alloc fail!")).unwrap();
     sys.register_device("clint", 0x02000000, 0x000c0000, Clint::new(sys.timer())).unwrap();
     sys.make_boot_rom(0x20000000, -1i64 as u64).unwrap();

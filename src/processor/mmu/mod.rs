@@ -121,7 +121,7 @@ impl Mmu {
         match opt {
             &MmuOpt::Load if is_mprv => mpp,
             &MmuOpt::Store if is_mprv => mpp,
-            _ => state.privilege().into()
+            _ => (*state.privilege()).into()
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]

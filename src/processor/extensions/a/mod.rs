@@ -2,6 +2,7 @@ use crate::processor::extensions::{NoCsr, HasStepCb};
 use crate::processor::{ProcessorState, Processor};
 use std::cell::RefCell;
 use terminus_global::RegT;
+use std::ops::Deref;
 
 mod insns;
 
@@ -32,7 +33,7 @@ impl HasStepCb for ExtensionA {
     fn step_cb(&self, p: &Processor) {
         let mut lc_res = self.lc_res.borrow_mut();
         if lc_res.valid {
-            if p.state().insns_cnt() > lc_res.timestamp + 16 {
+            if *p.state().insns_cnt().borrow() > lc_res.timestamp + 16 {
                 lc_res.valid = false;
                 p.load_store().release(p.state())
             }

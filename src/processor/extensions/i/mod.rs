@@ -63,30 +63,30 @@ impl ExtensionI {
 
         //deleg counter
         e.csrs.instret_mut().instret_transform({
-            let count = state.insns_cnt.clone();
+            let count = state.insns_cnt().clone();
             move |_| {
-                *count.deref().borrow() as RegT
+                *count.borrow() as RegT
             }
         }
         );
         e.csrs.instreth_mut().instret_transform({
-            let count = state.insns_cnt.clone();
+            let count = state.insns_cnt().clone();
             move |_| {
-                (*count.deref().borrow() >> 32) as RegT
+                (*count.borrow() >> 32) as RegT
             }
         }
         );
         e.csrs.minstret_mut().instret_transform({
-            let count = state.insns_cnt.clone();
+            let count = state.insns_cnt().clone();
             move |_| {
-                *count.deref().borrow() as RegT
+                *count.borrow() as RegT
             }
         }
         );
         e.csrs.minstreth_mut().instret_transform({
-            let count = state.insns_cnt.clone();
+            let count = state.insns_cnt().clone();
             move |_| {
-                (*count.deref().borrow() >> 32) as RegT
+                (*count.borrow() >> 32) as RegT
             }
         }
         );
@@ -114,16 +114,16 @@ impl HasCsr for ExtensionI {
             match state.privilege() {
                 Privilege::M => {}
                 Privilege::S => {
-                    if self.csrs.mcounteren().get() & ((1 as RegT) << (addr & 0x1f)) == 0 {
+                    if self.csrs.mcounteren().get() & ((1 as RegT) << (addr as RegT & 0x1f)) == 0 {
                         return None
                     }
                 }
                 Privilege::U => {
-                    if self.csrs.mcounteren().get() & ((1 as RegT) << (addr & 0x1f)) == 0 {
+                    if self.csrs.mcounteren().get() & ((1 as RegT) << (addr as RegT & 0x1f)) == 0 {
                         return None
                     }
                     if state.check_extension('s').is_ok()  {
-                        if state.scsrs().scounteren().get() & ((1 as RegT) << (addr & 0x1f)) == 0 {
+                        if state.scsrs().scounteren().get() & ((1 as RegT) << (addr as RegT & 0x1f)) == 0 {
                             return None
                         }
                     }

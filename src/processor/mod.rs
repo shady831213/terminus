@@ -3,7 +3,7 @@ use terminus_global::*;
 use std::sync::Arc;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::rc::Rc;
-use std::cell::RefCell;
+use std::cell::{RefCell, Ref};
 use std::fmt::{Display, Formatter};
 use terminus_spaceport::irq::IrqVec;
 use crate::devices::bus::Bus;
@@ -35,6 +35,7 @@ mod load_store;
 
 use load_store::*;
 use std::ops::DerefMut;
+use std::borrow::BorrowMut;
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
@@ -78,19 +79,19 @@ impl ProcessorCfg {
 pub struct ProcessorState {
     hartid: usize,
     config: ProcessorCfg,
-    privilege: RefCell<Privilege>,
-    xreg: RefCell<[RegT; 32]>,
+    privilege: Privilege,
+    xreg: [RegT; 32],
     extensions: [Extension; 26],
-    pc: RefCell<RegT>,
-    next_pc: RefCell<RegT>,
-    ir: RefCell<InsnT>,
+    pc: RegT,
+    next_pc: RegT,
+    ir: InsnT,
     clint: Arc<IrqVec>,
     insns_cnt: Rc<RefCell<u64>>,
 }
 
 impl ProcessorState {
     pub fn trace(&self) -> String {
-        format!("hartid = {}; privilege = {:?};pc = {:#x}; ir = {:#x}; next_pc = {:#x}; insns_cnt = {};", self.hartid, self.privilege(), self.pc(), self.ir(), self.next_pc(), self.insns_cnt())
+        format!("hartid = {}; privilege = {:?};pc = {:#x}; ir = {:#x}; next_pc = {:#x}; insns_cnt = {};", self.hartid, self.privilege(), self.pc(), self.ir(), self.next_pc(), *self.insns_cnt().borrow())
     }
 }
 
@@ -104,7 +105,7 @@ impl Display for ProcessorState {
         writeln!(f, "{}", self.trace())?;
         writeln!(f, "")?;
         writeln!(f, "registers:")?;
-        for (i, v) in self.xreg.borrow().iter().enumerate() {
+        for (i, v) in self.xreg.iter().enumerate() {
             writeln!(f, "   x{:<2} : {:#x}", i, v)?;
         }
         if let Extension::F(ref float) = self.get_extension('f') {
@@ -123,8 +124,8 @@ impl ProcessorState {
         let mut state = ProcessorState {
             hartid,
             config,
-            privilege: RefCell::new(Privilege::M),
-            xreg: RefCell::new([0 as RegT; 32]),
+            privilege: Privilege::M,
+            xreg: [0 as RegT; 32],
             extensions: unsafe {
                 let mut arr: MaybeUninit<[Extension; 26]> = MaybeUninit::uninit();
                 for i in 0..26 {
@@ -132,9 +133,9 @@ impl ProcessorState {
                 }
                 arr.assume_init()
             },
-            pc: RefCell::new(0),
-            next_pc: RefCell::new(0),
-            ir: RefCell::new(0),
+            pc: 0,
+            next_pc: 0,
+            ir: 0,
             clint: clint.clone(),
             insns_cnt: Rc::new(RefCell::new(0)),
         };
@@ -142,14 +143,14 @@ impl ProcessorState {
         state
     }
 
-    fn reset(&self, start_address: u64) -> Result<(), String> {
+    fn reset(&mut self, start_address: u64) -> Result<(), String> {
         if self.config.xlen == XLen::X32 && start_address.leading_zeros() < 32 {
             return Err(format!("cpu{}:invalid start addr {:#x} when xlen == X32!", self.hartid, start_address));
         }
-        *self.xreg.borrow_mut() = [0 as RegT; 32];
-        *self.pc.borrow_mut() = 0;
-        *self.next_pc.borrow_mut() = start_address;
-        *self.ir.borrow_mut() = 0;
+        self.xreg = [0 as RegT; 32];
+        self.pc = 0;
+        self.next_pc = start_address;
+        self.ir = 0;
         let csrs = self.icsrs();
         //register clint:0:msip, 1:mtip
         csrs.mip_mut().msip_transform({
@@ -262,7 +263,7 @@ impl ProcessorState {
     }
 
     fn csr_privilege_check(&self, id: InsnT) -> Result<(), Exception> {
-        let cur_priv: u8 = (*self.privilege.borrow()).into();
+        let cur_priv: u8 = self.privilege.into();
         let csr_priv: u8 = ((id >> 8) & 0x3) as u8;
         if cur_priv < csr_priv {
             return Err(Exception::IllegalInsn(self.ir()));
@@ -321,22 +322,22 @@ impl ProcessorState {
         Ok(())
     }
 
-    pub fn privilege(&self) -> Privilege {
-        self.privilege.borrow().clone()
+    pub fn privilege(&self) -> &Privilege {
+        &self.privilege
     }
 
-    pub fn set_privilege(&self, privilege: Privilege) -> Privilege {
+    pub fn set_privilege(&mut self, privilege: Privilege) -> Privilege {
         match self.config().privilege_level() {
             PrivilegeLevel::M => Privilege::M,
             PrivilegeLevel::MU => if privilege != Privilege::M {
-                *self.privilege.borrow_mut() = Privilege::U;
+                self.privilege = Privilege::U;
                 Privilege::U
             } else {
-                *self.privilege.borrow_mut() = Privilege::M;
+                self.privilege = Privilege::M;
                 Privilege::M
             }
             PrivilegeLevel::MSU => {
-                *self.privilege.borrow_mut() = privilege;
+                self.privilege = privilege;
                 privilege
             }
         }
@@ -344,27 +345,27 @@ impl ProcessorState {
 
 
     pub fn pc(&self) -> RegT {
-        *self.pc.borrow()
+        self.pc
     }
 
-    pub fn set_pc(&self, pc: RegT) {
-        *self.next_pc.borrow_mut() = pc
+    pub fn set_pc(&mut self, pc: RegT) {
+        self.next_pc = pc
     }
 
     pub fn ir(&self) -> InsnT {
-        *self.ir.borrow()
+        self.ir
     }
 
-    pub fn set_ir(&self, ir: InsnT) {
-        *self.ir.borrow_mut() = ir
+    pub fn set_ir(&mut self, ir: InsnT) {
+        self.ir = ir
     }
 
     pub fn next_pc(&self) -> RegT {
-        *self.next_pc.borrow()
+        self.next_pc
     }
 
-    pub fn insns_cnt(&self) -> u64 {
-        *self.insns_cnt.deref().borrow()
+    pub fn insns_cnt(&self) -> &Rc<RefCell<u64>> {
+        &self.insns_cnt
     }
 
     pub fn xreg(&self, id: InsnT) -> RegT {
@@ -372,14 +373,14 @@ impl ProcessorState {
         if trip_id == 0 {
             0
         } else {
-            (*self.xreg.borrow())[trip_id as usize]
+            self.xreg[trip_id as usize]
         }
     }
 
-    pub fn set_xreg(&self, id: InsnT, value: RegT) {
+    pub fn set_xreg(&mut self, id: InsnT, value: RegT) {
         let trip_id = id & 0x1f;
         if trip_id != 0 {
-            (*self.xreg.borrow_mut())[trip_id as usize] = value
+            self.xreg[trip_id as usize] = value
         }
     }
 }
@@ -405,7 +406,7 @@ impl Processor {
         }
     }
 
-    pub fn reset(&self, start_address: u64) -> Result<(), String> {
+    pub fn reset(&mut self, start_address: u64) -> Result<(), String> {
         self.state.reset(start_address)?;
         self.load_store().release(self.state());
         self.mmu.flush_tlb();
@@ -429,9 +430,14 @@ impl Processor {
         &self.state
     }
 
-    fn one_insn(&self) -> Result<(), Exception> {
-        *self.state.pc.borrow_mut() = *self.state.next_pc.borrow();
-        let inst = self.fetcher.fetch(self.state(), self.mmu())?;
+    pub fn state_mut(&mut self) -> &mut ProcessorState {
+        &mut self.state
+    }
+
+    fn one_insn(&mut self) -> Result<(), Exception> {
+        self.state.pc = self.state.next_pc;
+        let (ir, inst) = self.fetcher.fetch(self.state(), self.mmu())?;
+        self.state.ir = ir;
         match inst.execute(self) {
             Ok(_) => {
                 *self.state.insns_cnt.deref().borrow_mut() += 1;
@@ -450,10 +456,10 @@ impl Processor {
         let csrs = self.state().icsrs();
         let pendings = csrs.mip().get() & csrs.mie().get();
         let mie = csrs.mstatus().mie();
-        let m_enabled = self.state().privilege() != Privilege::M || (self.state().privilege() == Privilege::M && mie == 1);
+        let m_enabled = *self.state().privilege() != Privilege::M || (*self.state().privilege() == Privilege::M && mie == 1);
         let m_pendings = pendings & !csrs.mideleg().get() & sext(m_enabled as RegT, 1);
         let sie = csrs.mstatus().sie();
-        let s_enabled = self.state().privilege() == Privilege::U || (self.state().privilege() == Privilege::S && sie == 1);
+        let s_enabled = *self.state().privilege() == Privilege::U || (*self.state().privilege() == Privilege::S && sie == 1);
         let s_pendings = pendings & csrs.mideleg().get() & sext(s_enabled as RegT, 1);
 
         //m_pendings > s_pendings
@@ -485,22 +491,23 @@ impl Processor {
         }
     }
 
-    fn handle_trap(&self, trap: Trap) {
+    fn handle_trap(&mut self, trap: Trap) {
         let mcsrs = self.state().icsrs();
+        let scsrs = self.state().scsrs();
         let (int_flag, deleg, code, tval) = match trap {
             Trap::Exception(e) => (0 as RegT, mcsrs.medeleg().get(), e.code(), e.tval()),
             Trap::Interrupt(i) => (1 as RegT, mcsrs.mideleg().get(), i.code(), i.tval()),
         };
         //deleg to s-mode
-        if self.state().privilege() != Privilege::M && (deleg >> code) & 1 == 1 {
-            let scsrs = self.state().scsrs();
+        let degeged = *self.state().privilege() != Privilege::M && (deleg >> code) & 1 == 1;
+        let (pc, privilege) = if degeged {
             let tvec = scsrs.stvec();
             let offset = if tvec.mode() == 1 && int_flag == 1 {
                 code << 2
             } else {
                 0
             };
-            self.state().set_pc((tvec.base() << 2) + offset);
+            let pc = (tvec.base() << 2) + offset;
             scsrs.scause_mut().set_code(code);
             scsrs.scause_mut().set_int(int_flag);
             scsrs.sepc_mut().set(self.state().pc());
@@ -508,12 +515,12 @@ impl Processor {
 
             let sie = mcsrs.mstatus().sie();
             mcsrs.mstatus_mut().set_spie(sie);
-            let priv_value: u8 = self.state().privilege().into();
+            let priv_value: u8 = (*self.state().privilege()).into();
             mcsrs.mstatus_mut().set_spp(priv_value as RegT);
             mcsrs.mstatus_mut().set_sie(0);
             self.mmu().flush_tlb();
             self.fetcher().flush_icache();
-            self.state().set_privilege(Privilege::S);
+            (pc, Privilege::S)
         } else {
             let tvec = mcsrs.mtvec();
             let offset = if tvec.mode() == 1 && int_flag == 1 {
@@ -521,7 +528,7 @@ impl Processor {
             } else {
                 0
             };
-            self.state().set_pc((tvec.base() << 2) + offset);
+            let pc = (tvec.base() << 2) + offset;
             mcsrs.mcause_mut().set_code(code);
             mcsrs.mcause_mut().set_int(int_flag);
             mcsrs.mepc_mut().set(self.state().pc());
@@ -529,16 +536,18 @@ impl Processor {
 
             let mie = mcsrs.mstatus().mie();
             mcsrs.mstatus_mut().set_mpie(mie);
-            let priv_value: u8 = self.state().privilege().into();
+            let priv_value: u8 = (*self.state().privilege()).into();
             mcsrs.mstatus_mut().set_mpp(priv_value as RegT);
             mcsrs.mstatus_mut().set_mie(0);
             self.mmu().flush_tlb();
             self.fetcher().flush_icache();
-            self.state().set_privilege(Privilege::M);
-        }
+            (pc, Privilege::M)
+        };
+        self.state_mut().set_pc(pc);
+        self.state_mut().set_privilege(privilege);
     }
 
-    pub fn step(&self, n: usize) {
+    pub fn step(&mut self, n: usize) {
         assert!(n > 0);
         for _ in 0..n {
             if let Err(exct) = self.one_insn() {

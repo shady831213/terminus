@@ -78,16 +78,16 @@ impl System {
         }
     }
 
-    pub fn processor(&self, hartid: usize) -> Option<&Processor> {
+    pub fn processor(&mut self, hartid: usize) -> Option<&mut Processor> {
         if hartid >= self.processors.len() {
             None
         } else {
-            Some(&self.processors[hartid])
+            Some(&mut self.processors[hartid])
         }
     }
 
-    pub fn processors(&self) -> &Vec<Processor> {
-        &self.processors
+    pub fn processors(&mut self) -> &mut Vec<Processor> {
+        &mut self.processors
     }
 
     pub fn bus(&self) -> &Arc<Bus> {
@@ -245,7 +245,7 @@ impl System {
         Ok(fdt::compile(&root))
     }
 
-    pub fn make_boot_rom(&self, base: u64, entry: u64) -> Result<()> {
+    pub fn make_boot_rom(&mut self, base: u64, entry: u64) -> Result<()> {
         let start_address = if entry == -1i64 as u64 {
             self.elf.entry_point().unwrap()
         } else {
@@ -277,16 +277,18 @@ impl System {
         Ok(())
     }
 
-    pub fn reset(&self, reset_vecs: Vec<u64>) -> Result<()> {
+    pub fn reset(&mut self, reset_vecs: Vec<u64>) -> Result<()> {
         if reset_vecs.len() != self.processors.len() {
             return Err(Error::ResetErr(format!("reset_vecs size {} is not match with processor num {}!", reset_vecs.len(), self.processors.len())));
         }
-        for (i, p) in self.processors().iter().enumerate() {
+        let boot_rom = self.bus.space().get_region("boot_rom");
+        let entry_point = self.elf.entry_point().unwrap();
+        for (i, p) in self.processors().iter_mut().enumerate() {
             if let Err(msg) = if reset_vecs[i] == -1i64 as u64 {
-                if let Some(boot_rom) = self.bus.space().get_region("boot_rom") {
+                if let Some(ref boot_rom) = boot_rom {
                     p.reset(boot_rom.info.base)
                 } else {
-                    p.reset(self.elf.entry_point().unwrap())
+                    p.reset(entry_point)
                 }
             } else {
                 p.reset(reset_vecs[i])
