@@ -6,10 +6,10 @@ use std::num::Wrapping;
 use std::cmp::{min, max};
 
 pub trait LRSCInsn: InstructionImp {
-    fn get_a_ext(&self, p: &Processor) -> Result<Rc<ExtensionA>, Exception> {
+    fn get_a_ext<'p>(&self, p: &'p Processor) -> Result<&'p ExtensionA, Exception> {
         p.state().check_extension('a')?;
         if let Extension::A(ref a) = p.state().get_extension('a') {
-            Ok(a.clone())
+            Ok(a)
         } else {
             Err(Exception::IllegalInsn(p.state().ir()))
         }
@@ -26,19 +26,22 @@ impl LRSCInsn for LRW {}
 
 impl Execution for LRW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let a = self.get_a_ext(p)?;
-        let mut lc_res = a.lc_res.borrow_mut();
-        lc_res.valid = false;
-        p.load_store().release(p.state());
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
-        let success = p.load_store().acquire(p.state(), addr, 4, p.mmu())?;
-        let data = p.load_store().load_word(p.state(), addr, p.mmu())?;
-        if success {
-            lc_res.valid = true;
-            lc_res.addr = addr;
-            lc_res.len = 4;
-            lc_res.timestamp = *p.state().insns_cnt().borrow();
-        }
+        let data = {
+            let a = self.get_a_ext(p)?;
+            let mut lc_res = a.lc_res.borrow_mut();
+            lc_res.valid = false;
+            p.load_store().release(p.state());
+            let addr = *p.state().xreg(self.rs1(p.state().ir()));
+            let success = p.load_store().acquire(p.state(), addr, 4, p.mmu())?;
+            let data = p.load_store().load_word(p.state(), addr, p.mmu())?;
+            if success {
+                lc_res.valid = true;
+                lc_res.addr = addr;
+                lc_res.len = 4;
+                lc_res.timestamp = *p.state().insns_cnt().borrow();
+            }
+            data
+        };
         let rd = self.rd(p.state().ir());
         let value = sext(data, 32) & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -58,21 +61,24 @@ impl LRSCInsn for LRD {}
 
 impl Execution for LRD {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let state = p.state();
-        state.check_xlen(XLen::X64)?;
-        let a = self.get_a_ext(p)?;
-        let mut lc_res = a.lc_res.borrow_mut();
-        lc_res.valid = false;
-        p.load_store().release(state);
-        let addr = *state.xreg(self.rs1(state.ir()));
-        let success = p.load_store().acquire(state, addr, 8, p.mmu())?;
-        let data = p.load_store().load_double_word(state, addr, p.mmu())?;
-        if success {
-            lc_res.valid = true;
-            lc_res.addr = addr;
-            lc_res.len = 8;
-            lc_res.timestamp = *state.insns_cnt().borrow();
-        }
+        let data = {
+            let state = p.state();
+            state.check_xlen(XLen::X64)?;
+            let a = self.get_a_ext(p)?;
+            let mut lc_res = a.lc_res.borrow_mut();
+            lc_res.valid = false;
+            p.load_store().release(state);
+            let addr = *state.xreg(self.rs1(state.ir()));
+            let success = p.load_store().acquire(state, addr, 8, p.mmu())?;
+            let data = p.load_store().load_double_word(state, addr, p.mmu())?;
+            if success {
+                lc_res.valid = true;
+                lc_res.addr = addr;
+                lc_res.len = 8;
+                lc_res.timestamp = *state.insns_cnt().borrow();
+            }
+            data
+        };
         let rd = self.rd(p.state().ir());
         let value = data & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -93,24 +99,27 @@ impl LRSCInsn for SCW {}
 
 impl Execution for SCW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let a = self.get_a_ext(p)?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
-        let data = *p.state().xreg(self.rs2(p.state().ir()));
-        let mut lc_res = a.lc_res.borrow_mut();
-        let success = if lc_res.valid {
-            if addr != lc_res.addr || lc_res.len != 4 {
-                false
+        let success = {
+            let a = self.get_a_ext(p)?;
+            let addr = *p.state().xreg(self.rs1(p.state().ir()));
+            let data = *p.state().xreg(self.rs2(p.state().ir()));
+            let mut lc_res = a.lc_res.borrow_mut();
+            let success = if lc_res.valid {
+                if addr != lc_res.addr || lc_res.len != 4 {
+                    false
+                } else {
+                    p.load_store().check_lock(p.state(), addr, 4, p.mmu())?
+                }
             } else {
-                p.load_store().check_lock(p.state(), addr, 4, p.mmu())?
+                false
+            };
+            if success {
+                p.load_store().store_word(p.state(), addr, data, p.mmu())?
             }
-        } else {
-            false
+            lc_res.valid = false;
+            p.load_store().release(p.state());
+            success
         };
-        if success {
-            p.load_store().store_word(p.state(), addr, data, p.mmu())?
-        }
-        lc_res.valid = false;
-        p.load_store().release(p.state());
         let rd = self.rd(p.state().ir());
         let value = (!success) as RegT;
         let pc = *p.state().pc() + 4;
@@ -130,25 +139,28 @@ impl LRSCInsn for SCD {}
 
 impl Execution for SCD {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        p.state().check_xlen(XLen::X64)?;
-        let a = self.get_a_ext(p)?;
-        let addr = *p.state().xreg(self.rs1(p.state().ir()));
-        let data = *p.state().xreg(self.rs2(p.state().ir()));
-        let mut lc_res = a.lc_res.borrow_mut();
-        let success = if lc_res.valid {
-            if addr != lc_res.addr || lc_res.len != 8 {
-                false
+        let success = {
+            p.state().check_xlen(XLen::X64)?;
+            let a = self.get_a_ext(p)?;
+            let addr = *p.state().xreg(self.rs1(p.state().ir()));
+            let data = *p.state().xreg(self.rs2(p.state().ir()));
+            let mut lc_res = a.lc_res.borrow_mut();
+            let success = if lc_res.valid {
+                if addr != lc_res.addr || lc_res.len != 8 {
+                    false
+                } else {
+                    p.load_store().check_lock(p.state(), addr, 8, p.mmu())?
+                }
             } else {
-                p.load_store().check_lock(p.state(), addr, 8, p.mmu())?
+                false
+            };
+            if success {
+                p.load_store().store_double_word(p.state(), addr, data, p.mmu())?
             }
-        } else {
-            false
+            lc_res.valid = false;
+            p.load_store().release(p.state());
+            success
         };
-        if success {
-            p.load_store().store_double_word(p.state(), addr, data, p.mmu())?
-        }
-        lc_res.valid = false;
-        p.load_store().release(p.state());
         let rd = self.rd(p.state().ir());
         let value = (!success) as RegT;
         let pc = *p.state().pc() + 4;

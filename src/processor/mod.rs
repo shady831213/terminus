@@ -236,6 +236,11 @@ impl ProcessorState {
         // &self.extensions[(id as u8 - 'a' as u8) as usize]
     }
 
+    fn get_extension_mut(&mut self, id: char) -> &mut Extension {
+        unsafe {self.extensions.get_unchecked_mut((id as u8 - 'a' as u8) as usize)}
+        // &self.extensions[(id as u8 - 'a' as u8) as usize]
+    }
+
     pub fn isa_string(&self) -> String {
         let exts: String = self.config().extensions.iter().collect();
         format!("rv{}{}", self.config().xlen.len(), exts)

@@ -11,13 +11,13 @@ use std::num::Wrapping;
 pub use simple_soft_float::{F64, F32, Sign, F64Traits, F32Traits, FPState};
 
 pub trait FloatInsn: InstructionImp {
-    fn get_f_ext(&self, p: &Processor) -> Result<Rc<ExtensionF>, Exception> {
+    fn get_f_ext<'p>(&self, p: &'p Processor) -> Result<&'p ExtensionF, Exception> {
         p.state().check_extension('f')?;
         if let Extension::F(ref f) = p.state().get_extension('f') {
             if f.dirty() == 0 {
                 Err(Exception::IllegalInsn(p.state().ir()))
             } else {
-                Ok(f.clone())
+                Ok(f)
             }
         } else {
             Err(Exception::IllegalInsn(p.state().ir()))

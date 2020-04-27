@@ -47,29 +47,29 @@ trait NoStepCb {
 
 
 pub enum Extension {
-    A(Rc<ExtensionA>),
-    C(Rc<ExtensionC>),
-    D(Rc<ExtensionD>),
-    F(Rc<ExtensionF>),
-    I(Rc<ExtensionI>),
-    M(Rc<ExtensionM>),
-    S(Rc<ExtensionS>),
-    U(Rc<ExtensionU>),
-    V(Rc<ExtensionV>),
+    A(ExtensionA),
+    C(ExtensionC),
+    D(ExtensionD),
+    F(ExtensionF),
+    I(ExtensionI),
+    M(ExtensionM),
+    S(ExtensionS),
+    U(ExtensionU),
+    V(ExtensionV),
     None
 }
 
 impl Extension {
     pub fn new(state: &ProcessorState, id: char) -> Result<Extension, String> {
         match id {
-            'a' => Ok(Extension::A(Rc::new(ExtensionA::new(state)))),
-            'c' => Ok(Extension::C(Rc::new(ExtensionC::new(state)))),
-            'd' => Ok(Extension::D(Rc::new(ExtensionD::new(state)))),
-            'f' => Ok(Extension::F(Rc::new(ExtensionF::new(state)))),
-            'i' => Ok(Extension::I(Rc::new(ExtensionI::new(state)))),
-            'm' => Ok(Extension::M(Rc::new(ExtensionM::new(state)))),
-            's' => Ok(Extension::S(Rc::new(ExtensionS::new(state)))),
-            'u' => Ok(Extension::U(Rc::new(ExtensionU::new(state)))),
+            'a' => Ok(Extension::A(ExtensionA::new(state))),
+            'c' => Ok(Extension::C(ExtensionC::new(state))),
+            'd' => Ok(Extension::D(ExtensionD::new(state))),
+            'f' => Ok(Extension::F(ExtensionF::new(state))),
+            'i' => Ok(Extension::I(ExtensionI::new(state))),
+            'm' => Ok(Extension::M(ExtensionM::new(state))),
+            's' => Ok(Extension::S(ExtensionS::new(state))),
+            'u' => Ok(Extension::U(ExtensionU::new(state))),
             // 'v' => Ok(Extension::V(Rc::new(ExtensionV {}))),
             _ => Err(format!("unsupported extension \'{}\', supported extension is a, c, d, f, i, m, s, u!", id))
         }
