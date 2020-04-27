@@ -18,17 +18,17 @@ impl TLB {
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    pub fn get_ppn(&self, vpn: u64) -> Option<u64> {
-        let e = unsafe{self.entries.get_unchecked((vpn as usize) & (self.size - 1))};
+    pub fn get_ppn(&self, vpn: u64) -> Option<&u64> {
+        let e = unsafe { self.entries.get_unchecked((vpn as usize) & (self.size - 1)) };
         if e.valid && e.vpn == vpn {
-            Some(e.ppn)
+            Some(&e.ppn)
         } else {
             None
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
     pub fn set_entry(&mut self, vpn: u64, ppn: u64) {
-        let e = unsafe{self.entries.get_unchecked_mut((vpn as usize) & (self.size - 1))};
+        let e = unsafe { self.entries.get_unchecked_mut((vpn as usize) & (self.size - 1)) };
         e.valid = true;
         e.vpn = vpn;
         e.ppn = ppn;
@@ -37,5 +37,10 @@ impl TLB {
 
     pub fn invalid_all(&mut self) {
         self.entries.iter_mut().for_each(|e| { e.valid = false })
+    }
+
+    pub fn invalid_by_vpn(&mut self, vpn: u64) {
+        let e = unsafe { self.entries.get_unchecked_mut((vpn as usize) & (self.size - 1)) };
+        e.valid = false;
     }
 }

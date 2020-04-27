@@ -106,8 +106,8 @@ impl Bus {
         self.space.borrow().write_u8(addr,data)
     }
 
-    pub fn read_u8(&self, addr: u64) -> Result<u8, u64> {
-        self.space.borrow().read_u8(addr)
+    pub fn read_u8(&self, addr: &u64) -> Result<u8, u64> {
+        self.space.borrow().read_u8(*addr)
     }
 
     pub fn write_u16(&self, addr: u64, data: u16) -> Result<(), u64> {

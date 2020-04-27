@@ -123,7 +123,7 @@ impl Mmu {
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn check_pte_privilege(&self,state:&ProcessorState, addr: RegT, pte_attr: &PteAttr, opt: &MmuOpt, privilege: &u8) -> Result<(), Exception> {
+    fn check_pte_privilege(&self, state: &ProcessorState, addr: RegT, pte_attr: &PteAttr, opt: &MmuOpt, privilege: &u8) -> Result<(), Exception> {
         let priv_s = *privilege == 1;
         let pte_x = pte_attr.x() == 1;
         let pte_u = pte_attr.u() == 1;
@@ -184,7 +184,7 @@ impl Mmu {
             }
         }
         //step 5
-        self.check_pte_privilege(state,vaddr.value(), &leaf_pte.attr(), opt, privilege)?;
+        self.check_pte_privilege(state, vaddr.value(), &leaf_pte.attr(), opt, privilege)?;
         //step 6
         for l in 0..level {
             if leaf_pte.ppn(l) != 0 {
@@ -218,8 +218,23 @@ impl Mmu {
         self.store_tlb.borrow_mut().invalid_all();
     }
 
-    pub fn translate(&self, state: &ProcessorState, va: RegT, len: RegT, opt: MmuOpt) -> Result<u64, Exception> {
-        let privilege = self.get_privileage(state, &opt);
+    pub fn flush_by_vpn(&self, vpn: u64) {
+        self.fetch_tlb.borrow_mut().invalid_by_vpn(vpn);
+        self.load_tlb.borrow_mut().invalid_by_vpn(vpn);
+        self.store_tlb.borrow_mut().invalid_by_vpn(vpn);
+    }
+
+    #[cfg_attr(feature = "no-inline", inline(never))]
+    pub fn ls_translate(&self, state: &ProcessorState, va: RegT, len: RegT, opt: MmuOpt) -> Result<u64, Exception> {
+        self.translate(state, va, len, opt, self.get_privileage(state, &opt), match opt {
+            MmuOpt::Store => self.store_tlb.borrow_mut(),
+            MmuOpt::Load => self.load_tlb.borrow_mut(),
+            _ => unreachable!()
+        }.deref_mut())
+    }
+
+    #[cfg_attr(feature = "no-inline", inline(never))]
+    fn translate(&self, state: &ProcessorState, va: RegT, len: RegT, opt: MmuOpt, privilege: u8, tlb: &mut TLB) -> Result<u64, Exception> {
         if privilege == 3 {
             return Ok(va as u64);
         }
@@ -228,13 +243,8 @@ impl Mmu {
             return Ok(va as u64);
         }
         let vaddr = Vaddr::new(info.mode, va);
-        let mut tlb = match opt {
-            MmuOpt::Fetch => self.fetch_tlb.borrow_mut(),
-            MmuOpt::Load => self.load_tlb.borrow_mut(),
-            MmuOpt::Store => self.store_tlb.borrow_mut(),
-        };
         if let Some(ppn) = tlb.get_ppn(vaddr.vpn_all()) {
-            let pa = (ppn << (info.page_size_shift as u64)) | vaddr.offset();
+            let pa = (*ppn << (info.page_size_shift as u64)) | vaddr.offset();
             return Ok(pa);
         }
         match self.pt_walk(state, &vaddr, &opt, &privilege, &info) {
@@ -249,6 +259,11 @@ impl Mmu {
             }
         }
     }
+
+    #[cfg_attr(feature = "no-inline", inline(never))]
+    pub fn fetch_translate(&self, state: &ProcessorState, va: RegT, len: RegT) -> Result<u64, Exception> {
+        self.translate(state, va, len, MmuOpt::Fetch, (*state.privilege()).into(), self.fetch_tlb.borrow_mut().deref_mut())
+    }
 }
 
 #[cfg(test)]
@@ -258,10 +273,11 @@ use crate::processor::ProcessorCfg;
 #[cfg(test)]
 use crate::system::System;
 use std::cell::RefCell;
+use std::ops::DerefMut;
 
 #[test]
 fn pmp_basic_test() {
-    let sys = System::new("test", "top_tests/elf/rv64ui-p-add", vec![ProcessorCfg {
+    let mut sys = System::new("test", "top_tests/elf/rv64ui-p-add", vec![ProcessorCfg {
         xlen: XLen::X32,
         enable_dirty: true,
         extensions: vec![].into_boxed_slice(),

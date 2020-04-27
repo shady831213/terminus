@@ -17,8 +17,8 @@ impl LoadStore {
     }
 
     pub fn load_byte(&self, state: &ProcessorState, addr: RegT, mmu: &Mmu) -> Result<RegT, Exception> {
-        let pa = mmu.translate(state, addr, 1, MmuOpt::Load)?;
-        match self.bus.read_u8(pa) {
+        let pa = mmu.ls_translate(state, addr, 1, MmuOpt::Load)?;
+        match self.bus.read_u8(&pa) {
             Ok(data) => Ok(data as RegT),
             Err(_) => Err(Exception::LoadAccess(addr)),
         }
@@ -27,7 +27,7 @@ impl LoadStore {
         if addr.trailing_zeros() < 1 {
             return Err(Exception::LoadMisaligned(addr));
         }
-        let pa = mmu.translate(state, addr, 2, MmuOpt::Load)?;
+        let pa = mmu.ls_translate(state, addr, 2, MmuOpt::Load)?;
         match self.bus.read_u16(pa) {
             Ok(data) => Ok(data as RegT),
             Err(_) => Err(Exception::LoadAccess(addr)),
@@ -37,7 +37,7 @@ impl LoadStore {
         if addr.trailing_zeros() < 2 {
             return Err(Exception::LoadMisaligned(addr));
         }
-        let pa = mmu.translate(state, addr, 4, MmuOpt::Load)?;
+        let pa = mmu.ls_translate(state, addr, 4, MmuOpt::Load)?;
         match self.bus.read_u32(pa) {
             Ok(data) => Ok(data as RegT),
             Err(_) => Err(Exception::LoadAccess(addr)),
@@ -47,14 +47,14 @@ impl LoadStore {
         if addr.trailing_zeros() < 3 {
             return Err(Exception::LoadMisaligned(addr));
         }
-        let pa = mmu.translate(state, addr, 8, MmuOpt::Load)?;
+        let pa = mmu.ls_translate(state, addr, 8, MmuOpt::Load)?;
         match self.bus.read_u64(pa) {
             Ok(data) => Ok(data as RegT),
             Err(_) => Err(Exception::LoadAccess(addr)),
         }
     }
     pub fn store_byte(&self, state: &ProcessorState, addr: RegT, data: RegT, mmu: &Mmu) -> Result<(), Exception> {
-        let pa = mmu.translate(state, addr, 1, MmuOpt::Store)?;
+        let pa = mmu.ls_translate(state, addr, 1, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 1) {
             if lock_holder != state.hartid {
                 self.bus.invalid_lock(addr, 1, lock_holder);
@@ -69,7 +69,7 @@ impl LoadStore {
         if addr.trailing_zeros() < 1 {
             return Err(Exception::StoreMisaligned(addr));
         }
-        let pa = mmu.translate(state, addr, 2, MmuOpt::Store)?;
+        let pa = mmu.ls_translate(state, addr, 2, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 2) {
             if lock_holder != state.hartid {
                 self.bus.invalid_lock(addr, 2, lock_holder);
@@ -84,7 +84,7 @@ impl LoadStore {
         if addr.trailing_zeros() < 2 {
             return Err(Exception::StoreMisaligned(addr));
         }
-        let pa = mmu.translate(state, addr, 4, MmuOpt::Store)?;
+        let pa = mmu.ls_translate(state, addr, 4, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 4) {
             if lock_holder != state.hartid {
                 self.bus.invalid_lock(addr, 4, lock_holder);
@@ -99,7 +99,7 @@ impl LoadStore {
         if addr.trailing_zeros() < 3 {
             return Err(Exception::StoreMisaligned(addr));
         }
-        let pa = mmu.translate(state, addr, 8, MmuOpt::Store)?;
+        let pa = mmu.ls_translate(state, addr, 8, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 8) {
             if lock_holder != state.hartid {
                 self.bus.invalid_lock(addr, 8, lock_holder);
@@ -115,7 +115,7 @@ impl LoadStore {
         if addr.trailing_zeros() < 2 {
             return Err(Exception::StoreMisaligned(addr));
         }
-        let pa = mmu.translate(state, addr, 4, MmuOpt::Store)?;
+        let pa = mmu.ls_translate(state, addr, 4, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 4) {
             if lock_holder != state.hartid {
                 self.bus.invalid_lock(addr, 4, lock_holder);
@@ -130,7 +130,7 @@ impl LoadStore {
         if addr.trailing_zeros() < 3 {
             return Err(Exception::StoreMisaligned(addr));
         }
-        let pa = mmu.translate(state, addr, 8, MmuOpt::Store)?;
+        let pa = mmu.ls_translate(state, addr, 8, MmuOpt::Store)?;
         if let Some(lock_holder) = self.bus.lock_holder(addr, 8) {
             if lock_holder != state.hartid {
                 self.bus.invalid_lock(addr, 8, lock_holder);
@@ -143,12 +143,12 @@ impl LoadStore {
     }
 
     pub fn acquire(&self, state: &ProcessorState, addr: RegT, len: u64, mmu: &Mmu) -> Result<bool, Exception> {
-        let pa = mmu.translate(state, addr, len, MmuOpt::Load)?;
+        let pa = mmu.ls_translate(state, addr, len, MmuOpt::Load)?;
         Ok(self.bus.acquire(pa, len, state.hartid))
     }
 
     pub fn check_lock(&self, state: &ProcessorState, addr: RegT, len: u64, mmu: &Mmu) -> Result<bool, Exception> {
-        let pa = mmu.translate(state, addr, len, MmuOpt::Store)?;
+        let pa = mmu.ls_translate(state, addr, len, MmuOpt::Store)?;
         if let Some(holder) = self.bus.lock_holder(pa, len) {
             if holder == state.hartid {
                 Ok(true)

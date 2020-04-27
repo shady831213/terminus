@@ -50,10 +50,15 @@ impl Execution for SFENCEVMA {
         if *p.state().privilege() == Privilege::S && p.state().icsrs().mstatus().tvm() == 1 {
             return Err(Exception::IllegalInsn(p.state().ir()));
         }
-        p.mmu().flush_tlb();
-        p.fetcher().flush_icache();
+        if self.rs1(p.state().ir()) != 0{
+            let va = *p.state().xreg(self.rs1(p.state().ir()));
+            p.mmu().flush_by_vpn(va >> 12);
+        } else {
+            p.mmu().flush_tlb();
+        }
         let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
+        p.fetcher().flush_icache();
         Ok(())
     }
 }
