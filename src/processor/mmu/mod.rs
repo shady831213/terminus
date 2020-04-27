@@ -71,7 +71,7 @@ impl Mmu {
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn pmpcfgs_iter(&self, state: &ProcessorState) -> PmpCfgsIter {
+    fn pmpcfgs_iter<'m>(&self, state: &'m ProcessorState) -> PmpCfgsIter<'m> {
         PmpCfgsIter::new(state.icsrs(), PhantomData)
     }
     #[cfg_attr(feature = "no-inline", inline(never))]

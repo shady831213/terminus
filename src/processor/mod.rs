@@ -241,17 +241,17 @@ impl ProcessorState {
         format!("rv{}{}", self.config().xlen.len(), exts)
     }
 
-    pub fn icsrs(&self) -> Rc<ICsrs> {
+    pub fn icsrs(&self) -> &Rc<ICsrs> {
         if let Extension::I(ref i) = self.get_extension('i') {
-            i.get_csrs().clone()
+            i.get_csrs()
         } else {
             unreachable!()
         }
     }
 
-    pub fn scsrs(&self) -> Rc<SCsrs> {
+    pub fn scsrs(&self) -> &Rc<SCsrs> {
         if let Extension::S(ref s) = self.get_extension('s') {
-            s.get_csrs().clone()
+            s.get_csrs()
         } else {
             unreachable!()
         }

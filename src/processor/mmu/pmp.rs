@@ -33,14 +33,14 @@ impl From<u8> for PmpCfgEntry {
 }
 
 pub struct PmpCfgsIter<'m> {
-    icsrs: Rc<ICsrs>,
+    icsrs: &'m Rc<ICsrs>,
     idx: u8,
     marker: PhantomData<&'m Mmu>,
 }
 
 
 impl<'m> PmpCfgsIter<'m> {
-    pub fn new(icsrs: Rc<ICsrs>, marker: PhantomData<&'m Mmu>) -> PmpCfgsIter<'m> {
+    pub fn new(icsrs: &'m Rc<ICsrs>, marker: PhantomData<&'m Mmu>) -> PmpCfgsIter<'m> {
         PmpCfgsIter {
             icsrs,
             idx: 0,
