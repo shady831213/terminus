@@ -3,7 +3,7 @@ use terminus_global::*;
 use std::sync::Arc;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::rc::Rc;
-use std::cell::{RefCell, Ref};
+use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use terminus_spaceport::irq::IrqVec;
 use crate::devices::bus::Bus;
@@ -34,8 +34,6 @@ use fetcher::*;
 mod load_store;
 
 use load_store::*;
-use std::ops::DerefMut;
-use std::borrow::BorrowMut;
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]

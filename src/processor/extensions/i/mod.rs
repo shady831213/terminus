@@ -7,7 +7,6 @@ pub mod csrs;
 
 use csrs::ICsrs;
 use crate::processor::{PrivilegeLevel, Privilege, ProcessorState};
-use std::ops::Deref;
 
 pub struct ExtensionI {
     csrs: Rc<ICsrs>,

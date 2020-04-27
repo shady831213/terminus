@@ -2,12 +2,10 @@ use std::marker::PhantomData;
 use std::convert::TryFrom;
 use crate::processor::trap::Exception;
 use terminus_global::{RegT, InsnT};
-use std::rc::Rc;
 use std::sync::Arc;
 use crate::processor::ProcessorState;
 use terminus_macros::*;
 use crate::devices::bus::Bus;
-use crate::processor::extensions::i::csrs::ICsrs;
 
 mod pmp;
 

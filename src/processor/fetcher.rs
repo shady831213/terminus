@@ -1,7 +1,6 @@
 use crate::processor::ProcessorState;
 use crate::processor::insn::Instruction;
-use std::rc::Rc;
-use terminus_global::{RegT, InsnT};
+use terminus_global::InsnT;
 use crate::processor::mmu::{Mmu, MmuOpt};
 use crate::processor::trap::Exception;
 use crate::processor::decode::*;

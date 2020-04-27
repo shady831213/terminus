@@ -2,7 +2,6 @@ use crate::processor::extensions::{NoCsr, HasStepCb};
 use crate::processor::{ProcessorState, Processor};
 use std::cell::RefCell;
 use terminus_global::RegT;
-use std::ops::Deref;
 
 mod insns;
 

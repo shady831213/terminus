@@ -1,5 +1,4 @@
 use crate::processor::ProcessorState;
-use std::rc::Rc;
 use terminus_global::RegT;
 use crate::processor::mmu::{Mmu, MmuOpt};
 use crate::processor::trap::Exception;
