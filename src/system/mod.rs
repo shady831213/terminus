@@ -144,10 +144,10 @@ impl System {
                 if data.is_empty() {
                     Ok(())
                 } else {
-                    let region = space.get_region_by_addr(addr).expect("not enough memory!");
+                    let region = space.get_region_by_addr(&addr).expect("not enough memory!");
                     let len = min((region.info.base + region.info.size - addr) as usize, data.len());
                     let (head, tails) = data.split_at(len);
-                    BytesAccess::write(region.deref(), addr, head);
+                    BytesAccess::write(region.deref(), &addr, head);
                     load(space, region.info.base + region.info.size, tails)
                 }
             };
@@ -272,7 +272,7 @@ impl System {
         }
         rom.append(&mut dtb);
         let rom_mem = GHEAP.alloc(rom.len() as u64, 1).expect("boot rom alloc fail!");
-        BytesAccess::write(rom_mem.deref(), rom_mem.info.base, &rom);
+        BytesAccess::write(rom_mem.deref(), &rom_mem.info.base, &rom);
         self.register_memory("boot_rom", base, &rom_mem)?;
         Ok(())
     }

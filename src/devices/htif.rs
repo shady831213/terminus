@@ -70,44 +70,58 @@ impl HTIF {
 }
 
 impl BytesAccess for HTIF {
-    fn write(&self, _: u64, _: &[u8]) {  }
+    fn write(&self, addr: &u64, data: &[u8]) {
+        if data.len() == 4 {
+            let mut bytes = [0; 4];
+            bytes.copy_from_slice(data);
+            U32Access::write(self, addr, u32::from_le_bytes(bytes))
+        } else if data.len() == 8 {
+            let mut bytes = [0; 8];
+            bytes.copy_from_slice(data);
+            U64Access::write(self, addr, u64::from_le_bytes(bytes))
+        }
+    }
+
+    fn read(&self, addr: &u64, data: &mut [u8]) {
+        if data.len() == 4 {
+            data.copy_from_slice(&U32Access::read(self, addr).to_le_bytes())
+        } else if data.len() == 8 {
+            data.copy_from_slice(&U64Access::read(self, addr).to_le_bytes())
+        }
+    }
 }
 
 impl U32Access for HTIF {
-    fn write(&self, addr: u64, data: u32) {
-        if addr == self.tohost_off {
+    fn write(&self, addr: &u64, data: u32) {
+        if *addr == self.tohost_off {
             let mut desp = self.desc.lock().unwrap();
             desp.borrow_mut().tohost.set_bit_range(31, 0, data);
             if desp.borrow().tohost & 0x1 == 1 && desp.tohost_device() == 0 && desp.tohost_cmd() == 0 {
                 EXIT_CTRL.exit("htif shutdown!").unwrap();
             }
-        } else if addr == self.tohost_off + 4 {
+        } else if *addr == self.tohost_off + 4 {
             let mut desp = self.desc.lock().unwrap();
             desp.borrow_mut().tohost.set_bit_range(63, 32, data);
             HTIF::handle_cmd(desp.borrow_mut())
         } else if let Some(fromhost) = self.fromhost_off {
-            if addr == fromhost {
+            if *addr == fromhost {
                 self.desc.lock().unwrap().fromhost.set_bit_range(31, 0, data)
-            } else if addr == fromhost + 4 {
+            } else if *addr == fromhost + 4 {
                 self.desc.lock().unwrap().fromhost.set_bit_range(63, 32, data)
-            } else {
-                panic!("invalid HTIF addr")
             }
-        } else {
-            panic!("invalid HTIF addr")
         }
     }
 
-    fn read(&self, addr: u64) -> u32 {
-        if addr == self.tohost_off {
+    fn read(&self, addr: &u64) -> u32 {
+        if *addr == self.tohost_off {
             self.desc.lock().unwrap().tohost as u32
-        } else if addr == self.tohost_off + 4 {
+        } else if *addr == self.tohost_off + 4 {
             (self.desc.lock().unwrap().tohost >> 32) as u32
         } else if let Some(fromhost) = self.fromhost_off {
-            if addr == fromhost {
+            if *addr == fromhost {
                 self.fromhost_poll();
                 self.desc.lock().unwrap().fromhost as u32
-            } else if addr == fromhost + 4 {
+            } else if *addr == fromhost + 4 {
                 self.fromhost_poll();
                 (self.desc.lock().unwrap().fromhost >> 32) as u32
             } else {
@@ -121,13 +135,13 @@ impl U32Access for HTIF {
 
 
 impl U64Access for HTIF {
-    fn write(&self, addr: u64, data: u64) {
-        if addr == self.tohost_off {
+    fn write(&self, addr: &u64, data: u64) {
+        if *addr == self.tohost_off {
             let mut desp = self.desc.lock().unwrap();
             desp.borrow_mut().tohost = data;
             HTIF::handle_cmd(desp.borrow_mut())
         } else if let Some(fromhost) = self.fromhost_off {
-            if addr == fromhost {
+            if *addr == fromhost {
                 self.desc.lock().unwrap().fromhost = data
             } else {
                 panic!("invalid HTIF addr")
@@ -137,11 +151,11 @@ impl U64Access for HTIF {
         }
     }
 
-    fn read(&self, addr: u64) -> u64 {
-        if addr == self.tohost_off {
+    fn read(&self, addr: &u64) -> u64 {
+        if *addr == self.tohost_off {
             self.desc.lock().unwrap().tohost
         } else if let Some(fromhost) = self.fromhost_off {
-            if addr == fromhost {
+            if *addr == fromhost {
                 self.fromhost_poll();
                 self.desc.lock().unwrap().fromhost
             } else {

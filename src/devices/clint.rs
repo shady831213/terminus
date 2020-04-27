@@ -78,7 +78,7 @@ const MTMIECMP_SIZE: u64 = 8;
 const MTIME_BASE: u64 = 0xbff8;
 const MTIME_SIZE: u64 = 8;
 
-#[derive_io(U32, U64)]
+#[derive_io(Bytes, U32, U64)]
 pub struct Clint(Arc<Timer>);
 
 impl Clint {
@@ -87,28 +87,50 @@ impl Clint {
     }
 }
 
+impl BytesAccess for Clint {
+    fn write(&self, addr: &u64, data: &[u8]) {
+        if data.len() == 4 {
+            let mut bytes = [0; 4];
+            bytes.copy_from_slice(data);
+            U32Access::write(self, addr, u32::from_le_bytes(bytes))
+        } else if data.len() == 8 {
+            let mut bytes = [0; 8];
+            bytes.copy_from_slice(data);
+            U64Access::write(self, addr, u64::from_le_bytes(bytes))
+        }
+    }
+
+    fn read(&self, addr: &u64, data: &mut [u8]) {
+        if data.len() == 4 {
+            data.copy_from_slice(&U32Access::read(self, addr).to_le_bytes())
+        } else if data.len() == 8 {
+            data.copy_from_slice(&U64Access::read(self, addr).to_le_bytes())
+        }
+    }
+}
+
 impl U32Access for Clint {
-    fn write(&self, addr: u64, data: u32) {
-        assert!(addr.trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
+    fn write(&self, addr: &u64, data: u32) {
+        assert!((*addr).trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
         let mut timer = self.0.lock().unwrap();
-        if addr >= MSIP_BASE && addr + 4 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
-            let offset = ((addr - MSIP_BASE) >> 2) as usize;
+        if *addr >= MSIP_BASE && *addr + 4 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
+            let offset = ((*addr - MSIP_BASE) >> 2) as usize;
             timer.irq_vecs[offset].clr_pending(0).unwrap();
             if data & 1 == 1 {
                 timer.irq_vecs[offset].set_pending(0).unwrap();
             }
             return;
-        } else if addr >= MTIMECMP_BASE && addr + 4 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
-            let offset = ((addr - MTIMECMP_BASE) >> 3) as usize;
-            if addr.trailing_zeros() == 2 {
+        } else if *addr >= MTIMECMP_BASE && *addr + 4 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
+            let offset = ((*addr - MTIMECMP_BASE) >> 3) as usize;
+            if (*addr).trailing_zeros() == 2 {
                 timer.mtimecmps[offset].set_bit_range(63, 32, data)
             } else {
                 timer.mtimecmps[offset].set_bit_range(31, 0, data)
             };
             timer.tick(0);
             return;
-        } else if addr >= MTIME_BASE && addr + 4 <= MTIME_BASE + MTIME_SIZE {
-            return if addr.trailing_zeros() == 2 {
+        } else if *addr >= MTIME_BASE && *addr + 4 <= MTIME_BASE + MTIME_SIZE {
+            return if (*addr).trailing_zeros() == 2 {
                 timer.cnt.set_bit_range(63, 32, data)
             } else {
                 timer.cnt.set_bit_range(31, 0, data)
@@ -118,21 +140,21 @@ impl U32Access for Clint {
         panic!("clint:U32Access Invalid addr!".to_string());
     }
 
-    fn read(&self, addr: u64) -> u32 {
-        assert!(addr.trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
+    fn read(&self, addr: &u64) -> u32 {
+        assert!((*addr).trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
         let timer = self.0.lock().unwrap();
-        if addr >= MSIP_BASE && addr + 4 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
-            let offset = ((addr - MSIP_BASE) >> 2) as usize;
+        if *addr >= MSIP_BASE && *addr + 4 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
+            let offset = ((*addr - MSIP_BASE) >> 2) as usize;
             return timer.irq_vecs[offset].pending(0).unwrap() as u32;
-        } else if addr >= MTIMECMP_BASE && addr + 4 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
-            let offset = ((addr - MTIMECMP_BASE) >> 3) as usize;
-            return if addr.trailing_zeros() == 2 {
+        } else if *addr >= MTIMECMP_BASE && *addr + 4 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
+            let offset = ((*addr - MTIMECMP_BASE) >> 3) as usize;
+            return if (*addr).trailing_zeros() == 2 {
                 timer.mtimecmps[offset] >> 32
             } else {
                 timer.mtimecmps[offset]
             } as u32;
-        } else if addr >= MTIME_BASE && addr + 4 <= MTIME_BASE + MTIME_SIZE {
-            return if addr.trailing_zeros() == 2 {
+        } else if *addr >= MTIME_BASE && *addr + 4 <= MTIME_BASE + MTIME_SIZE {
+            return if (*addr).trailing_zeros() == 2 {
                 timer.cnt >> 32
             } else {
                 timer.cnt
@@ -145,12 +167,12 @@ impl U32Access for Clint {
 
 
 impl U64Access for Clint {
-    fn write(&self, addr: u64, data: u64) {
-        assert!(addr.trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", addr));
+    fn write(&self, addr: &u64, data: u64) {
+        assert!((*addr).trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", addr));
 
         let mut timer = self.0.lock().unwrap();
-        if addr >= MSIP_BASE && addr + 8 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
-            let offset = (((addr - MSIP_BASE) >> 3) << 1) as usize;
+        if *addr >= MSIP_BASE && *addr + 8 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
+            let offset = (((*addr - MSIP_BASE) >> 3) << 1) as usize;
             timer.irq_vecs[offset].clr_pending(0).unwrap();
             if data & 1 == 1 {
                 timer.irq_vecs[offset].set_pending(0).unwrap();
@@ -160,29 +182,29 @@ impl U64Access for Clint {
                 timer.irq_vecs[offset + 1].set_pending(0).unwrap();
             }
             return;
-        } else if addr >= MTIMECMP_BASE && addr + 8 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
-            let offset = ((addr - MTIMECMP_BASE) >> 3) as usize;
+        } else if *addr >= MTIMECMP_BASE && *addr + 8 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
+            let offset = ((*addr - MTIMECMP_BASE) >> 3) as usize;
             timer.mtimecmps[offset] = data;
             timer.tick(0);
             return;
-        } else if addr >= MTIME_BASE && addr + 8 <= MTIME_BASE + MTIME_SIZE {
+        } else if *addr >= MTIME_BASE && *addr + 8 <= MTIME_BASE + MTIME_SIZE {
             return timer.cnt = data;
         }
 
         panic!("clint:U64Access Invalid addr!".to_string());
     }
 
-    fn read(&self, addr: u64) -> u64 {
-        assert!(addr.trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", addr));
+    fn read(&self, addr: &u64) -> u64 {
+        assert!((*addr).trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", addr));
 
         let timer = self.0.lock().unwrap();
-        if addr >= MSIP_BASE && addr + 8 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
-            let offset = (((addr - MSIP_BASE) >> 3) << 1) as usize;
+        if *addr >= MSIP_BASE && *addr + 8 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
+            let offset = (((*addr - MSIP_BASE) >> 3) << 1) as usize;
             return (timer.irq_vecs[offset].pending(0).unwrap() as u64) | ((timer.irq_vecs[offset + 1].pending(0).unwrap() as u64) << 32);
-        } else if addr >= MTIMECMP_BASE && addr + 8 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
+        } else if *addr >= MTIMECMP_BASE && *addr + 8 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
             let offset = ((addr - MTIMECMP_BASE) >> 3) as usize;
             return timer.mtimecmps[offset];
-        } else if addr >= MTIME_BASE && addr + 8 <= MTIME_BASE + MTIME_SIZE {
+        } else if *addr >= MTIME_BASE && *addr + 8 <= MTIME_BASE + MTIME_SIZE {
             return timer.cnt;
         }
 
@@ -207,9 +229,9 @@ fn timer_test() {
                 while !irq.pending(1).unwrap() {}
                 println!("get timer {}!", cnt);
                 irq.clr_pending(1).unwrap();
-                let time = U64Access::read(&clint, MTIME_BASE);
+                let time = U64Access::read(&clint, &MTIME_BASE);
                 println!("time = {}", time);
-                U64Access::write(&clint, MTIMECMP_BASE, time + 1);
+                U64Access::write(&clint, &MTIMECMP_BASE, time + 1);
             }
         }
     }

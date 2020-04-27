@@ -103,39 +103,35 @@ impl Bus {
     }
 
     pub fn write_u8(&self, addr: &u64, data: &u8) -> Result<(), u64> {
-        self.space.borrow().write_u8(*addr, *data)
+        self.space.borrow().write_bytes(addr, unsafe { std::slice::from_raw_parts(data as *const u8, 1) })
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
     pub fn read_u8(&self, addr: &u64, data: &mut u8) -> Result<(), u64> {
-        *data = self.space.borrow().read_u8(*addr)?;
-        Ok(())
+        self.space.borrow().read_bytes(addr, unsafe { std::slice::from_raw_parts_mut(data as *mut u8, 1) })
     }
 
     pub fn write_u16(&self, addr: &u64, data: &u16) -> Result<(), u64> {
-        self.space.borrow().write_u16(*addr, *data)
+        self.space.borrow().write_bytes(addr, unsafe { std::slice::from_raw_parts((data as *const u16) as *const u8, 2) })
     }
 
     pub fn read_u16(&self, addr: &u64, data: &mut u16) -> Result<(), u64> {
-        *data = self.space.borrow().read_u16(*addr)?;
-        Ok(())
+        self.space.borrow().read_bytes(addr, unsafe { std::slice::from_raw_parts_mut((data as *mut u16) as *mut u8, 2) })
     }
 
     pub fn write_u32(&self, addr: &u64, data: &u32) -> Result<(), u64> {
-        self.space.borrow().write_u32(*addr, *data)
+        self.space.borrow().write_bytes(addr, unsafe { std::slice::from_raw_parts((data as *const u32) as *const u8, 4) })
     }
 
     pub fn read_u32(&self, addr: &u64, data: &mut u32) -> Result<(), u64> {
-        *data = self.space.borrow().read_u32(*addr)?;
-        Ok(())
+        self.space.borrow().read_bytes(addr, unsafe { std::slice::from_raw_parts_mut((data as *mut u32) as *mut u8, 4) })
     }
 
     pub fn write_u64(&self, addr: &u64, data: &u64) -> Result<(), u64> {
-        self.space.borrow().write_u64(*addr, *data)
+        self.space.borrow().write_bytes(addr, unsafe { std::slice::from_raw_parts((data as *const u64) as *const u8, 8) })
     }
 
     pub fn read_u64(&self, addr: &u64, data: &mut u64) -> Result<(), u64> {
-        *data = self.space.borrow().read_u64(*addr)?;
-        Ok(())
+        self.space.borrow().read_bytes(addr, unsafe { std::slice::from_raw_parts_mut((data as *mut u64) as *mut u8, 8) })
     }
 
     pub fn space(&self) -> Ref<'_, Space> {
