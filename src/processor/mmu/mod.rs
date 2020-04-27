@@ -4,7 +4,7 @@ use crate::processor::trap::Exception;
 use terminus_global::{RegT, InsnT};
 use std::rc::Rc;
 use std::sync::Arc;
-use crate::processor::{ProcessorState, Privilege};
+use crate::processor::ProcessorState;
 use terminus_macros::*;
 use crate::devices::bus::Bus;
 use crate::processor::extensions::i::csrs::ICsrs;
@@ -55,32 +55,28 @@ impl MmuOpt {
 }
 
 pub struct Mmu {
-    p: Rc<ProcessorState>,
     bus: Arc<Bus>,
-    icsrs: Rc<ICsrs>,
     fetch_tlb: RefCell<TLB>,
     load_tlb: RefCell<TLB>,
     store_tlb: RefCell<TLB>,
 }
 
 impl Mmu {
-    pub fn new(p: &Rc<ProcessorState>, bus: &Arc<Bus>) -> Mmu {
+    pub fn new(bus: &Arc<Bus>) -> Mmu {
         Mmu {
-            p: p.clone(),
             bus: bus.clone(),
-            icsrs: p.icsrs(),
             fetch_tlb: RefCell::new(TLB::new()),
             load_tlb: RefCell::new(TLB::new()),
             store_tlb: RefCell::new(TLB::new()),
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn pmpcfgs_iter(&self) -> PmpCfgsIter {
-        PmpCfgsIter::new(self, PhantomData)
+    fn pmpcfgs_iter(&self, state: &ProcessorState) -> PmpCfgsIter {
+        PmpCfgsIter::new(state.icsrs(), PhantomData)
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn match_pmpcfg_entry(&self, addr: u64, len: usize) -> Option<PmpCfgEntry> {
-        self.pmpcfgs_iter().enumerate()
+    fn match_pmpcfg_entry(&self, state: &ProcessorState, addr: u64, len: usize) -> Option<PmpCfgEntry> {
+        self.pmpcfgs_iter(state).enumerate()
             .find(|(idx, entry)| {
                 ((addr >> 2)..((addr + len as u64 - 1) >> 2) + 1)
                     .map(|trail_addr| {
@@ -90,17 +86,17 @@ impl Mmu {
                                 let low = if *idx == 0 {
                                     0
                                 } else {
-                                    self.icsrs.read(0x3b0 + ((*idx - 1) as u8 as InsnT)).unwrap()
+                                    state.icsrs().read(0x3b0 + ((*idx - 1) as u8 as InsnT)).unwrap()
                                 };
-                                let high = self.icsrs.read(0x3b0 + (*idx as u8 as InsnT)).unwrap();
+                                let high = state.icsrs().read(0x3b0 + (*idx as u8 as InsnT)).unwrap();
                                 trail_addr >= low && trail_addr < high
                             }
                             PmpAType::NA4 => {
-                                let pmpaddr = self.icsrs.read(0x3b0 + (*idx as u8 as InsnT)).unwrap();
+                                let pmpaddr = state.icsrs().read(0x3b0 + (*idx as u8 as InsnT)).unwrap();
                                 trail_addr == pmpaddr
                             }
                             PmpAType::NAPOT => {
-                                let pmpaddr = self.icsrs.read(0x3b0 + (*idx as u8 as InsnT)).unwrap();
+                                let pmpaddr = state.icsrs().read(0x3b0 + (*idx as u8 as InsnT)).unwrap();
                                 let trialing_ones = (!pmpaddr).trailing_zeros();
                                 (trail_addr >> trialing_ones) == (pmpaddr >> trialing_ones)
                             }
@@ -111,32 +107,32 @@ impl Mmu {
             .map(|(_, entry)| { entry })
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn check_pmp(&self, addr: u64, len: usize, opt: &MmuOpt, privilege: &u8) -> bool {
-        if let Some(entry) = self.match_pmpcfg_entry(addr, len) {
+    fn check_pmp(&self, state: &ProcessorState, addr: u64, len: usize, opt: &MmuOpt, privilege: &u8) -> bool {
+        if let Some(entry) = self.match_pmpcfg_entry(state, addr, len) {
             *privilege == 3 && entry.l() == 0 || opt.pmp_match(&entry)
         } else {
             *privilege == 3
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn get_privileage(&self, opt: &MmuOpt) -> u8 {
-        let is_mprv = self.icsrs.mstatus().mprv() == 1;
-        let mpp = self.icsrs.mstatus().mpp() as u8 & 3;
+    fn get_privileage(&self, state: &ProcessorState, opt: &MmuOpt) -> u8 {
+        let is_mprv = state.icsrs().mstatus().mprv() == 1;
+        let mpp = state.icsrs().mstatus().mpp() as u8 & 3;
         match opt {
             &MmuOpt::Load if is_mprv => mpp,
             &MmuOpt::Store if is_mprv => mpp,
-            _ => (*self.p.privilege.borrow()).into()
+            _ => state.privilege().into()
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn check_pte_privilege(&self, addr: RegT, pte_attr: &PteAttr, opt: &MmuOpt, privilege: &u8) -> Result<(), Exception> {
+    fn check_pte_privilege(&self,state:&ProcessorState, addr: RegT, pte_attr: &PteAttr, opt: &MmuOpt, privilege: &u8) -> Result<(), Exception> {
         let priv_s = *privilege == 1;
         let pte_x = pte_attr.x() == 1;
         let pte_u = pte_attr.u() == 1;
         let pte_r = pte_attr.r() == 1;
         let pte_w = pte_attr.w() == 1;
-        let mxr = self.icsrs.mstatus().mxr() == 1;
-        let sum = self.icsrs.mstatus().sum() == 1;
+        let mxr = state.icsrs().mstatus().mxr() == 1;
+        let sum = state.icsrs().mstatus().sum() == 1;
         match opt {
             &MmuOpt::Fetch => {
                 if !pte_x || pte_u == priv_s {
@@ -157,9 +153,9 @@ impl Mmu {
         Ok(())
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn pt_walk(&self, vaddr: &Vaddr, opt: &MmuOpt, privilege: &u8, info: &PteInfo) -> Result<u64, Exception> {
+    fn pt_walk(&self, state: &ProcessorState, vaddr: &Vaddr, opt: &MmuOpt, privilege: &u8, info: &PteInfo) -> Result<u64, Exception> {
         //step 1
-        let ppn = self.p.scsrs().satp().ppn();
+        let ppn = state.scsrs().satp().ppn();
         let mut a = (ppn << info.page_size_shift) as RegT;
         let mut level = info.level - 1;
         let mut leaf_pte: Pte;
@@ -167,7 +163,7 @@ impl Mmu {
         loop {
             //step 2
             pte_addr = (a + (vaddr.vpn(level) << (info.size_shift as RegT))) as u64;
-            if !self.check_pmp(pte_addr, 1 << info.size_shift, &MmuOpt::Load, &1) {
+            if !self.check_pmp(state, pte_addr, 1 << info.size_shift, &MmuOpt::Load, &1) {
                 return Err(opt.access_exception(vaddr.value()));
             }
             let pte = match Pte::load(info, self.bus.deref(), pte_addr) {
@@ -190,7 +186,7 @@ impl Mmu {
             }
         }
         //step 5
-        self.check_pte_privilege(vaddr.value(), &leaf_pte.attr(), opt, privilege)?;
+        self.check_pte_privilege(state,vaddr.value(), &leaf_pte.attr(), opt, privilege)?;
         //step 6
         for l in 0..level {
             if leaf_pte.ppn(l) != 0 {
@@ -199,11 +195,11 @@ impl Mmu {
         }
         //step 7
         if leaf_pte.attr().d() == 0 && *opt == MmuOpt::Store || leaf_pte.attr().a() == 0 {
-            if self.p.config.enable_dirty {
+            if state.config().enable_dirty {
                 let mut new_attr = leaf_pte.attr();
                 new_attr.set_a(1);
                 new_attr.set_d((*opt == MmuOpt::Store) as u8);
-                if !self.check_pmp(pte_addr, 1 << info.size_shift, &MmuOpt::Store, &1) {
+                if !self.check_pmp(state, pte_addr, 1 << info.size_shift, &MmuOpt::Store, &1) {
                     return Err(opt.access_exception(vaddr.value()));
                 }
                 leaf_pte.set_attr(&new_attr);
@@ -224,12 +220,12 @@ impl Mmu {
         self.store_tlb.borrow_mut().invalid_all();
     }
 
-    pub fn translate(&self, va: RegT, len: RegT, opt: MmuOpt) -> Result<u64, Exception> {
-        let privilege = self.get_privileage(&opt);
+    pub fn translate(&self, state: &ProcessorState, va: RegT, len: RegT, opt: MmuOpt) -> Result<u64, Exception> {
+        let privilege = self.get_privileage(state, &opt);
         if privilege == 3 {
             return Ok(va as u64);
         }
-        let info = PteInfo::new(self.p.scsrs().satp().deref());
+        let info = PteInfo::new(state.scsrs().satp().deref());
         if info.mode == PTE_BARE {
             return Ok(va as u64);
         }
@@ -243,8 +239,8 @@ impl Mmu {
             let pa = (ppn << (info.page_size_shift as u64)) | vaddr.offset();
             return Ok(pa);
         }
-        match self.pt_walk(&vaddr, &opt, &privilege, &info) {
-            Ok(pa) => if !self.check_pmp(pa, len as usize, &opt, &privilege) {
+        match self.pt_walk(state, &vaddr, &opt, &privilege, &info) {
+            Ok(pa) => if !self.check_pmp(state, pa, len as usize, &opt, &privilege) {
                 return Err(opt.access_exception(va));
             } else {
                 tlb.set_entry(vaddr.vpn_all(), pa >> (info.page_size_shift as u64));
@@ -277,31 +273,31 @@ fn pmp_basic_test() {
 
     let p = sys.processor(0).unwrap();
     //no valid region
-    assert_eq!(p.mmu().match_pmpcfg_entry(0, 1), None);
+    assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), 0, 1), None);
     //NA4
     p.state().icsrs().pmpcfg0_mut().set_bit_range(4, 3, PmpAType::NA4.into());
     p.state().icsrs().pmpaddr0_mut().set(0x8000_0000 >> 2);
-    assert!(p.mmu().match_pmpcfg_entry(0x8000_0000, 4).is_some());
-    assert!(p.mmu().match_pmpcfg_entry(0x8000_0000, 5).is_none());
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x8000_0000, 4).is_some());
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x8000_0000, 5).is_none());
 
     //NAPOT
     p.state().icsrs().pmpcfg3_mut().set_bit_range(4, 3, PmpAType::NAPOT.into());
     p.state().icsrs().pmpaddr12_mut().set((0x2000_0000 + 0x1_0000 - 1) >> 2);
-    assert!(p.mmu().match_pmpcfg_entry(0x2000_0000, 4).is_some());
-    assert!(p.mmu().match_pmpcfg_entry(0x2000_ffff, 1).is_some());
-    assert!(p.mmu().match_pmpcfg_entry(0x2000_ffff, 2).is_none());
-    assert_eq!(p.mmu().match_pmpcfg_entry(0x2000_ffff, 1), p.mmu().match_pmpcfg_entry(0x2000_0000, 4));
-    assert_eq!(p.mmu().match_pmpcfg_entry(0x1000_ffff, 1), None);
-    assert_eq!(p.mmu().match_pmpcfg_entry(0x2001_0000, 4), None);
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x2000_0000, 4).is_some());
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x2000_ffff, 1).is_some());
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x2000_ffff, 2).is_none());
+    assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), 0x2000_ffff, 1), p.mmu().match_pmpcfg_entry(p.state(), 0x2000_0000, 4));
+    assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), 0x1000_ffff, 1), None);
+    assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), 0x2001_0000, 4), None);
     //TOR
     p.state().icsrs().pmpcfg3_mut().set_bit_range(12, 11, PmpAType::TOR.into());
     p.state().icsrs().pmpaddr13_mut().set((0x2000_0000 + 0x1_0000) >> 2);
     p.state().icsrs().pmpcfg3_mut().set_bit_range(20, 19, PmpAType::TOR.into());
     p.state().icsrs().pmpaddr14_mut().set((0x2000_0000 + 0x2_0000) >> 2);
-    assert!(p.mmu().match_pmpcfg_entry(0x2001_0000, 4).is_some());
-    assert!(p.mmu().match_pmpcfg_entry(0x2001_ffff, 1).is_some());
-    assert!(p.mmu().match_pmpcfg_entry(0x2001_ffff, 2).is_none());
-    assert_eq!(p.mmu().match_pmpcfg_entry(0x2002_0000, 4), None);
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x2001_0000, 4).is_some());
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x2001_ffff, 1).is_some());
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x2001_ffff, 2).is_none());
+    assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), 0x2002_0000, 4), None);
     p.state().icsrs().pmpcfg3_mut().set_bit_range(23, 23, 1);
-    assert!(p.mmu().match_pmpcfg_entry(0x2001_0000, 4).is_some());
+    assert!(p.mmu().match_pmpcfg_entry(p.state(), 0x2001_0000, 4).is_some());
 }

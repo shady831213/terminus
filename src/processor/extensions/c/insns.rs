@@ -20,7 +20,7 @@ impl Execution for CLWSP {
         let offset_5: RegT = ((self.imm(p.state().ir()) >> 5) & 0x1) as RegT;
         let offset_4_2: RegT = ((self.imm(p.state().ir()) >> 2) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_4_2 << 2 | offset_5 << 5 | offset_7_6 << 6);
-        let data = p.load_store().load_word((base + offset).0, p.mmu())?;
+        let data = p.load_store().load_word(p.state(), (base + offset).0, p.mmu())?;
         p.state().set_xreg(self.rd(p.state().ir()), sext(data, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 2);
         Ok(())
@@ -42,7 +42,7 @@ impl CLDSPCFLWSP {
         let offset_5: RegT = ((self.imm(p.state().ir()) >> 5) & 0x1) as RegT;
         let offset_4_3: RegT = ((self.imm(p.state().ir()) >> 3) & 0x3) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_4_3 << 3 | offset_5 << 5 | offset_8_6 << 6);
-        let data = p.load_store().load_double_word((base + offset).0, p.mmu())?;
+        let data = p.load_store().load_double_word(p.state(), (base + offset).0, p.mmu())?;
         p.state().set_xreg(self.rd(p.state().ir()), data as RegT & p.state().config().xlen.mask());
         Ok(())
     }
@@ -52,7 +52,7 @@ impl CLDSPCFLWSP {
         let offset_5: RegT = ((self.imm(p.state().ir()) >> 5) & 0x1) as RegT;
         let offset_4_2: RegT = ((self.imm(p.state().ir()) >> 2) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_4_2 << 2 | offset_5 << 5 | offset_7_6 << 6);
-        let data = p.load_store().load_word((base + offset).0, p.mmu())?;
+        let data = p.load_store().load_word(p.state(), (base + offset).0, p.mmu())?;
         f.set_freg(self.rd(p.state().ir()), f.flen.padding(data as FRegT, FLen::F32));
         Ok(())
     }
@@ -92,7 +92,7 @@ impl Execution for CFLDSP {
         let offset_5: RegT = ((self.imm(p.state().ir()) >> 5) & 0x1) as RegT;
         let offset_4_3: RegT = ((self.imm(p.state().ir()) >> 3) & 0x3) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_4_3 << 3 | offset_5 << 5 | offset_8_6 << 6);
-        let data = p.load_store().load_double_word((base + offset).0, p.mmu())?;
+        let data = p.load_store().load_double_word(p.state(), (base + offset).0, p.mmu())?;
         f.set_freg(self.rd(p.state().ir()), f.flen.padding(data as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 2);
         Ok(())
@@ -113,7 +113,7 @@ impl Execution for CSWSP {
         let offset_5_2: RegT = ((self.imm(p.state().ir()) >> 2) & 0xf) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_2 << 2 | offset_7_6 << 6);
         let src = p.state().xreg(self.rs2(p.state().ir()));
-        p.load_store().store_word((base + offset).0, src, p.mmu())?;
+        p.load_store().store_word(p.state(), (base + offset).0, src, p.mmu())?;
         p.state().set_pc(p.state().pc() + 2);
         Ok(())
     }
@@ -131,7 +131,7 @@ impl CSDSPFSWSP {
         let offset_5_3: RegT = ((self.imm(p.state().ir()) >> 3) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_3 << 3 | offset_8_6 << 6);
         let src = p.state().xreg(self.rs2(p.state().ir()));
-        p.load_store().store_double_word((base + offset).0, src, p.mmu())
+        p.load_store().store_double_word(p.state(), (base + offset).0, src, p.mmu())
     }
     fn execute_c_fswsp(&self, p: &Processor, base: Wrapping<RegT>) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
@@ -139,7 +139,7 @@ impl CSDSPFSWSP {
         let offset_5_2: RegT = ((self.imm(p.state().ir()) >> 2) & 0xf) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_2 << 2 | offset_7_6 << 6);
         let src = f.freg(self.rs2(p.state().ir())) as RegT;
-        p.load_store().store_word((base + offset).0, src, p.mmu())
+        p.load_store().store_word(p.state(), (base + offset).0, src, p.mmu())
     }
 }
 
@@ -177,7 +177,7 @@ impl Execution for CFSDSP {
         let offset_5_3: RegT = ((self.imm(p.state().ir()) >> 3) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_3 << 3 | offset_8_6 << 6);
         let src = f.freg(self.rs2(p.state().ir())) as RegT;
-        p.load_store().store_double_word((base + offset).0, src, p.mmu())?;
+        p.load_store().store_double_word(p.state(), (base + offset).0, src, p.mmu())?;
         p.state().set_pc(p.state().pc() + 2);
         Ok(())
     }
@@ -197,7 +197,7 @@ impl Execution for CLW {
         let offset_5_3: RegT = ((self.imm(p.state().ir()) >> 2) & 0x7) as RegT;
         let offset_2: RegT = ((self.imm(p.state().ir()) >> 1) & 0x1) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_2 << 2 | offset_5_3 << 3 | offset_6 << 6);
-        let data = p.load_store().load_word((base + offset).0, p.mmu())?;
+        let data = p.load_store().load_word(p.state(), (base + offset).0, p.mmu())?;
         p.state().set_xreg(self.rd(p.state().ir()), sext(data, 32) & p.state().config().xlen.mask());
         p.state().set_pc(p.state().pc() + 2);
         Ok(())
@@ -215,7 +215,7 @@ impl CLDFLW {
         let offset_7_6: RegT = (self.imm(p.state().ir()) & 0x3) as RegT;
         let offset_5_3: RegT = ((self.imm(p.state().ir()) >> 2) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_3 << 3 | offset_7_6 << 6);
-        let data = p.load_store().load_double_word((base + offset).0, p.mmu())?;
+        let data = p.load_store().load_double_word(p.state(), (base + offset).0, p.mmu())?;
         p.state().set_xreg(self.rd(p.state().ir()), data as RegT & p.state().config().xlen.mask());
         Ok(())
     }
@@ -225,7 +225,7 @@ impl CLDFLW {
         let offset_5_3: RegT = ((self.imm(p.state().ir()) >> 2) & 0x7) as RegT;
         let offset_2: RegT = ((self.imm(p.state().ir()) >> 1) & 0x1) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_2 << 2 | offset_5_3 << 3 | offset_6 << 6);
-        let data = p.load_store().load_word((base + offset).0, p.mmu())?;
+        let data = p.load_store().load_word(p.state(), (base + offset).0, p.mmu())?;
         f.set_freg(self.rd(p.state().ir()), f.flen.padding(data as FRegT, FLen::F32));
         Ok(())
     }
@@ -264,7 +264,7 @@ impl Execution for CFLD {
         let offset_7_6: RegT = (self.imm(p.state().ir()) & 0x3) as RegT;
         let offset_5_3: RegT = ((self.imm(p.state().ir()) >> 2) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_3 << 3 | offset_7_6 << 6);
-        let data = p.load_store().load_double_word((base + offset).0, p.mmu())?;
+        let data = p.load_store().load_double_word(p.state(), (base + offset).0, p.mmu())?;
         f.set_freg(self.rd(p.state().ir()), f.flen.padding(data as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 2);
         Ok(())
@@ -286,7 +286,7 @@ impl Execution for CSW {
         let offset_2: RegT = ((self.imm(p.state().ir()) >> 1) & 0x1) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_2 << 2 | offset_5_3 << 3 | offset_6 << 6);
         let src = p.state().xreg(self.rs2(p.state().ir()));
-        p.load_store().store_word((base + offset).0, src, p.mmu())?;
+        p.load_store().store_word(p.state(), (base + offset).0, src, p.mmu())?;
         p.state().set_pc(p.state().pc() + 2);
         Ok(())
     }
@@ -304,7 +304,7 @@ impl CSDFSW {
         let offset_5_3: RegT = ((self.imm(p.state().ir()) >> 2) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_3 << 3 | offset_7_6 << 6);
         let src = p.state().xreg(self.rs2(p.state().ir()));
-        p.load_store().store_double_word((base + offset).0, src, p.mmu())
+        p.load_store().store_double_word(p.state(), (base + offset).0, src, p.mmu())
     }
     fn execute_c_fsw(&self, p: &Processor, base: Wrapping<RegT>) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
@@ -313,7 +313,7 @@ impl CSDFSW {
         let offset_2: RegT = ((self.imm(p.state().ir()) >> 1) & 0x1) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_2 << 2 | offset_5_3 << 3 | offset_6 << 6);
         let src = f.freg(self.rs2(p.state().ir())) as RegT;
-        p.load_store().store_word((base + offset).0, src, p.mmu())
+        p.load_store().store_word(p.state(), (base + offset).0, src, p.mmu())
     }
 }
 
@@ -351,7 +351,7 @@ impl Execution for CFSD {
         let offset_5_3: RegT = ((self.imm(p.state().ir()) >> 2) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_3 << 3 | offset_7_6 << 6);
         let src = f.freg(self.rs2(p.state().ir())) as RegT;
-        p.load_store().store_double_word((base + offset).0, src, p.mmu())?;
+        p.load_store().store_double_word(p.state(), (base + offset).0, src, p.mmu())?;
         p.state().set_pc(p.state().pc() + 2);
         Ok(())
     }

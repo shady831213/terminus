@@ -18,7 +18,7 @@ impl Execution for FLD {
         let f = self.get_f_ext(p)?;
         let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
-        let data = p.load_store().load_double_word((base + offset).0, p.mmu())?;
+        let data = p.load_store().load_double_word(p.state(),(base + offset).0, p.mmu())?;
         f.set_freg(self.rd(p.state().ir()), f.flen.padding(data as FRegT, FLen::F64));
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
@@ -42,7 +42,7 @@ impl Execution for FSD {
         let f = self.get_f_ext(p)?;
         let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
         let data = f.freg(self.src(p.state().ir())) as u64;
-        p.load_store().store_double_word((base + self.offset(p.state().ir())).0, data as RegT, p.mmu())?;
+        p.load_store().store_double_word(p.state(),(base + self.offset(p.state().ir())).0, data as RegT, p.mmu())?;
         p.state().set_pc(p.state().pc() + 4);
         Ok(())
     }

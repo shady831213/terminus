@@ -34,7 +34,7 @@ impl HasStepCb for ExtensionA {
         if lc_res.valid {
             if p.state().insns_cnt() > lc_res.timestamp + 16 {
                 lc_res.valid = false;
-                p.load_store().release()
+                p.load_store().release(p.state())
             }
         }
     }

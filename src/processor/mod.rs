@@ -34,6 +34,7 @@ use fetcher::*;
 mod load_store;
 
 use load_store::*;
+use std::ops::DerefMut;
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
@@ -231,7 +232,7 @@ impl ProcessorState {
         &self.extensions
     }
 
-    fn get_extension(&self, id:char) -> &Extension {
+    fn get_extension(&self, id: char) -> &Extension {
         &self.extensions[(id as u8 - 'a' as u8) as usize]
     }
 
@@ -384,7 +385,7 @@ impl ProcessorState {
 }
 
 pub struct Processor {
-    state: Rc<ProcessorState>,
+    state: ProcessorState,
     mmu: Mmu,
     fetcher: Fetcher,
     load_store: LoadStore,
@@ -392,10 +393,10 @@ pub struct Processor {
 
 impl Processor {
     pub fn new(hartid: usize, config: ProcessorCfg, bus: &Arc<Bus>, clint: &Arc<IrqVec>) -> Processor {
-        let state = Rc::new(ProcessorState::new(hartid, config, clint));
-        let mmu = Mmu::new(&state, bus);
-        let fetcher = Fetcher::new(&state, bus);
-        let load_store = LoadStore::new(&state, bus);
+        let state = ProcessorState::new(hartid, config, clint);
+        let mmu = Mmu::new(bus);
+        let fetcher = Fetcher::new(bus);
+        let load_store = LoadStore::new(bus);
         Processor {
             state,
             mmu,
@@ -406,7 +407,7 @@ impl Processor {
 
     pub fn reset(&self, start_address: u64) -> Result<(), String> {
         self.state.reset(start_address)?;
-        self.load_store().reset();
+        self.load_store().release(self.state());
         self.mmu.flush_tlb();
         self.fetcher.flush_icache();
         Ok(())
@@ -425,12 +426,12 @@ impl Processor {
     }
 
     pub fn state(&self) -> &ProcessorState {
-        self.state.deref()
+        &self.state
     }
 
     fn one_insn(&self) -> Result<(), Exception> {
         *self.state.pc.borrow_mut() = *self.state.next_pc.borrow();
-        let inst = self.fetcher.fetch(*self.state.pc.borrow(), self.mmu())?;
+        let inst = self.fetcher.fetch(self.state(), self.mmu())?;
         match inst.execute(self) {
             Ok(_) => {
                 *self.state.insns_cnt.deref().borrow_mut() += 1;
