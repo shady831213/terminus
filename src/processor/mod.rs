@@ -232,7 +232,8 @@ impl ProcessorState {
     }
 
     fn get_extension(&self, id: char) -> &Extension {
-        &self.extensions[(id as u8 - 'a' as u8) as usize]
+        unsafe {self.extensions.get_unchecked((id as u8 - 'a' as u8) as usize)}
+        // &self.extensions[(id as u8 - 'a' as u8) as usize]
     }
 
     pub fn isa_string(&self) -> String {
