@@ -90,7 +90,7 @@ impl Fetcher {
 
     pub fn fetch(&self, state: &ProcessorState, mmu: &Mmu) -> Result<(InsnT, &'static Instruction), Exception> {
         let mut icache = self.icache.borrow_mut();
-        let pc = state.pc();
+        let pc = *state.pc();
         if pc.trailing_zeros() == 1 {
             let pa = mmu.translate(state, pc, 2, MmuOpt::Fetch)?;
             if let Some(res) = icache.get_insn(pa) {

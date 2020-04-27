@@ -15,7 +15,7 @@ impl Execution for CLWSP {
         if self.rd(p.state().ir()) == 0 {
             return Err(Exception::IllegalInsn(p.state().ir()));
         }
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(2));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(2));
         let offset_7_6: RegT = (self.imm(p.state().ir()) & 0x3) as RegT;
         let offset_5: RegT = ((self.imm(p.state().ir()) >> 5) & 0x1) as RegT;
         let offset_4_2: RegT = ((self.imm(p.state().ir()) >> 2) & 0x7) as RegT;
@@ -23,7 +23,7 @@ impl Execution for CLWSP {
         let data = p.load_store().load_word(p.state(), (base + offset).0, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = sext(data, 32) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -68,13 +68,13 @@ impl FloatInsn for CLDSPCFLWSP {}
 impl Execution for CLDSPCFLWSP {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(2));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(2));
         if let Ok(_) = p.state().check_xlen(XLen::X64) {
             self.execute_c_ldsp(p, base)?;
         } else {
             self.execute_c_lwsp(p, base)?;
         }
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -93,14 +93,14 @@ impl Execution for CFLDSP {
         p.state().check_extension('c')?;
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(2));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(2));
         let offset_8_6: RegT = (self.imm(p.state().ir()) & 0x7) as RegT;
         let offset_5: RegT = ((self.imm(p.state().ir()) >> 5) & 0x1) as RegT;
         let offset_4_3: RegT = ((self.imm(p.state().ir()) >> 3) & 0x3) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_4_3 << 3 | offset_5 << 5 | offset_8_6 << 6);
         let data = p.load_store().load_double_word(p.state(), (base + offset).0, p.mmu())?;
         f.set_freg(self.rd(p.state().ir()), f.flen.padding(data as FRegT, FLen::F64));
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -115,13 +115,13 @@ struct CSWSP();
 impl Execution for CSWSP {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(2));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(2));
         let offset_7_6: RegT = (self.imm(p.state().ir()) & 0x3) as RegT;
         let offset_5_2: RegT = ((self.imm(p.state().ir()) >> 2) & 0xf) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_2 << 2 | offset_7_6 << 6);
-        let src = p.state().xreg(self.rs2(p.state().ir()));
+        let src = *p.state().xreg(self.rs2(p.state().ir()));
         p.load_store().store_word(p.state(), (base + offset).0, src, p.mmu())?;
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -138,7 +138,7 @@ impl CSDSPFSWSP {
         let offset_8_6: RegT = (self.imm(p.state().ir()) & 0x7) as RegT;
         let offset_5_3: RegT = ((self.imm(p.state().ir()) >> 3) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_3 << 3 | offset_8_6 << 6);
-        let src = p.state().xreg(self.rs2(p.state().ir()));
+        let src = *p.state().xreg(self.rs2(p.state().ir()));
         p.load_store().store_double_word(p.state(), (base + offset).0, src, p.mmu())
     }
     fn execute_c_fswsp(&self, p: &mut Processor, base: Wrapping<RegT>) -> Result<(), Exception> {
@@ -156,13 +156,13 @@ impl FloatInsn for CSDSPFSWSP {}
 impl Execution for CSDSPFSWSP {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(2));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(2));
         if let Ok(_) = p.state().check_xlen(XLen::X64) {
             self.execute_c_sdsp(p, base)?;
         } else {
             self.execute_c_fswsp(p, base)?;
         };
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -181,13 +181,13 @@ impl Execution for CFSDSP {
         p.state().check_extension('c')?;
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(2));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(2));
         let offset_8_6: RegT = (self.imm(p.state().ir()) & 0x7) as RegT;
         let offset_5_3: RegT = ((self.imm(p.state().ir()) >> 3) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_3 << 3 | offset_8_6 << 6);
         let src = f.freg(self.rs2(p.state().ir())) as RegT;
         p.load_store().store_double_word(p.state(), (base + offset).0, src, p.mmu())?;
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -202,7 +202,7 @@ struct CLW();
 impl Execution for CLW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset_6: RegT = (self.imm(p.state().ir()) & 0x1) as RegT;
         let offset_5_3: RegT = ((self.imm(p.state().ir()) >> 2) & 0x7) as RegT;
         let offset_2: RegT = ((self.imm(p.state().ir()) >> 1) & 0x1) as RegT;
@@ -210,7 +210,7 @@ impl Execution for CLW {
         let data = p.load_store().load_word(p.state(), (base + offset).0, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = sext(data, 32) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -251,13 +251,13 @@ impl FloatInsn for CLDFLW {}
 impl Execution for CLDFLW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         if let Ok(_) = p.state().check_xlen(XLen::X64) {
             self.execute_c_ld(p, base)?;
         } else {
             self.execute_c_flw(p, base)?;
         };
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -276,13 +276,13 @@ impl Execution for CFLD {
         p.state().check_extension('c')?;
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset_7_6: RegT = (self.imm(p.state().ir()) & 0x3) as RegT;
         let offset_5_3: RegT = ((self.imm(p.state().ir()) >> 2) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_3 << 3 | offset_7_6 << 6);
         let data = p.load_store().load_double_word(p.state(), (base + offset).0, p.mmu())?;
         f.set_freg(self.rd(p.state().ir()), f.flen.padding(data as FRegT, FLen::F64));
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -297,14 +297,14 @@ struct CSW();
 impl Execution for CSW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset_6: RegT = (self.imm(p.state().ir()) & 0x1) as RegT;
         let offset_5_3: RegT = ((self.imm(p.state().ir()) >> 2) & 0x7) as RegT;
         let offset_2: RegT = ((self.imm(p.state().ir()) >> 1) & 0x1) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_2 << 2 | offset_5_3 << 3 | offset_6 << 6);
-        let src = p.state().xreg(self.rs2(p.state().ir()));
+        let src = *p.state().xreg(self.rs2(p.state().ir()));
         p.load_store().store_word(p.state(), (base + offset).0, src, p.mmu())?;
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -321,7 +321,7 @@ impl CSDFSW {
         let offset_7_6: RegT = (self.imm(p.state().ir()) & 0x3) as RegT;
         let offset_5_3: RegT = ((self.imm(p.state().ir()) >> 2) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_3 << 3 | offset_7_6 << 6);
-        let src = p.state().xreg(self.rs2(p.state().ir()));
+        let src = *p.state().xreg(self.rs2(p.state().ir()));
         p.load_store().store_double_word(p.state(), (base + offset).0, src, p.mmu())
     }
     fn execute_c_fsw(&self, p: &mut Processor, base: Wrapping<RegT>) -> Result<(), Exception> {
@@ -340,13 +340,13 @@ impl FloatInsn for CSDFSW {}
 impl Execution for CSDFSW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         if let Ok(_) = p.state().check_xlen(XLen::X64) {
             self.execute_c_sd(p, base)?;
         } else {
             self.execute_c_fsw(p, base)?;
         };
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -365,13 +365,13 @@ impl Execution for CFSD {
         p.state().check_extension('c')?;
         p.state().check_extension('d')?;
         let f = self.get_f_ext(p)?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset_7_6: RegT = (self.imm(p.state().ir()) & 0x3) as RegT;
         let offset_5_3: RegT = ((self.imm(p.state().ir()) >> 2) & 0x7) as RegT;
         let offset: Wrapping<RegT> = Wrapping(offset_5_3 << 3 | offset_7_6 << 6);
         let src = f.freg(self.rs2(p.state().ir())) as RegT;
         p.load_store().store_double_word(p.state(), (base + offset).0, src, p.mmu())?;
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -388,7 +388,7 @@ trait CJump: InstructionImp {
         let offset_10: RegT = ((self.imm(p.state().ir()) >> 6) & 0x1) as RegT;
         let offset_11: RegT = ((self.imm(p.state().ir()) >> 10) & 0x1) as RegT;
         let offset: Wrapping<RegT> = Wrapping(sext(offset_3_1 << 1 | offset_4 << 4 | offset_5 << 5 | offset_6 << 6 | offset_7 << 7 | offset_9_8 << 8 | offset_10 << 10 | offset_11 << 11, self.imm_len() + 1));
-        let t = (Wrapping(p.state().pc()) + offset).0;
+        let t = (Wrapping(*p.state().pc()) + offset).0;
         if t.trailing_zeros() < 1 {
             return Err(Exception::FetchMisaligned(t));
         }
@@ -423,7 +423,7 @@ impl CJALADDIW {
     fn execute_c_jal(&self, p: &mut Processor) -> Result<(), Exception> {
         self.jump(p)?;
         let rd = 1;
-        let value = p.state().pc() + 2;
+        let value = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         Ok(())
     }
@@ -437,11 +437,11 @@ impl CJALADDIW {
         if rd_addr == 0 {
             return Err(Exception::IllegalInsn(p.state().ir()));
         }
-        let rs1: Wrapping<RegT> = Wrapping(sext(p.state().xreg(rs1_addr), 32));
+        let rs1: Wrapping<RegT> = Wrapping(sext(*p.state().xreg(rs1_addr), 32));
         let rs2: Wrapping<RegT> = Wrapping(sext(imm, 6));
         let rd = rd_addr;
         let value = sext((rs1 + rs2).0, 32) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -468,7 +468,7 @@ trait CJumpR: InstructionImp {
         if self.rs1(p.state().ir()) == 0 {
             return Err(Exception::IllegalInsn(p.state().ir()));
         }
-        let t = p.state().xreg(self.rs1(p.state().ir()));
+        let t = *p.state().xreg(self.rs1(p.state().ir()));
         if t.trailing_zeros() < 1 {
             return Err(Exception::FetchMisaligned(t));
         }
@@ -492,10 +492,10 @@ impl CJRMV {
         if self.rd(p.state().ir()) == 0 {
             return Err(Exception::IllegalInsn(p.state().ir()));
         }
-        let rs2 = p.state().xreg(self.rs2(p.state().ir()));
+        let rs2 = *p.state().xreg(self.rs2(p.state().ir()));
         let rd = self.rd(p.state().ir());
         let value = rs2 & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -526,7 +526,7 @@ impl CJALRADDEBREAK {
     fn execute_c_jalr(&self, p: &mut Processor) -> Result<(), Exception> {
         self.jump(p)?;
         let rd = 1;
-        let value = p.state().pc() + 2;
+        let value = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         Ok(())
     }
@@ -534,11 +534,11 @@ impl CJALRADDEBREAK {
         if self.rd(p.state().ir()) == 0 {
             return Err(Exception::IllegalInsn(p.state().ir()));
         }
-        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
-        let rs2: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2(p.state().ir())));
+        let rs1: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
+        let rs2: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs2(p.state().ir())));
         let rd = self.rd(p.state().ir());
         let value = (rs1 + rs2).0 & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -573,8 +573,8 @@ trait CBranch: InstructionImp {
         let offset_8: RegT = ((self.imm(p.state().ir()) >> 7) & 0x1) as RegT;
 
         let offset: Wrapping<RegT> = Wrapping(sext(offset_2_1 << 1 | offset_4_3 << 3 | offset_5 << 5 | offset_7_6 << 6 | offset_8 << 8, self.imm_len() + 1));
-        let pc: Wrapping<RegT> = Wrapping(p.state().pc());
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
+        let pc: Wrapping<RegT> = Wrapping(*p.state().pc());
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
         if condition(rs1) {
             let t = (offset + pc).0;
             if t.trailing_zeros() < 1 {
@@ -634,7 +634,7 @@ impl Execution for CLI {
         }
         let rd = self.rd(p.state().ir());
         let value = sext(self.imm(p.state().ir()) as RegT, self.imm_len()) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -655,7 +655,7 @@ impl CLUIADDI16SP {
         Ok(())
     }
     fn execute_c_addi16sp(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(2));
+        let rs1: Wrapping<RegT> = Wrapping(*p.state().xreg(2));
         let imm_4: RegT = ((self.imm(p.state().ir()) >> 4) & 0x1) as RegT;
         let imm_5: RegT = (self.imm(p.state().ir()) & 0x1) as RegT;
         let imm_6: RegT = ((self.imm(p.state().ir()) >> 3) & 0x1) as RegT;
@@ -680,7 +680,7 @@ impl Execution for CLUIADDI16SP {
         } else {
             self.execute_c_lui(p)?
         }
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -697,7 +697,7 @@ impl CADDINOP {
         if self.rd(p.state().ir()) == 0 || self.imm(p.state().ir()) == 0 {
             return Err(Exception::IllegalInsn(p.state().ir()));
         }
-        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let rs1: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let rs2: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
         let rd = self.rd(p.state().ir());
         let value = (rs1 + rs2).0 & p.state().config().xlen.mask();
@@ -719,7 +719,7 @@ impl Execution for CADDINOP {
             self.execute_c_addi(p)?
         }
 
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -741,11 +741,11 @@ impl Execution for CADDI14SPN {
         let imm_3: RegT = (self.imm(p.state().ir()) & 0x1) as RegT;
         let imm_5_4: RegT = ((self.imm(p.state().ir()) >> 6) & 0x3) as RegT;
         let imm_9_6: RegT = ((self.imm(p.state().ir()) >> 2) & 0xf) as RegT;
-        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(2));
+        let rs1: Wrapping<RegT> = Wrapping(*p.state().xreg(2));
         let rs2: Wrapping<RegT> = Wrapping(imm_2 << 2 | imm_3 << 3 | imm_5_4 << 4 | imm_9_6 << 6);
         let rd = self.rd(p.state().ir());
         let value = (rs1 + rs2).0 & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -769,11 +769,11 @@ impl Execution for CSLLI {
                 return Err(Exception::IllegalInsn(p.state().ir()));
             }
         }
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
         let shamt: RegT = (self.imm(p.state().ir()) as RegT) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
         let rd = self.rd(p.state().ir());
         let value = rs1.wrapping_shl(shamt as u32) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -800,10 +800,10 @@ impl Execution for CSRLI {
                 return Err(Exception::IllegalInsn(p.state().ir()));
             }
         }
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
         let rd = self.rd(p.state().ir());
         let value = rs1 >> shamt;
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -830,10 +830,10 @@ impl Execution for CSRAI {
                 return Err(Exception::IllegalInsn(p.state().ir()));
             }
         }
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
         let rd = self.rd(p.state().ir());
         let value = sext(rs1.wrapping_shr(shamt as u32), p.state().config().xlen.len() - shamt as usize) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -852,11 +852,11 @@ impl Execution for CANDI {
         let imm_4_0: RegT = (self.imm(p.state().ir()) & 0x1f) as RegT;
         let imm_5: RegT = ((self.imm(p.state().ir()) >> 7) & 0x1) as RegT;
         let imm = imm_4_0 | imm_5 << 5;
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
         let rs2 = sext(imm, 6) & p.state().config().xlen.mask();
         let rd = self.rd(p.state().ir());
         let value = (rs1 & rs2) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -872,11 +872,11 @@ struct CAND();
 impl Execution for CAND {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
-        let rs2 = p.state().xreg(self.rs2(p.state().ir()));
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
+        let rs2 = *p.state().xreg(self.rs2(p.state().ir()));
         let rd = self.rd(p.state().ir());
         let value = (rs1 & rs2) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -892,11 +892,11 @@ struct COR();
 impl Execution for COR {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
-        let rs2 = p.state().xreg(self.rs2(p.state().ir()));
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
+        let rs2 = *p.state().xreg(self.rs2(p.state().ir()));
         let rd = self.rd(p.state().ir());
         let value = (rs1 | rs2) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -912,11 +912,11 @@ struct CXOR();
 impl Execution for CXOR {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
-        let rs2 = p.state().xreg(self.rs2(p.state().ir()));
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
+        let rs2 = *p.state().xreg(self.rs2(p.state().ir()));
         let rd = self.rd(p.state().ir());
         let value = (rs1 ^ rs2) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -932,11 +932,11 @@ struct CSUB();
 impl Execution for CSUB {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
-        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
-        let rs2: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2(p.state().ir())));
+        let rs1: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
+        let rs2: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs2(p.state().ir())));
         let rd = self.rd(p.state().ir());
         let value = (rs1 - rs2).0 & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -953,11 +953,11 @@ impl Execution for CADDW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
         p.state().check_xlen(XLen::X64)?;
-        let rs1: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs1(p.state().ir())), 32));
-        let rs2: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs2(p.state().ir())), 32));
+        let rs1: Wrapping<RegT> = Wrapping(sext(*p.state().xreg(self.rs1(p.state().ir())), 32));
+        let rs2: Wrapping<RegT> = Wrapping(sext(*p.state().xreg(self.rs2(p.state().ir())), 32));
         let rd = self.rd(p.state().ir());
         let value = sext((rs1 + rs2).0, 32) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -974,11 +974,11 @@ impl Execution for CSUBW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
         p.state().check_xlen(XLen::X64)?;
-        let rs1: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs1(p.state().ir())), 32));
-        let rs2: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs2(p.state().ir())), 32));
+        let rs1: Wrapping<RegT> = Wrapping(sext(*p.state().xreg(self.rs1(p.state().ir())), 32));
+        let rs2: Wrapping<RegT> = Wrapping(sext(*p.state().xreg(self.rs2(p.state().ir())), 32));
         let rd = self.rd(p.state().ir());
         let value = sext((rs1 - rs2).0, 32) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 2;
+        let pc = *p.state().pc() + 2;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())

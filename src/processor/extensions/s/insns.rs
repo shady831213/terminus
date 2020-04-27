@@ -52,7 +52,7 @@ impl Execution for SFENCEVMA {
         }
         p.mmu().flush_tlb();
         p.fetcher().flush_icache();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
     }

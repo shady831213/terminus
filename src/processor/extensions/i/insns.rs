@@ -8,9 +8,9 @@ trait Branch: InstructionImp {
     fn branch<F: Fn(&ProcessorState, RegT, RegT) -> bool>(&self, p: &mut Processor, condition: F) -> Result<(), Exception> {
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
 
-        let pc: Wrapping<RegT> = Wrapping(p.state().pc());
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
-        let rs2 = p.state().xreg(self.rs2(p.state().ir()));
+        let pc: Wrapping<RegT> = Wrapping(*p.state().pc());
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
+        let rs2 = *p.state().xreg(self.rs2(p.state().ir()));
         if condition(p.state(), rs1, rs2) {
             let t = (offset + pc).0;
             if let Err(_) = p.state().check_extension('c') {
@@ -129,7 +129,7 @@ trait Jump: InstructionImp {
         let pc = t;
         p.state_mut().set_pc(pc);
         let rd = self.rd(p.state().ir());
-        let value = p.state().pc() + 4;
+        let value = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         Ok(())
     }
@@ -145,7 +145,7 @@ impl Jump for JALR {}
 
 impl Execution for JALR {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        self.jump(p, |state, offset| { offset + Wrapping(state.xreg(self.rs1(state.ir()))) })
+        self.jump(p, |state, offset| { offset + Wrapping(*state.xreg(self.rs1(state.ir()))) })
     }
 }
 
@@ -159,7 +159,7 @@ impl Jump for JAL {}
 
 impl Execution for JAL {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        self.jump(p, |state, offset| { offset + Wrapping(state.pc()) })
+        self.jump(p, |state, offset| { offset + Wrapping(*state.pc()) })
     }
 }
 
@@ -173,7 +173,7 @@ struct LUI();
 impl Execution for LUI {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state.set_xreg(self.rd(p.state().ir()), sext(self.imm(p.state().ir()) as RegT, self.imm_len()) & p.state().config().xlen.mask());
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -187,10 +187,10 @@ struct AUIPC();
 
 impl Execution for AUIPC {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let pc: Wrapping<RegT> = Wrapping(p.state().pc());
+        let pc: Wrapping<RegT> = Wrapping(*p.state().pc());
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
         p.state.set_xreg(self.rd(p.state().ir()), (pc + offset).0 & p.state().config().xlen.mask());
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -204,11 +204,11 @@ struct ADDI();
 
 impl Execution for ADDI {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let rs1: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let rs2: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
         let rd = self.rd(p.state().ir());
         let value = (rs1 + rs2).0 & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -224,11 +224,11 @@ struct ADDIW();
 impl Execution for ADDIW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let rs1: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs1(p.state().ir())), 32));
+        let rs1: Wrapping<RegT> = Wrapping(sext(*p.state().xreg(self.rs1(p.state().ir())), 32));
         let rs2: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
         let rd = self.rd(p.state().ir());
         let value = sext((rs1 + rs2).0, 32) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -247,11 +247,11 @@ impl Execution for SLLI {
         if high != 0 {
             return Err(Exception::IllegalInsn(p.state().ir()));
         }
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
         let shamt: RegT = (self.imm(p.state().ir()) as RegT) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
         let rd = self.rd(p.state().ir());
         let value = rs1.wrapping_shl(shamt as u32) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -271,11 +271,11 @@ impl Execution for SLLIW {
         if high != 0 {
             return Err(Exception::IllegalInsn(p.state().ir()));
         }
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
         let shamt: RegT = (self.imm(p.state().ir()) as RegT) & 0x1f;
         let rd = self.rd(p.state().ir());
         let value = sext(rs1.wrapping_shl(shamt as u32), 32);
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -290,11 +290,11 @@ struct SRLI();
 
 impl Execution for SRLI {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1 = p.state().xreg(self.rs1(p.state().ir())) & p.state().config().xlen.mask();
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir())) & p.state().config().xlen.mask();
         let shamt: RegT = (self.imm(p.state().ir()) as RegT) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
         let rd = self.rd(p.state().ir());
         let value = rs1 >> shamt;
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -310,11 +310,11 @@ struct SRLIW();
 impl Execution for SRLIW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let rs1: RegT = p.state().xreg(self.rs1(p.state().ir())) as u32 as RegT;
+        let rs1: RegT = *p.state().xreg(self.rs1(p.state().ir())) as u32 as RegT;
         let shamt: RegT = (self.imm(p.state().ir()) as RegT) & 0x1f;
         let rd = self.rd(p.state().ir());
         let value = sext(rs1 >> shamt, 32) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -329,11 +329,11 @@ struct SRAI();
 
 impl Execution for SRAI {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1 = p.state().xreg(self.rs1(p.state().ir())) & p.state().config().xlen.mask();
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir())) & p.state().config().xlen.mask();
         let shamt: RegT = (self.imm(p.state().ir()) as RegT) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
         let rd = self.rd(p.state().ir());
         let value = sext(rs1.wrapping_shr(shamt as u32), p.state().config().xlen.len() - shamt as usize) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -349,11 +349,11 @@ struct SRAIW();
 impl Execution for SRAIW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let rs1: RegT = p.state().xreg(self.rs1(p.state().ir())) as u32 as RegT;
+        let rs1: RegT = *p.state().xreg(self.rs1(p.state().ir())) as u32 as RegT;
         let shamt: RegT = (self.imm(p.state().ir()) as RegT) & 0x1f;
         let rd = self.rd(p.state().ir());
         let value = sext(rs1.wrapping_shr(shamt as u32), 32 - shamt as usize) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -368,7 +368,7 @@ struct SLTI();
 
 impl Execution for SLTI {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1 = sext(p.state().xreg(self.rs1(p.state().ir())), p.state.config().xlen.len()) as SRegT;
+        let rs1 = sext(*p.state().xreg(self.rs1(p.state().ir())), p.state.config().xlen.len()) as SRegT;
         let rs2 = sext(self.imm(p.state().ir()) as RegT, self.imm_len()) as SRegT;
         if rs1 < rs2 {
             let rd = self.rd(p.state().ir());
@@ -379,7 +379,7 @@ impl Execution for SLTI {
             let value = 0;
             p.state_mut().set_xreg(rd, value);
         }
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -393,7 +393,7 @@ struct SLTIU();
 
 impl Execution for SLTIU {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
         let rs2 = sext(self.imm(p.state().ir()) as RegT, self.imm_len()) & p.state().config().xlen.mask();
         if rs1 == 0 && self.rs2(p.state().ir()) == 1 || rs1 < rs2 {
             let rd = self.rd(p.state().ir());
@@ -404,7 +404,7 @@ impl Execution for SLTIU {
             let value = 0;
             p.state_mut().set_xreg(rd, value);
         }
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -418,11 +418,11 @@ struct XORI();
 
 impl Execution for XORI {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
         let rs2 = sext(self.imm(p.state().ir()) as RegT, self.imm_len()) & p.state().config().xlen.mask();
         let rd = self.rd(p.state().ir());
         let value = (rs1 ^ rs2) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -437,11 +437,11 @@ struct ORI();
 
 impl Execution for ORI {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
         let rs2 = sext(self.imm(p.state().ir()) as RegT, self.imm_len()) & p.state().config().xlen.mask();
         let rd = self.rd(p.state().ir());
         let value = (rs1 | rs2) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -456,11 +456,11 @@ struct ANDI();
 
 impl Execution for ANDI {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
         let rs2 = sext(self.imm(p.state().ir()) as RegT, self.imm_len()) & p.state().config().xlen.mask();
         let rd = self.rd(p.state().ir());
         let value = (rs1 & rs2) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -475,11 +475,11 @@ struct ADD();
 
 impl Execution for ADD {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
-        let rs2: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2(p.state().ir())));
+        let rs1: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
+        let rs2: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs2(p.state().ir())));
         let rd = self.rd(p.state().ir());
         let value = (rs1 + rs2).0 & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -495,11 +495,11 @@ struct ADDW();
 impl Execution for ADDW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let rs1: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs1(p.state().ir())), 32));
-        let rs2: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs2(p.state().ir())), 32));
+        let rs1: Wrapping<RegT> = Wrapping(sext(*p.state().xreg(self.rs1(p.state().ir())), 32));
+        let rs2: Wrapping<RegT> = Wrapping(sext(*p.state().xreg(self.rs2(p.state().ir())), 32));
         let rd = self.rd(p.state().ir());
         let value = sext((rs1 + rs2).0, 32) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -514,11 +514,11 @@ struct SUB();
 
 impl Execution for SUB {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
-        let rs2: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs2(p.state().ir())));
+        let rs1: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
+        let rs2: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs2(p.state().ir())));
         let rd = self.rd(p.state().ir());
         let value = (rs1 - rs2).0 & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -534,11 +534,11 @@ struct SUBW();
 impl Execution for SUBW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let rs1: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs1(p.state().ir())), 32));
-        let rs2: Wrapping<RegT> = Wrapping(sext(p.state().xreg(self.rs2(p.state().ir())), 32));
+        let rs1: Wrapping<RegT> = Wrapping(sext(*p.state().xreg(self.rs1(p.state().ir())), 32));
+        let rs2: Wrapping<RegT> = Wrapping(sext(*p.state().xreg(self.rs2(p.state().ir())), 32));
         let rd = self.rd(p.state().ir());
         let value = sext((rs1 - rs2).0, 32) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -553,11 +553,11 @@ struct SLL();
 
 impl Execution for SLL {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
-        let shamt: RegT = p.state().xreg(self.rs2(p.state().ir())) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
+        let shamt: RegT = *p.state().xreg(self.rs2(p.state().ir())) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
         let rd = self.rd(p.state().ir());
         let value = rs1.wrapping_shl(shamt as u32) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -573,11 +573,11 @@ struct SLLW();
 impl Execution for SLLW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let rs1: RegT = p.state().xreg(self.rs1(p.state().ir())) as u32 as RegT;
-        let shamt: RegT = p.state().xreg(self.rs2(p.state().ir())) & 0x1f;
+        let rs1: RegT = *p.state().xreg(self.rs1(p.state().ir())) as u32 as RegT;
+        let shamt: RegT = *p.state().xreg(self.rs2(p.state().ir())) & 0x1f;
         let rd = self.rd(p.state().ir());
         let value = sext(rs1.wrapping_shl(shamt as u32), 32) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -592,11 +592,11 @@ struct SRL();
 
 impl Execution for SRL {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1 = p.state().xreg(self.rs1(p.state().ir())) & p.state().config().xlen.mask();
-        let shamt: RegT = p.state().xreg(self.rs2(p.state().ir())) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir())) & p.state().config().xlen.mask();
+        let shamt: RegT = *p.state().xreg(self.rs2(p.state().ir())) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
         let rd = self.rd(p.state().ir());
         let value = rs1 >> shamt;
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -612,11 +612,11 @@ struct SRLW();
 impl Execution for SRLW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let rs1: RegT = p.state().xreg(self.rs1(p.state().ir())) as u32 as RegT;
-        let shamt: RegT = p.state().xreg(self.rs2(p.state().ir())) & 0x1f;
+        let rs1: RegT = *p.state().xreg(self.rs1(p.state().ir())) as u32 as RegT;
+        let shamt: RegT = *p.state().xreg(self.rs2(p.state().ir())) & 0x1f;
         let rd = self.rd(p.state().ir());
         let value = sext(rs1 >> shamt, 32) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -631,11 +631,11 @@ struct SRA();
 
 impl Execution for SRA {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1 = p.state().xreg(self.rs1(p.state().ir())) & p.state().config().xlen.mask();
-        let shamt: RegT = p.state().xreg(self.rs2(p.state().ir())) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir())) & p.state().config().xlen.mask();
+        let shamt: RegT = *p.state().xreg(self.rs2(p.state().ir())) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
         let rd = self.rd(p.state().ir());
         let value = sext(rs1.wrapping_shr(shamt as u32), p.state().config().xlen.len() - shamt as usize) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -651,11 +651,11 @@ struct SRAW();
 impl Execution for SRAW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let rs1: RegT = p.state().xreg(self.rs1(p.state().ir())) as u32 as RegT;
-        let shamt: RegT = p.state().xreg(self.rs2(p.state().ir())) & 0x1f;
+        let rs1: RegT = *p.state().xreg(self.rs1(p.state().ir())) as u32 as RegT;
+        let shamt: RegT = *p.state().xreg(self.rs2(p.state().ir())) & 0x1f;
         let rd = self.rd(p.state().ir());
         let value = sext(rs1.wrapping_shr(shamt as u32), 32 - shamt as usize) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -670,8 +670,8 @@ struct SLT();
 
 impl Execution for SLT {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1 = sext(p.state().xreg(self.rs1(p.state().ir())), p.state.config().xlen.len()) as SRegT;
-        let rs2 = sext(p.state().xreg(self.rs2(p.state().ir())), p.state.config().xlen.len()) as SRegT;
+        let rs1 = sext(*p.state().xreg(self.rs1(p.state().ir())), p.state.config().xlen.len()) as SRegT;
+        let rs2 = sext(*p.state().xreg(self.rs2(p.state().ir())), p.state.config().xlen.len()) as SRegT;
         if rs1 < rs2 {
             let rd = self.rd(p.state().ir());
             let value = 1;
@@ -681,7 +681,7 @@ impl Execution for SLT {
             let value = 0;
             p.state_mut().set_xreg(rd, value);
         }
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -695,8 +695,8 @@ struct SLTU();
 
 impl Execution for SLTU {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
-        let rs2 = p.state().xreg(self.rs2(p.state().ir()));
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
+        let rs2 = *p.state().xreg(self.rs2(p.state().ir()));
         if rs2 != 0 && self.rs1(p.state().ir()) == 0 || rs1 < rs2 {
             let rd = self.rd(p.state().ir());
             let value = 1;
@@ -706,7 +706,7 @@ impl Execution for SLTU {
             let value = 0;
             p.state_mut().set_xreg(rd, value);
         }
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -720,11 +720,11 @@ struct XOR();
 
 impl Execution for XOR {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
-        let rs2 = p.state().xreg(self.rs2(p.state().ir()));
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
+        let rs2 = *p.state().xreg(self.rs2(p.state().ir()));
         let rd = self.rd(p.state().ir());
         let value = (rs1 ^ rs2) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -739,11 +739,11 @@ struct OR();
 
 impl Execution for OR {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
-        let rs2 = p.state().xreg(self.rs2(p.state().ir()));
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
+        let rs2 = *p.state().xreg(self.rs2(p.state().ir()));
         let rd = self.rd(p.state().ir());
         let value = (rs1 | rs2) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -758,11 +758,11 @@ struct AND();
 
 impl Execution for AND {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1 = p.state().xreg(self.rs1(p.state().ir()));
-        let rs2 = p.state().xreg(self.rs2(p.state().ir()));
+        let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
+        let rs2 = *p.state().xreg(self.rs2(p.state().ir()));
         let rd = self.rd(p.state().ir());
         let value = (rs1 & rs2) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -777,12 +777,12 @@ struct LB();
 
 impl Execution for LB {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
         let data = p.load_store().load_byte(p.state(), (base + offset).0, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = sext(data, 8) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -798,12 +798,12 @@ struct LBU();
 
 impl Execution for LBU {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
         let data = p.load_store().load_byte(p.state(), (base + offset).0, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = data;
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -818,12 +818,12 @@ struct LH();
 
 impl Execution for LH {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
         let data = p.load_store().load_half_word(p.state(), (base + offset).0, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = sext(data, 16) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -838,12 +838,12 @@ struct LHU();
 
 impl Execution for LHU {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
         let data = p.load_store().load_half_word(p.state(), (base + offset).0, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = data;
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -858,12 +858,12 @@ struct LW();
 
 impl Execution for LW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
         let data = p.load_store().load_word(p.state(), (base + offset).0, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = sext(data, 32) & p.state().config().xlen.mask();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -879,12 +879,12 @@ struct LWU();
 impl Execution for LWU {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
         let data = p.load_store().load_word(p.state(), (base + offset).0, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = data;
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -900,12 +900,12 @@ struct LD();
 impl Execution for LD {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
         let data = p.load_store().load_double_word(p.state(), (base + offset).0, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = data;
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -933,10 +933,10 @@ impl Store for SB {}
 
 impl Execution for SB {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
-        let data = p.state().xreg(self.src(p.state().ir()));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
+        let data = *p.state().xreg(self.src(p.state().ir()));
         p.load_store.store_byte(p.state(), (base + self.offset(p.state().ir())).0, data, p.mmu())?;
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -952,10 +952,10 @@ impl Store for SH {}
 
 impl Execution for SH {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
-        let data = p.state().xreg(self.src(p.state().ir()));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
+        let data = *p.state().xreg(self.src(p.state().ir()));
         p.load_store.store_half_word(p.state(), (base + self.offset(p.state().ir())).0, data, p.mmu())?;
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -971,10 +971,10 @@ impl Store for SW {}
 
 impl Execution for SW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
-        let data = p.state().xreg(self.src(p.state().ir()));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
+        let data = *p.state().xreg(self.src(p.state().ir()));
         p.load_store.store_word(p.state(), (base + self.offset(p.state().ir())).0, data, p.mmu())?;
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -991,10 +991,10 @@ impl Store for SD {}
 impl Execution for SD {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_xlen(XLen::X64)?;
-        let base: Wrapping<RegT> = Wrapping(p.state().xreg(self.rs1(p.state().ir())));
-        let data = p.state().xreg(self.src(p.state().ir()));
+        let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
+        let data = *p.state().xreg(self.src(p.state().ir()));
         p.load_store.store_double_word(p.state(), (base + self.offset(p.state().ir())).0, data, p.mmu())?;
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -1008,7 +1008,7 @@ struct FENCE();
 
 impl Execution for FENCE {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -1023,7 +1023,7 @@ struct FENCEI();
 impl Execution for FENCEI {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.fetcher().flush_icache();
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
     }
@@ -1043,7 +1043,7 @@ trait CsrAccess: InstructionImp {
         }
         let rd = self.rd(p.state().ir());
         let value = csr;
-        let pc = p.state().pc() + 4;
+        let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, value);
         p.state_mut().set_pc(pc);
         Ok(())
@@ -1060,7 +1060,7 @@ impl CsrAccess for CSRRW {}
 
 impl Execution for CSRRW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        self.csr_access(p, |state, _| { state.xreg(self.rs1(state.ir())) }, |state| { self.rd(state.ir()) != 0 }, |_| { true })
+        self.csr_access(p, |state, _| { *state.xreg(self.rs1(state.ir())) }, |state| { self.rd(state.ir()) != 0 }, |_| { true })
     }
 }
 
@@ -1074,7 +1074,7 @@ impl CsrAccess for CSRRS {}
 
 impl Execution for CSRRS {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        self.csr_access(p, |state, csr| { state.xreg(self.rs1(state.ir())) | csr }, |_| { true }, |state| { self.rs1(state.ir()) != 0 })
+        self.csr_access(p, |state, csr| { *state.xreg(self.rs1(state.ir())) | csr }, |_| { true }, |state| { self.rs1(state.ir()) != 0 })
     }
 }
 
@@ -1088,7 +1088,7 @@ impl CsrAccess for CSRRC {}
 
 impl Execution for CSRRC {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        self.csr_access(p, |state, csr| { !state.xreg(self.rs1(state.ir())) & csr }, |_| { true }, |state| { self.rs1(state.ir()) != 0 })
+        self.csr_access(p, |state, csr| { !*state.xreg(self.rs1(state.ir())) & csr }, |_| { true }, |state| { self.rs1(state.ir()) != 0 })
     }
 }
 
@@ -1204,7 +1204,7 @@ impl Execution for WFI {
             return Err(Exception::IllegalInsn(p.state().ir()));
         }
         if csrs.mip().get() != 0 {
-            let pc = p.state().pc() + 4;
+            let pc = *p.state().pc() + 4;
             p.state_mut().set_pc(pc);
         }
         Ok(())

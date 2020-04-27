@@ -344,8 +344,8 @@ impl ProcessorState {
     }
 
 
-    pub fn pc(&self) -> RegT {
-        self.pc
+    pub fn pc(&self) -> &RegT {
+        &self.pc
     }
 
     pub fn set_pc(&mut self, pc: RegT) {
@@ -360,27 +360,29 @@ impl ProcessorState {
         self.ir = ir
     }
 
-    pub fn next_pc(&self) -> RegT {
-        self.next_pc
+    pub fn next_pc(&self) -> &RegT {
+        &self.next_pc
     }
 
     pub fn insns_cnt(&self) -> &Rc<RefCell<u64>> {
         &self.insns_cnt
     }
 
-    pub fn xreg(&self, id: InsnT) -> RegT {
+    pub fn xreg(&self, id: InsnT) -> &RegT {
         let trip_id = id & 0x1f;
         if trip_id == 0 {
-            0
+            &0
         } else {
-            self.xreg[trip_id as usize]
+            // self.xreg[trip_id as usize]
+            unsafe { self.xreg.get_unchecked(trip_id as usize) }
         }
     }
 
     pub fn set_xreg(&mut self, id: InsnT, value: RegT) {
         let trip_id = id & 0x1f;
         if trip_id != 0 {
-            self.xreg[trip_id as usize] = value
+            *unsafe { self.xreg.get_unchecked_mut(trip_id as usize) } = value
+            // self.xreg[trip_id as usize] = value
         }
     }
 }
@@ -435,7 +437,7 @@ impl Processor {
     }
 
     fn one_insn(&mut self) -> Result<(), Exception> {
-        self.state.pc = self.state.next_pc;
+        self.state_mut().pc = self.state.next_pc;
         let (ir, inst) = self.fetcher.fetch(self.state(), self.mmu())?;
         self.state.ir = ir;
         match inst.execute(self) {
@@ -510,7 +512,7 @@ impl Processor {
             let pc = (tvec.base() << 2) + offset;
             scsrs.scause_mut().set_code(code);
             scsrs.scause_mut().set_int(int_flag);
-            scsrs.sepc_mut().set(self.state().pc());
+            scsrs.sepc_mut().set(*self.state().pc());
             scsrs.stval_mut().set(tval);
 
             let sie = mcsrs.mstatus().sie();
@@ -531,7 +533,7 @@ impl Processor {
             let pc = (tvec.base() << 2) + offset;
             mcsrs.mcause_mut().set_code(code);
             mcsrs.mcause_mut().set_int(int_flag);
-            mcsrs.mepc_mut().set(self.state().pc());
+            mcsrs.mepc_mut().set(*self.state().pc());
             mcsrs.mtval_mut().set(tval);
 
             let mie = mcsrs.mstatus().mie();
