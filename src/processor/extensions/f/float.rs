@@ -3,7 +3,6 @@ extern crate simple_soft_float;
 use crate::prelude::*;
 use crate::processor::extensions::f::ExtensionF;
 use crate::processor::extensions::Extension;
-use std::rc::Rc;
 use simple_soft_float::{RoundingMode, StatusFlags, FloatClass, FloatTraits, Float, FloatBitsType};
 use std::cmp::Ordering;
 use std::num::Wrapping;
@@ -13,7 +12,7 @@ pub use simple_soft_float::{F64, F32, Sign, F64Traits, F32Traits, FPState};
 pub trait FloatInsn: InstructionImp {
     fn get_f_ext<'p>(&self, p: &'p Processor) -> Result<&'p ExtensionF, Exception> {
         p.state().check_extension('f')?;
-        if let Extension::F(ref f) = p.state().get_extension('f') {
+        if let Extension::F(f) = p.state().get_extension('f') {
             if f.dirty() == 0 {
                 Err(Exception::IllegalInsn(p.state().ir()))
             } else {
@@ -21,6 +20,14 @@ pub trait FloatInsn: InstructionImp {
             }
         } else {
             Err(Exception::IllegalInsn(p.state().ir()))
+        }
+    }
+
+    fn get_f_ext_mut<'p>(&self, p: &'p mut Processor) -> &'p mut ExtensionF {
+        if let Extension::F(f) = p.state_mut().get_extension_mut('f') {
+            f
+        } else {
+            unreachable!()
         }
     }
     fn rm(&self, code: InsnT) -> RegT {

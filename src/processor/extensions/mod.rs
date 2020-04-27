@@ -20,7 +20,6 @@ use m::*;
 use s::*;
 use u::*;
 use v::*;
-use std::rc::Rc;
 
 trait HasCsr {
     fn csr_write(&self, state: &ProcessorState, addr: InsnT, value: RegT) -> Option<()>;

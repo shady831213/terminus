@@ -1,5 +1,5 @@
 use crate::processor::ProcessorState;
-use std::cell::{RefCell, Ref};
+use std::cell::RefCell;
 use std::rc::Rc;
 use crate::processor::extensions::{HasCsr, NoStepCb};
 use terminus_global::{RegT, InsnT};
@@ -68,7 +68,7 @@ impl FLen {
 
 pub struct ExtensionF {
     pub flen: FLen,
-    freg: RefCell<[FRegT; 32]>,
+    freg: [FRegT; 32],
     csrs: Rc<FCsrs>,
     dirty: Rc<RefCell<RegT>>,
 }
@@ -77,7 +77,7 @@ impl ExtensionF {
     pub fn new(state: &ProcessorState) -> ExtensionF {
         let mut e = ExtensionF {
             flen: FLen::F32,
-            freg: RefCell::new([0 as FRegT; 32]),
+            freg: [0 as FRegT; 32],
             csrs: Rc::new(FCsrs::new(state.config().xlen)),
             dirty: Rc::new(RefCell::new(0)),
         };
@@ -144,23 +144,25 @@ impl ExtensionF {
         e
     }
 
-    pub fn freg(&self, id: InsnT) -> FRegT {
+    pub fn freg(&self, id: InsnT) -> &FRegT {
         let trip_id = id & 0x1f;
-        (*self.freg.borrow())[trip_id as usize]
+        unsafe { self.freg.get_unchecked(trip_id as usize) }
+        // (*self.freg.borrow())[trip_id as usize]
     }
 
-    pub fn set_freg(&self, id: InsnT, value: FRegT) {
+    pub fn set_freg(&mut self, id: InsnT, value: FRegT) {
         let trip_id = id & 0x1f;
         *self.dirty.borrow_mut() = 0x3;
-        (*self.freg.borrow_mut())[trip_id as usize] = value
+        *unsafe { self.freg.get_unchecked_mut(trip_id as usize) } = value
+        // (*self.freg.borrow_mut())[trip_id as usize] = value
     }
 
     pub fn dirty(&self) -> RegT {
         *self.dirty.deref().borrow()
     }
 
-    pub fn fregs(&self) -> Ref<'_, [FRegT; 32]> {
-        self.freg.borrow()
+    pub fn fregs(&self) -> &[FRegT; 32] {
+        &self.freg
     }
 }
 
@@ -178,4 +180,4 @@ impl HasCsr for ExtensionF {
     }
 }
 
-impl NoStepCb for ExtensionF{}
+impl NoStepCb for ExtensionF {}
