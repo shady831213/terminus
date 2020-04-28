@@ -1206,7 +1206,7 @@ impl Execution for WFI {
         if csrs.mstatus().tw() != 0 && p.state().config().privilege_level() != PrivilegeLevel::M {
             return Err(Exception::IllegalInsn(p.state().ir()));
         }
-        if csrs.mip().get() != 0 {
+        if csrs.mip().get() & csrs.mie().get() != 0 {
             let pc = *p.state().pc() + 4;
             p.state_mut().set_pc(pc);
         }

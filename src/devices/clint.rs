@@ -40,7 +40,7 @@ impl TimerInner {
         for (irq_vec, mtimecmp) in self.irq_vecs.iter().zip(self.mtimecmps.iter()) {
             irq_vec.clr_pending(1).unwrap();
             if self.cnt >= *mtimecmp {
-                irq_vec.sender(1).unwrap().send().unwrap()
+                irq_vec.sender(1).unwrap().send().unwrap();
             }
         }
     }

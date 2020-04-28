@@ -556,6 +556,7 @@ impl Processor {
     pub fn step(&mut self, n: usize) {
         assert!(n > 0);
         for _ in 0..n {
+
             if let Err(exct) = self.one_insn() {
                 self.handle_trap(Trap::Exception(exct))
             }

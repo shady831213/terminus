@@ -37,7 +37,7 @@ impl HTIF {
         }
     }
 
-    fn handle_cmd(desp: &mut HTIFDesp) {
+    fn handle_cmd(&self, desp: &mut HTIFDesp) {
         if desp.tohost & 0x1 == 1 && desp.tohost_device() == 0 && desp.tohost_cmd() == 0 {
             EXIT_CTRL.exit("htif shutdown!").unwrap();
         } else if desp.tohost_device() == 1 && desp.tohost_cmd() == 1 {
@@ -48,20 +48,23 @@ impl HTIF {
             handle.write(&data).unwrap();
             handle.flush().unwrap();
             desp.tohost = 0;
-            desp.fromhost = desp.tohost_device() << 56 | desp.tohost_cmd() << 48;
         } else if desp.tohost_device() == 1 && desp.tohost_cmd() == 0 {
+            self.fromhost_poll(desp);
             desp.tohost = 0;
         } else {
-            panic!(format!("HTIF:unsupportd tohost={:#x}", desp.tohost))
+            panic!(format!("unsupported cmd:{:#x}", *desp.tohost.borrow()))
         }
     }
 
-    fn fromhost_poll(&self) {
-        let mut desp = self.desc.lock().unwrap();
-        if desp.borrow().fromhost == 0 {
+    fn fromhost_poll(&self, desp: &mut HTIFDesp) {
+        if desp.fromhost == 0 {
             let mut data = [0u8; 1];
             match TERM.stdin().lock().read_exact(&mut data) {
-                Ok(_) => desp.borrow_mut().fromhost.set_bit_range(7, 0, data[0]),
+                Ok(_) => {
+                    desp.fromhost.set_bit_range(8, 8, 1);
+                    desp.fromhost.set_bit_range(7, 0, data[0]);
+                    desp.fromhost.set_bit_range(63, 48, desp.tohost >> 48);
+                }
                 Err(e) if e.kind() == ErrorKind::WouldBlock => {}
                 Err(e) => panic!("{:?}", e)
             }
@@ -102,7 +105,7 @@ impl U32Access for HTIF {
         } else if *addr == self.tohost_off + 4 {
             let mut desp = self.desc.lock().unwrap();
             desp.borrow_mut().tohost.set_bit_range(63, 32, data);
-            HTIF::handle_cmd(desp.borrow_mut())
+            self.handle_cmd(desp.borrow_mut())
         } else if let Some(fromhost) = self.fromhost_off {
             if *addr == fromhost {
                 self.desc.lock().unwrap().fromhost.set_bit_range(31, 0, data)
@@ -119,10 +122,8 @@ impl U32Access for HTIF {
             (self.desc.lock().unwrap().tohost >> 32) as u32
         } else if let Some(fromhost) = self.fromhost_off {
             if *addr == fromhost {
-                self.fromhost_poll();
                 self.desc.lock().unwrap().fromhost as u32
             } else if *addr == fromhost + 4 {
-                self.fromhost_poll();
                 (self.desc.lock().unwrap().fromhost >> 32) as u32
             } else {
                 panic!("invalid HTIF addr")
@@ -139,7 +140,7 @@ impl U64Access for HTIF {
         if *addr == self.tohost_off {
             let mut desp = self.desc.lock().unwrap();
             desp.borrow_mut().tohost = data;
-            HTIF::handle_cmd(desp.borrow_mut())
+            self.handle_cmd(desp.borrow_mut())
         } else if let Some(fromhost) = self.fromhost_off {
             if *addr == fromhost {
                 self.desc.lock().unwrap().fromhost = data
@@ -152,18 +153,18 @@ impl U64Access for HTIF {
     }
 
     fn read(&self, addr: &u64) -> u64 {
-        if *addr == self.tohost_off {
+        let data = if *addr == self.tohost_off {
             self.desc.lock().unwrap().tohost
         } else if let Some(fromhost) = self.fromhost_off {
             if *addr == fromhost {
-                self.fromhost_poll();
                 self.desc.lock().unwrap().fromhost
             } else {
-                panic!("invalid HTIF addr")
+                panic!("invalid HTIF addr");
             }
         } else {
-            panic!("invalid HTIF addr")
-        }
+            panic!("invalid HTIF addr");
+        };
+        data
     }
 }
 
