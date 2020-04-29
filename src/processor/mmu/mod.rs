@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 use std::convert::TryFrom;
 use crate::processor::trap::Exception;
 use terminus_global::{RegT, InsnT};
-use std::sync::Arc;
 use crate::processor::ProcessorState;
 use terminus_macros::*;
 use crate::devices::bus::Bus;
@@ -53,14 +52,14 @@ impl MmuOpt {
 }
 
 pub struct Mmu {
-    bus: Arc<Bus>,
+    bus: Rc<Bus>,
     fetch_tlb: RefCell<TLB>,
     load_tlb: RefCell<TLB>,
     store_tlb: RefCell<TLB>,
 }
 
 impl Mmu {
-    pub fn new(bus: &Arc<Bus>) -> Mmu {
+    pub fn new(bus: &Rc<Bus>) -> Mmu {
         Mmu {
             bus: bus.clone(),
             fetch_tlb: RefCell::new(TLB::new()),
@@ -274,6 +273,7 @@ use crate::processor::ProcessorCfg;
 use crate::system::System;
 use std::cell::RefCell;
 use std::ops::DerefMut;
+use std::rc::Rc;
 
 #[test]
 fn pmp_basic_test() {

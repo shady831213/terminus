@@ -2,7 +2,6 @@ use terminus_spaceport::memory::MemInfo;
 use terminus_spaceport::space::Space;
 use terminus_spaceport::space;
 use terminus_spaceport::memory::region::{Region, IOAccess, BytesAccess, GHEAP};
-use std::sync::Arc;
 use std::fmt;
 use crate::devices::htif::HTIF;
 use crate::devices::bus::Bus;
@@ -11,6 +10,7 @@ use crate::processor::{ProcessorCfg, Processor};
 use std::cmp::min;
 use crate::devices::clint::Timer;
 use std::ops::Deref;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub enum Error {
@@ -34,24 +34,25 @@ use elf::ElfLoader;
 use crate::system::fdt::{FdtNode, FdtProp};
 use terminus_global::XLen;
 
+
 pub mod fdt;
 
 pub struct System {
     name: String,
-    bus: Arc<Bus>,
-    timer: Arc<Timer>,
+    bus: Rc<Bus>,
+    timer: Rc<Timer>,
     elf: ElfLoader,
     processors: Vec<Processor>,
 }
 
 impl System {
     pub fn new(name: &str, elf_file: &str, processor_cfgs: Vec<ProcessorCfg>, timer_freq: usize) -> System {
-        let bus = Arc::new(Bus::new());
+        let bus = Rc::new(Bus::new());
         let elf = ElfLoader::new(elf_file).expect(&format!("Invalid Elf {}", elf_file));
         let mut sys = System {
             name: name.to_string(),
             bus,
-            timer: Arc::new(Timer::new(timer_freq)),
+            timer: Rc::new(Timer::new(timer_freq)),
             elf,
             processors: vec![],
         };
@@ -67,7 +68,7 @@ impl System {
         self.processors.push(p)
     }
 
-    fn register_region(&self, name: &str, base: u64, region: &Arc<Region>) -> Result<()> {
+    fn register_region(&self, name: &str, base: u64, region: &Rc<Region>) -> Result<()> {
         self.bus.space_mut().add_region(name, &Region::remap(base, &region))?;
         Ok(())
     }
@@ -90,11 +91,11 @@ impl System {
         &mut self.processors
     }
 
-    pub fn bus(&self) -> &Arc<Bus> {
+    pub fn bus(&self) -> &Rc<Bus> {
         &self.bus
     }
 
-    pub fn timer(&self) -> &Arc<Timer> {
+    pub fn timer(&self) -> &Rc<Timer> {
         &self.timer
     }
 
@@ -103,7 +104,7 @@ impl System {
     }
 
 
-    pub fn register_memory(&self, name: &str, base: u64, mem: &Arc<Region>) -> Result<()> {
+    pub fn register_memory(&self, name: &str, base: u64, mem: &Rc<Region>) -> Result<()> {
         match self.register_region(name, base, &mem) {
             Ok(_) => { Ok(()) }
             Err(e) => {

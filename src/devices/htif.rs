@@ -1,10 +1,10 @@
 use terminus_spaceport::memory::prelude::*;
 use terminus_spaceport::EXIT_CTRL;
 use terminus_spaceport::devices::TERM;
-use std::sync::Mutex;
 use std::io::{Write, ErrorKind, Read};
 use terminus_macros::*;
 use std::borrow::{BorrowMut, Borrow};
+use std::cell::RefCell;
 
 // test refer to top_tests/htif_test
 struct HTIFDesp {
@@ -23,7 +23,7 @@ impl HTIFDesp {
 
 #[derive_io(Bytes, U32, U64)]
 pub struct HTIF {
-    desc: Mutex<HTIFDesp>,
+    desc: RefCell<HTIFDesp>,
     tohost_off: u64,
     fromhost_off: Option<u64>,
 }
@@ -31,7 +31,7 @@ pub struct HTIF {
 impl HTIF {
     pub fn new(tohost_off: u64, fromhost_off: Option<u64>) -> HTIF {
         HTIF {
-            desc: Mutex::new(HTIFDesp { tohost: 0, fromhost: 0 }),
+            desc: RefCell::new(HTIFDesp { tohost: 0, fromhost: 0 }),
             tohost_off,
             fromhost_off,
         }
@@ -97,32 +97,32 @@ impl BytesAccess for HTIF {
 
 impl U32Access for HTIF {
     fn write(&self, addr: &u64, data: u32) {
+        let mut desp = self.desc.borrow_mut();
         if *addr == self.tohost_off {
-            let mut desp = self.desc.lock().unwrap();
             desp.borrow_mut().tohost.set_bit_range(31, 0, data);
             if desp.borrow().tohost & 0x1 == 1 && desp.tohost_device() == 0 && desp.tohost_cmd() == 0 {
                 EXIT_CTRL.exit("htif shutdown!").unwrap();
             }
         } else if *addr == self.tohost_off + 4 {
-            let mut desp = self.desc.lock().unwrap();
+            let mut desp = self.desc.borrow_mut();
             desp.borrow_mut().tohost.set_bit_range(63, 32, data);
             self.handle_cmd(desp.borrow_mut())
         } else if let Some(fromhost) = self.fromhost_off {
             if *addr == fromhost {
-                self.desc.lock().unwrap().fromhost.set_bit_range(31, 0, data)
+                desp.fromhost.set_bit_range(31, 0, data)
             } else if *addr == fromhost + 4 {
-                self.desc.lock().unwrap().fromhost.set_bit_range(63, 32, data)
+                desp.fromhost.set_bit_range(63, 32, data)
             }
         }
     }
 
     fn read(&self, addr: &u64) -> u32 {
+        let mut desp = self.desc.borrow_mut();
         if *addr == self.tohost_off {
-            self.desc.lock().unwrap().tohost as u32
+            desp.tohost as u32
         } else if *addr == self.tohost_off + 4 {
-            (self.desc.lock().unwrap().tohost >> 32) as u32
+            (desp.tohost >> 32) as u32
         } else if let Some(fromhost) = self.fromhost_off {
-            let mut desp = self.desc.lock().unwrap();
             if *addr == fromhost {
                 self.fromhost_poll(desp.borrow_mut());
                 desp.fromhost as u32
@@ -140,13 +140,13 @@ impl U32Access for HTIF {
 
 impl U64Access for HTIF {
     fn write(&self, addr: &u64, data: u64) {
+        let mut desp = self.desc.borrow_mut();
         if *addr == self.tohost_off {
-            let mut desp = self.desc.lock().unwrap();
             desp.borrow_mut().tohost = data;
             self.handle_cmd(desp.borrow_mut())
         } else if let Some(fromhost) = self.fromhost_off {
             if *addr == fromhost {
-                self.desc.lock().unwrap().fromhost = data
+                desp.fromhost = data
             } else {
                 panic!("invalid HTIF addr")
             }
@@ -156,11 +156,11 @@ impl U64Access for HTIF {
     }
 
     fn read(&self, addr: &u64) -> u64 {
+        let mut desp = self.desc.borrow_mut();
         let data = if *addr == self.tohost_off {
-            self.desc.lock().unwrap().tohost
+            desp.tohost
         } else if let Some(fromhost) = self.fromhost_off {
             if *addr == fromhost {
-                let mut desp = self.desc.lock().unwrap();
                 self.fromhost_poll(desp.borrow_mut());
                 desp.fromhost
             } else {

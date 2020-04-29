@@ -4,10 +4,10 @@ use terminus_global::InsnT;
 use crate::processor::mmu::Mmu;
 use crate::processor::trap::Exception;
 use crate::processor::decode::*;
-use std::sync::Arc;
 use crate::devices::bus::Bus;
 use std::cell::RefCell;
 use std::mem::MaybeUninit;
+use std::rc::Rc;
 
 struct ICacheEntry {
     accessed: bool,
@@ -141,12 +141,12 @@ impl ICache {
 }
 
 pub struct Fetcher {
-    bus: Arc<Bus>,
+    bus: Rc<Bus>,
     icache: RefCell<ICache>,
 }
 
 impl Fetcher {
-    pub fn new(bus: &Arc<Bus>) -> Fetcher {
+    pub fn new(bus: &Rc<Bus>) -> Fetcher {
         Fetcher {
             bus: bus.clone(),
             icache: RefCell::new(ICache::new(1024)),
