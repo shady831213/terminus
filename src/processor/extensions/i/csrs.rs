@@ -237,13 +237,13 @@ Mie {
     fields{
         usie(RW):0,0;
         ssie(RW):1,1;
-        msie(RO):3,3;
+        msie(RW):3,3;
         utie(RW):4,4;
         stie(RW):5,5;
-        mtie(RO):7,7;
+        mtie(RW):7,7;
         ueie(RW):8,8;
         seie(RW):9,9;
-        meie(RO):11,11;
+        meie(RW):11,11;
     }
 }
 }

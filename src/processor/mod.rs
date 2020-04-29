@@ -232,12 +232,12 @@ impl ProcessorState {
     }
 
     fn get_extension(&self, id: char) -> &Extension {
-        unsafe {self.extensions.get_unchecked((id as u8 - 'a' as u8) as usize)}
+        unsafe { self.extensions.get_unchecked((id as u8 - 'a' as u8) as usize) }
         // &self.extensions[(id as u8 - 'a' as u8) as usize]
     }
 
     fn get_extension_mut(&mut self, id: char) -> &mut Extension {
-        unsafe {self.extensions.get_unchecked_mut((id as u8 - 'a' as u8) as usize)}
+        unsafe { self.extensions.get_unchecked_mut((id as u8 - 'a' as u8) as usize) }
         // &self.extensions[(id as u8 - 'a' as u8) as usize]
     }
 
@@ -459,37 +459,50 @@ impl Processor {
     }
 
     fn take_interrupt(&self) -> Result<(), Interrupt> {
+        const MEIP: RegT = 1 << 11;
+        const MSIP: RegT = 1 << 3;
+        const MTIP: RegT = 1 << 7;
+        const SEIP: RegT = 1 << 9;
+        const SSIP: RegT = 1 << 1;
+        const STIP: RegT = 1 << 5;
+
         let csrs = self.state().icsrs();
         let pendings = csrs.mip().get() & csrs.mie().get();
+        if pendings == 0 {
+            return Ok(());
+        }
+
         let mie = csrs.mstatus().mie();
-        let m_enabled = *self.state().privilege() != Privilege::M || (*self.state().privilege() == Privilege::M && mie == 1);
-        let m_pendings = pendings & !csrs.mideleg().get() & sext(m_enabled as RegT, 1);
         let sie = csrs.mstatus().sie();
+        let deleg = csrs.mideleg().get();
+        let m_enabled = *self.state().privilege() != Privilege::M || (*self.state().privilege() == Privilege::M && mie == 1);
+        let m_pendings = pendings & !deleg & sext(m_enabled as RegT, 1);
         let s_enabled = *self.state().privilege() == Privilege::U || (*self.state().privilege() == Privilege::S && sie == 1);
-        let s_pendings = pendings & csrs.mideleg().get() & sext(s_enabled as RegT, 1);
+        let s_pendings = pendings & deleg & sext(s_enabled as RegT, 1);
 
         //m_pendings > s_pendings
-        let interrupts = Mip::new(self.state().config().xlen,
-                                  if m_pendings == 0 {
-                                      s_pendings
-                                  } else {
-                                      m_pendings
-                                  });
-        if interrupts.get() == 0 {
+        let interrupts = if m_pendings == 0 {
+            s_pendings
+        } else {
+            m_pendings
+        };
+        if interrupts == 0 {
             Ok(())
         } else {
             // MEI > MSI > MTI > SEI > SSI > STI
-            if interrupts.meip() == 1 {
+            if interrupts & MEIP != 0 {
                 return Err(Interrupt::MEInt);
-            } else if interrupts.msip() == 1 {
+            } else if interrupts & MSIP != 0 {
                 return Err(Interrupt::MSInt);
-            } else if interrupts.mtip() == 1 {
+            } else if interrupts & MTIP != 0 {
+                eprintln!("get mtip!");
                 return Err(Interrupt::MTInt);
-            } else if interrupts.seip() == 1 {
+            } else if interrupts & SEIP != 0 {
                 return Err(Interrupt::SEInt);
-            } else if interrupts.ssip() == 1 {
+            } else if interrupts & SSIP != 0 {
                 return Err(Interrupt::SSInt);
-            } else if interrupts.stip() == 1 {
+            } else if interrupts & STIP != 0 {
+                eprintln!("get stip!");
                 return Err(Interrupt::STInt);
             } else {
                 unreachable!()
@@ -501,22 +514,26 @@ impl Processor {
         let mcsrs = self.state().icsrs();
         let scsrs = self.state().scsrs();
         let (int_flag, deleg, code, tval) = match trap {
-            Trap::Exception(e) => (0 as RegT, mcsrs.medeleg().get(), e.code(), e.tval()),
-            Trap::Interrupt(i) => (1 as RegT, mcsrs.mideleg().get(), i.code(), i.tval()),
+            Trap::Exception(e) => (false, mcsrs.medeleg().get(), e.code(), e.tval()),
+            Trap::Interrupt(i) => (true, mcsrs.mideleg().get(), i.code(), i.tval()),
         };
         //deleg to s-mode
         let degeged = *self.state().privilege() != Privilege::M && (deleg >> code) & 1 == 1;
         let (pc, privilege) = if degeged {
             let tvec = scsrs.stvec();
-            let offset = if tvec.mode() == 1 && int_flag == 1 {
+            let offset = if tvec.mode() == 1 && int_flag {
                 code << 2
             } else {
                 0
             };
             let pc = (tvec.base() << 2) + offset;
             scsrs.scause_mut().set_code(code);
-            scsrs.scause_mut().set_int(int_flag);
-            scsrs.sepc_mut().set(*self.state().pc());
+            scsrs.scause_mut().set_int(int_flag as RegT);
+            if int_flag {
+                scsrs.sepc_mut().set(*self.state().next_pc());
+            } else {
+                scsrs.sepc_mut().set(*self.state().pc());
+            }
             scsrs.stval_mut().set(tval);
 
             let sie = mcsrs.mstatus().sie();
@@ -529,15 +546,19 @@ impl Processor {
             (pc, Privilege::S)
         } else {
             let tvec = mcsrs.mtvec();
-            let offset = if tvec.mode() == 1 && int_flag == 1 {
+            let offset = if tvec.mode() == 1 && int_flag {
                 code << 2
             } else {
                 0
             };
             let pc = (tvec.base() << 2) + offset;
             mcsrs.mcause_mut().set_code(code);
-            mcsrs.mcause_mut().set_int(int_flag);
-            mcsrs.mepc_mut().set(*self.state().pc());
+            mcsrs.mcause_mut().set_int(int_flag as RegT);
+            if int_flag {
+                mcsrs.mepc_mut().set(*self.state().next_pc());
+            } else {
+                mcsrs.mepc_mut().set(*self.state().pc());
+            }
             mcsrs.mtval_mut().set(tval);
 
             let mie = mcsrs.mstatus().mie();
@@ -553,17 +574,20 @@ impl Processor {
         self.state_mut().set_privilege(privilege);
     }
 
+    fn one_step(&mut self) -> Result<(), Trap> {
+        self.take_interrupt()?;
+        self.one_insn()?;
+        Ok(())
+    }
+
     pub fn step(&mut self, n: usize) {
         assert!(n > 0);
         for _ in 0..n {
-
-            if let Err(exct) = self.one_insn() {
-                self.handle_trap(Trap::Exception(exct))
+            if let Err(trap) = self.one_step() {
+                self.handle_trap(trap)
             }
         }
-        if let Err(int) = self.take_interrupt() {
-            self.handle_trap(Trap::Interrupt(int))
-        }
+
         for ext in self.state().extensions().iter() {
             ext.step_cb(self)
         }

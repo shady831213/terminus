@@ -1180,8 +1180,6 @@ impl Execution for MRET {
         csrs.mstatus_mut().set_mpie(1);
         let u_value: u8 = Privilege::U.into();
         csrs.mstatus_mut().set_mpp(u_value as RegT);
-        p.mmu().flush_tlb();
-        p.fetcher().flush_icache();
         if p.state().check_extension('c').is_err() {
             let pc = (csrs.mepc().get() >> 2) << 2;
             p.state_mut().set_pc(pc);
@@ -1190,6 +1188,8 @@ impl Execution for MRET {
             p.state_mut().set_pc(pc);
         }
         p.state_mut().set_privilege(Privilege::try_from(mpp as u8).unwrap());
+        p.mmu().flush_tlb();
+        p.fetcher().flush_icache();
         Ok(())
     }
 }

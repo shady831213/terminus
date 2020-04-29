@@ -49,7 +49,6 @@ impl HTIF {
             handle.flush().unwrap();
             desp.tohost = 0;
         } else if desp.tohost_device() == 1 && desp.tohost_cmd() == 0 {
-            self.fromhost_poll(desp);
             desp.tohost = 0;
         } else {
             panic!(format!("unsupported cmd:{:#x}", *desp.tohost.borrow()))
@@ -57,13 +56,15 @@ impl HTIF {
     }
 
     fn fromhost_poll(&self, desp: &mut HTIFDesp) {
+        eprintln!("htif read");
         if desp.fromhost == 0 {
             let mut data = [0u8; 1];
             match TERM.stdin().lock().read_exact(&mut data) {
                 Ok(_) => {
+                    eprintln!("get a char!");
                     desp.fromhost.set_bit_range(8, 8, 1);
                     desp.fromhost.set_bit_range(7, 0, data[0]);
-                    desp.fromhost.set_bit_range(63, 48, desp.tohost >> 48);
+                    desp.fromhost.set_bit_range(63, 48, 0x0100);
                 }
                 Err(e) if e.kind() == ErrorKind::WouldBlock => {}
                 Err(e) => panic!("{:?}", e)
@@ -121,10 +122,12 @@ impl U32Access for HTIF {
         } else if *addr == self.tohost_off + 4 {
             (self.desc.lock().unwrap().tohost >> 32) as u32
         } else if let Some(fromhost) = self.fromhost_off {
+            let mut desp = self.desc.lock().unwrap();
             if *addr == fromhost {
-                self.desc.lock().unwrap().fromhost as u32
+                self.fromhost_poll(desp.borrow_mut());
+                desp.fromhost as u32
             } else if *addr == fromhost + 4 {
-                (self.desc.lock().unwrap().fromhost >> 32) as u32
+                (desp.fromhost >> 32) as u32
             } else {
                 panic!("invalid HTIF addr")
             }
@@ -157,7 +160,9 @@ impl U64Access for HTIF {
             self.desc.lock().unwrap().tohost
         } else if let Some(fromhost) = self.fromhost_off {
             if *addr == fromhost {
-                self.desc.lock().unwrap().fromhost
+                let mut desp = self.desc.lock().unwrap();
+                self.fromhost_poll(desp.borrow_mut());
+                desp.fromhost
             } else {
                 panic!("invalid HTIF addr");
             }

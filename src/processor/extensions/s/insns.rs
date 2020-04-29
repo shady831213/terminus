@@ -23,8 +23,6 @@ impl Execution for SRET {
         mcsrs.mstatus_mut().set_spie(1);
         let u_value: u8 = Privilege::U.into();
         mcsrs.mstatus_mut().set_spp(u_value as RegT);
-        p.mmu().flush_tlb();
-        p.fetcher().flush_icache();
         if p.state().check_extension('c').is_err() {
             let pc = (scsrs.sepc().get() >> 2) << 2;
             p.state_mut().set_pc(pc);
@@ -33,6 +31,8 @@ impl Execution for SRET {
             p.state_mut().set_pc(pc);
         }
         p.state_mut().set_privilege(Privilege::try_from(spp as u8).unwrap());
+        p.mmu().flush_tlb();
+        p.fetcher().flush_icache();
         Ok(())
     }
 }
