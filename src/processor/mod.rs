@@ -495,14 +495,12 @@ impl Processor {
             } else if interrupts & MSIP != 0 {
                 return Err(Interrupt::MSInt);
             } else if interrupts & MTIP != 0 {
-                eprintln!("get mtip!");
                 return Err(Interrupt::MTInt);
             } else if interrupts & SEIP != 0 {
                 return Err(Interrupt::SEInt);
             } else if interrupts & SSIP != 0 {
                 return Err(Interrupt::SSInt);
             } else if interrupts & STIP != 0 {
-                eprintln!("get stip!");
                 return Err(Interrupt::STInt);
             } else {
                 unreachable!()
