@@ -56,12 +56,10 @@ impl HTIF {
     }
 
     fn fromhost_poll(&self, desp: &mut HTIFDesp) {
-        eprintln!("htif read");
         if desp.fromhost == 0 {
             let mut data = [0u8; 1];
             match TERM.stdin().lock().read_exact(&mut data) {
                 Ok(_) => {
-                    eprintln!("get a char!");
                     desp.fromhost.set_bit_range(8, 8, 1);
                     desp.fromhost.set_bit_range(7, 0, data[0]);
                     desp.fromhost.set_bit_range(63, 48, 0x0100);
@@ -127,6 +125,7 @@ impl U32Access for HTIF {
                 self.fromhost_poll(desp.borrow_mut());
                 desp.fromhost as u32
             } else if *addr == fromhost + 4 {
+                self.fromhost_poll(desp.borrow_mut());
                 (desp.fromhost >> 32) as u32
             } else {
                 panic!("invalid HTIF addr")

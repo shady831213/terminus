@@ -153,13 +153,13 @@ impl ProcessorState {
         csrs.mip_mut().msip_transform({
             let clint = self.clint.clone();
             move |_| {
-                clint.pending(0).unwrap() as RegT
+                clint.pending_uncheck(0) as RegT
             }
         });
         csrs.mip_mut().mtip_transform({
             let clint = self.clint.clone();
             move |_| {
-                clint.pending(1).unwrap() as RegT
+                clint.pending_uncheck(1) as RegT
             }
         });
         //hartid

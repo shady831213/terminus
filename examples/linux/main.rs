@@ -22,26 +22,26 @@ fn main() {
     sys.make_boot_rom(0x20000000, -1i64 as u64).unwrap();
     sys.load_elf().unwrap();
     sys.reset(vec![-1i64 as u64; num_cores]).unwrap();
-    let interval: u64 = 100;
-    let mut interval_cnt: u64 = 0;
+    // let interval: u64 = 100;
+    // let mut interval_cnt: u64 = 0;
     'outer:loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
             eprintln!("{}", msg);
             break;
         }
         for p in sys.processors() {
-            p.step(1);
+            p.step(5000);
             // eprintln!("{}", p.state().trace());
             // if *p.state().pc() == 0x0000000080000044{
             //     p.step(1);
             //     break 'outer;
             // }
         }
-        // sys.timer().tick(50)
-        interval_cnt += 1;
-        if interval_cnt % interval == interval - 1 {
-            sys.timer().tick(1)
-        }
+        sys.timer().tick(50)
+        // interval_cnt += 1;
+        // if interval_cnt % interval == interval - 1 {
+        //     sys.timer().tick(1)
+        // }
     }
     eprintln!("{}", sys.processor(0).unwrap().state().to_string());
     term_exit();

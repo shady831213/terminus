@@ -29,8 +29,8 @@ impl TimerInner {
 
     fn alloc_irq(&mut self) -> Rc<IrqVec> {
         let irq_vec = Rc::new(IrqVec::new(2));
-        irq_vec.set_enable(0).unwrap();
-        irq_vec.set_enable(1).unwrap();
+        irq_vec.set_enable_uncheck(0, true);
+        irq_vec.set_enable_uncheck(1, true);
         self.irq_vecs.push(irq_vec.clone());
         self.mtimecmps.push(0);
         irq_vec
@@ -39,7 +39,7 @@ impl TimerInner {
     fn tick(&mut self, n: u64) {
         self.cnt_tick(n);
         for (irq_vec, mtimecmp) in self.irq_vecs.iter().zip(self.mtimecmps.iter()) {
-            irq_vec.clr_pending(1).unwrap();
+            irq_vec.set_pending_uncheck(1, false);
             if self.cnt >= *mtimecmp {
                 irq_vec.sender(1).unwrap().send().unwrap();
             }
@@ -120,10 +120,7 @@ impl U32Access for Clint {
         let mut timer = self.0.inner_mut();
         if *addr >= MSIP_BASE && *addr + 4 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
             let offset = ((*addr - MSIP_BASE) >> 2) as usize;
-            timer.irq_vecs[offset].clr_pending(0).unwrap();
-            if data & 1 == 1 {
-                timer.irq_vecs[offset].set_pending(0).unwrap();
-            }
+            timer.irq_vecs[offset].set_pending_uncheck(0, (data & 1) != 0);
             return;
         } else if *addr >= MTIMECMP_BASE && *addr + 4 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
             let offset = ((*addr - MTIMECMP_BASE) >> 3) as usize;
@@ -178,14 +175,8 @@ impl U64Access for Clint {
         let mut timer = self.0.inner_mut();
         if *addr >= MSIP_BASE && *addr + 8 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
             let offset = (((*addr - MSIP_BASE) >> 3) << 1) as usize;
-            timer.irq_vecs[offset].clr_pending(0).unwrap();
-            if data & 1 == 1 {
-                timer.irq_vecs[offset].set_pending(0).unwrap();
-            }
-            timer.irq_vecs[offset + 1].clr_pending(0).unwrap();
-            if (data >> 32) & 1 == 1 {
-                timer.irq_vecs[offset + 1].set_pending(0).unwrap();
-            }
+            timer.irq_vecs[offset].set_pending_uncheck(0, (data & 1) != 0);
+            timer.irq_vecs[offset + 1].set_pending_uncheck(0, ((data >> 32) & 1) != 0);
             return;
         } else if *addr >= MTIMECMP_BASE && *addr + 8 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
             let offset = ((*addr - MTIMECMP_BASE) >> 3) as usize;
