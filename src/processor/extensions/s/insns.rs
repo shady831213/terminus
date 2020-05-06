@@ -15,7 +15,7 @@ impl Execution for SRET {
         let scsrs = p.state().scsrs();
         let tsr = mcsrs.mstatus().tsr();
         if tsr == 1 && *p.state().privilege() == Privilege::S {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         let spp = mcsrs.mstatus().spp();
         let spie = mcsrs.mstatus().spie();
@@ -48,7 +48,7 @@ impl Execution for SFENCEVMA {
         p.state().check_extension('s')?;
         p.state().check_privilege_level(Privilege::S)?;
         if *p.state().privilege() == Privilege::S && p.state().icsrs().mstatus().tvm() == 1 {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         let pc = *p.state().pc() + 4;
         if self.rs1(p.state().ir()) != 0{

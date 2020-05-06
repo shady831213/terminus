@@ -72,10 +72,10 @@ impl TreeNode {
         }
     }
 
-    fn get(&self, key: InsnT) -> Option<&Box<dyn Decoder>> {
+    fn get(&self, key: &InsnT) -> Option<&Box<dyn Decoder>> {
         if self.level == insn_len() {
             if let Some(ref v) = self.value {
-                if v.mask() & key == v.code() {
+                if v.mask() & *key == v.code() {
                     return Some(v)
                 } else {
                     return None
@@ -83,7 +83,7 @@ impl TreeNode {
             }
             unreachable!()
         } else {
-            if key & ((1 as InsnT) << self.level as InsnT) == 0 {
+            if *key & ((1 as InsnT) << self.level as InsnT) == 0 {
                 if let Some(n) = self.left {
                     if let Some(v) = unsafe { n.as_ref().unwrap().get(key) } {
                         return Some(v);
@@ -129,11 +129,11 @@ impl InsnMap for TreeInsnMap {
         }
     }
 
-    fn decode(&self, ir: InsnT) -> Result<&Instruction, Exception> {
+    fn decode(&self, ir: &InsnT) -> Result<&Instruction, Exception> {
         if let Some(decoder) = self.0.get(ir) {
             Ok(decoder.decode())
         } else {
-            Err(Exception::IllegalInsn(ir))
+            Err(Exception::IllegalInsn(*ir))
         }
     }
     fn lock(&mut self) {

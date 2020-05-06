@@ -191,7 +191,7 @@ impl Fetcher {
             self.fetch_u16_slow(&pa, pc, &mut data_low)?;
             if data_low & 0x3 != 0x3 {
                 let data = data_low as u16 as InsnT;
-                let insn = GDECODER.decode(data)?;
+                let insn = GDECODER.decode(&data)?;
                 icache.set_entry(*pc, data, insn);
                 Ok((data, insn))
             } else {
@@ -203,7 +203,7 @@ impl Fetcher {
                 let mut data_high = 0;
                 self.fetch_u16_slow(&pa_high, pc, &mut data_high)?;
                 let data = data_low as u16 as InsnT | ((data_high as u16 as InsnT) << 16);
-                let insn = GDECODER.decode(data)?;
+                let insn = GDECODER.decode(&data)?;
                 icache.set_entry(*pc, data, insn);
                 Ok((data, insn))
             }
@@ -213,11 +213,11 @@ impl Fetcher {
             self.fetch_u32_slow(&pa, pc, &mut data)?;
             if data & 0x3 != 0x3 {
                 let data_low = data as u16 as InsnT;
-                let insn = GDECODER.decode(data_low)?;
+                let insn = GDECODER.decode(&data_low)?;
                 icache.set_entry(*pc, data_low, insn);
                 Ok((data_low, insn))
             } else {
-                let insn = GDECODER.decode(data)?;
+                let insn = GDECODER.decode(&data)?;
                 icache.set_entry(*pc, data, insn);
                 Ok((data, insn))
             }

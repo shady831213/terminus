@@ -4,20 +4,19 @@ use terminus_global::*;
 use crate::processor::trap::Exception;
 
 pub trait Format {
-    fn ir(&self, code: InsnT) -> InsnT { code }
-    fn rs1(&self, _: InsnT) -> InsnT {
+    fn rs1(&self, _: &InsnT) -> InsnT {
         0
     }
-    fn rs2(&self, _: InsnT) -> InsnT {
+    fn rs2(&self, _: &InsnT) -> InsnT {
         0
     }
-    fn rd(&self, _: InsnT) -> InsnT {
+    fn rd(&self, _: &InsnT) -> InsnT {
         0
     }
-    fn imm(&self, _: InsnT) -> InsnT {
+    fn imm(&self, _: &InsnT) -> InsnT {
         0
     }
-    fn op(&self, _: InsnT) -> InsnT {
+    fn op(&self, _: &InsnT) -> InsnT {
         0
     }
     fn imm_len(&self) -> usize {

@@ -88,7 +88,7 @@ pub struct ProcessorState {
 
 impl ProcessorState {
     pub fn trace(&self) -> String {
-        format!("hartid = {}; privilege = {:?};pc = {:#x}; ir = {:#x}; next_pc = {:#x}; insns_cnt = {};", self.hartid, self.privilege(), self.pc(), self.ir(), self.next_pc(), *self.insns_cnt().borrow())
+        format!("hartid = {}; privilege = {:?};pc = {:#x}; ir = {:#x}; next_pc = {:#x}; insns_cnt = {};", self.hartid, self.privilege(), self.pc(), *self.ir(), self.next_pc(), *self.insns_cnt().borrow())
     }
 }
 
@@ -269,7 +269,7 @@ impl ProcessorState {
         let cur_priv: u8 = self.privilege.into();
         let csr_priv: u8 = ((id >> 8) & 0x3) as u8;
         if cur_priv < csr_priv {
-            return Err(Exception::IllegalInsn(self.ir()));
+            return Err(Exception::IllegalInsn(*self.ir()));
         }
         Ok(())
     }
@@ -283,7 +283,7 @@ impl ProcessorState {
         self.csr_privilege_check(trip_id)?;
         match self.extensions().iter().find_map(|e| { e.csr_read(self, trip_id) }) {
             Some(v) => Ok(v),
-            None => Err(Exception::IllegalInsn(self.ir()))
+            None => Err(Exception::IllegalInsn(*self.ir()))
         }
     }
 
@@ -292,7 +292,7 @@ impl ProcessorState {
         self.csr_privilege_check(trip_id)?;
         match self.extensions().iter().find_map(|e| { e.csr_write(self, trip_id, value) }) {
             Some(_) => Ok(()),
-            None => Err(Exception::IllegalInsn(self.ir()))
+            None => Err(Exception::IllegalInsn(*self.ir()))
         }
     }
 
@@ -300,7 +300,7 @@ impl ProcessorState {
         if self.icsrs().misa().get() & ((1 as RegT) << ((ext as u8 - 'a' as u8) as RegT)) != 0 {
             Ok(())
         } else {
-            Err(Exception::IllegalInsn(self.ir()))
+            Err(Exception::IllegalInsn(*self.ir()))
         }
     }
 
@@ -308,17 +308,17 @@ impl ProcessorState {
         if xlen == self.config().xlen {
             Ok(())
         } else {
-            Err(Exception::IllegalInsn(self.ir()))
+            Err(Exception::IllegalInsn(*self.ir()))
         }
     }
 
     pub fn check_privilege_level(&self, privilege: Privilege) -> Result<(), Exception> {
         match self.config().privilege_level() {
             PrivilegeLevel::M => if privilege != Privilege::M {
-                return Err(Exception::IllegalInsn(self.ir()));
+                return Err(Exception::IllegalInsn(*self.ir()));
             },
             PrivilegeLevel::MU => if privilege == Privilege::S {
-                return Err(Exception::IllegalInsn(self.ir()));
+                return Err(Exception::IllegalInsn(*self.ir()));
             }
             PrivilegeLevel::MSU => {}
         }
@@ -355,8 +355,8 @@ impl ProcessorState {
         self.next_pc = pc
     }
 
-    pub fn ir(&self) -> InsnT {
-        self.ir
+    pub fn ir(&self) -> &InsnT {
+        &self.ir
     }
 
     pub fn set_ir(&mut self, ir: InsnT) {

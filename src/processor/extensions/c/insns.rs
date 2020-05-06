@@ -13,7 +13,7 @@ impl Execution for CLWSP {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
         if self.rd(p.state().ir()) == 0 {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(2));
         let offset_7_6: RegT = (self.imm(p.state().ir()) & 0x3) as RegT;
@@ -40,7 +40,7 @@ struct CLDSPCFLWSP();
 impl CLDSPCFLWSP {
     fn execute_c_ldsp(&self, p: &mut Processor, base: Wrapping<RegT>) -> Result<(), Exception> {
         if self.rd(p.state().ir()) == 0 {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         let offset_8_6: RegT = (self.imm(p.state().ir()) & 0x7) as RegT;
         let offset_5: RegT = ((self.imm(p.state().ir()) >> 5) & 0x1) as RegT;
@@ -444,14 +444,14 @@ impl CJALADDIW {
         Ok(())
     }
     fn execute_c_addiw(&self, p: &mut Processor) -> Result<(), Exception> {
-        let rs1_addr = (p.state().ir() >> 7) & 0x1f;
-        let rd_addr = (p.state().ir() >> 7) & 0x1f;
-        let imm_1: RegT = ((p.state().ir() >> 2) & 0x1f) as RegT;
-        let imm_2: RegT = ((p.state().ir() >> 12) & 0x1) as RegT;
+        let rs1_addr = (*p.state().ir() >> 7) & 0x1f;
+        let rd_addr = (*p.state().ir() >> 7) & 0x1f;
+        let imm_1: RegT = ((*p.state().ir() >> 2) & 0x1f) as RegT;
+        let imm_2: RegT = ((*p.state().ir() >> 12) & 0x1) as RegT;
         let imm: RegT = imm_1 | imm_2 << 5;
 
         if rd_addr == 0 {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         let rs1: Wrapping<RegT> = Wrapping(sext(*p.state().xreg(rs1_addr), 32));
         let rs2: Wrapping<RegT> = Wrapping(sext(imm, 6));
@@ -482,7 +482,7 @@ impl Execution for CJALADDIW {
 trait CJumpR: InstructionImp {
     fn jump(&self, p: &mut Processor) -> Result<(), Exception> {
         if self.rs1(p.state().ir()) == 0 {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         let t = *p.state().xreg(self.rs1(p.state().ir()));
         if t.trailing_zeros() < 1 {
@@ -506,7 +506,7 @@ impl CJRMV {
     }
     fn execute_c_mv(&self, p: &mut Processor) -> Result<(), Exception> {
         if self.rd(p.state().ir()) == 0 {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         let rs2 = *p.state().xreg(self.rs2(p.state().ir()));
         let rd = self.rd(p.state().ir());
@@ -548,7 +548,7 @@ impl CJALRADDEBREAK {
     }
     fn execute_c_add(&self, p: &mut Processor) -> Result<(), Exception> {
         if self.rd(p.state().ir()) == 0 {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         let rs1: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let rs2: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs2(p.state().ir())));
@@ -646,7 +646,7 @@ impl Execution for CLI {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
         if self.rd(p.state().ir()) == 0 {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         let rd = self.rd(p.state().ir());
         let value = sext(self.imm(p.state().ir()) as RegT, self.imm_len()) & p.state().config().xlen.mask();
@@ -689,7 +689,7 @@ impl Execution for CLUIADDI16SP {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
         if self.rd(p.state().ir()) == 0 || self.imm(p.state().ir()) == 0 {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         if self.rd(p.state().ir()) == 2 {
             self.execute_c_addi16sp(p)?
@@ -711,7 +711,7 @@ struct CADDINOP();
 impl CADDINOP {
     fn execute_c_addi(&self, p: &mut Processor) -> Result<(), Exception> {
         if self.rd(p.state().ir()) == 0 || self.imm(p.state().ir()) == 0 {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         let rs1: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let rs2: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
@@ -751,7 +751,7 @@ impl Execution for CADDI14SPN {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
         if self.imm(p.state().ir()) == 0 {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         let imm_2: RegT = ((self.imm(p.state().ir()) >> 1) & 0x1) as RegT;
         let imm_3: RegT = (self.imm(p.state().ir()) & 0x1) as RegT;
@@ -778,11 +778,11 @@ impl Execution for CSLLI {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('c')?;
         if self.rd(p.state().ir()) == 0 || self.imm(p.state().ir()) == 0 {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         if let Err(_) = p.state().check_xlen(XLen::X64) {
             if self.imm(p.state().ir()) & (1 << 5) != 0 {
-                return Err(Exception::IllegalInsn(p.state().ir()));
+                return Err(Exception::IllegalInsn(*p.state().ir()));
             }
         }
         let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
@@ -809,11 +809,11 @@ impl Execution for CSRLI {
         let shamt_5: RegT = ((self.imm(p.state().ir()) >> 7) & 0x1) as RegT;
         let shamt = shamt_4_0 | shamt_5 << 5;
         if shamt == 0 {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         if let Err(_) = p.state().check_xlen(XLen::X64) {
             if shamt_5 != 0 {
-                return Err(Exception::IllegalInsn(p.state().ir()));
+                return Err(Exception::IllegalInsn(*p.state().ir()));
             }
         }
         let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
@@ -839,11 +839,11 @@ impl Execution for CSRAI {
         let shamt_5: RegT = ((self.imm(p.state().ir()) >> 7) & 0x1) as RegT;
         let shamt = shamt_4_0 | shamt_5 << 5;
         if shamt == 0 {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         if let Err(_) = p.state().check_xlen(XLen::X64) {
             if shamt_5 != 0 {
-                return Err(Exception::IllegalInsn(p.state().ir()));
+                return Err(Exception::IllegalInsn(*p.state().ir()));
             }
         }
         let rs1 = *p.state().xreg(self.rs1(p.state().ir()));

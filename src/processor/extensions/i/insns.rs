@@ -245,7 +245,7 @@ impl Execution for SLLI {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let high: RegT = (self.imm(p.state().ir()) as RegT) >> (p.state().config().xlen.len().trailing_zeros() as RegT);
         if high != 0 {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
         let shamt: RegT = (self.imm(p.state().ir()) as RegT) & ((1 << p.state().config().xlen.len().trailing_zeros()) - 1) as RegT;
@@ -269,7 +269,7 @@ impl Execution for SLLIW {
         p.state().check_xlen(XLen::X64)?;
         let high: RegT = (self.imm(p.state().ir()) >> 5) as RegT;
         if high != 0 {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         let rs1 = *p.state().xreg(self.rs1(p.state().ir()));
         let shamt: RegT = (self.imm(p.state().ir()) as RegT) & 0x1f;
@@ -916,12 +916,12 @@ impl Execution for LD {
 }
 
 trait Store: InstructionImp {
-    fn offset(&self, code: InsnT) -> Wrapping<RegT> {
+    fn offset(&self, code: &InsnT) -> Wrapping<RegT> {
         let high: RegT = (self.imm(code) >> 5) as RegT;
         let low = self.rd(code) as RegT;
         Wrapping(sext(high << 5 | low, self.imm_len()))
     }
-    fn src(&self, code: InsnT) -> InsnT {
+    fn src(&self, code: &InsnT) -> InsnT {
         self.imm(code) & 0x1f
     }
 }
@@ -1204,7 +1204,7 @@ impl Execution for WFI {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let csrs = p.state().icsrs();
         if csrs.mstatus().tw() != 0 && p.state().config().privilege_level() != PrivilegeLevel::M {
-            return Err(Exception::IllegalInsn(p.state().ir()));
+            return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         if csrs.mip().get() & csrs.mie().get() != 0 {
             let pc = *p.state().pc() + 4;

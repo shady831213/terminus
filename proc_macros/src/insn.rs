@@ -54,8 +54,8 @@ pub fn expand(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2::TokenStrea
                 fn mask(&self) ->  InsnT {
                     #mask
                 }
-                fn matched(&self, ir:InsnT) -> bool {
-                    ir & self.mask() == self.code()
+                fn matched(&self, ir:&InsnT) -> bool {
+                    *ir & self.mask() == self.code()
                 }
                 fn decode(&self) -> &Instruction {
                     &self.0

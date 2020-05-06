@@ -10,7 +10,7 @@ pub trait LRSCInsn: InstructionImp {
         if let Extension::A(ref a) = p.state().get_extension('a') {
             Ok(a)
         } else {
-            Err(Exception::IllegalInsn(p.state().ir()))
+            Err(Exception::IllegalInsn(*p.state().ir()))
         }
     }
 }

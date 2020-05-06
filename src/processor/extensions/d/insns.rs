@@ -62,7 +62,7 @@ struct FADDD();
 impl FloatInsn for FADDD {}
 
 impl FCompute<u64, F64Traits> for FADDD {
-    fn opt(&self, ir: InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
+    fn opt(&self, ir: &InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
         frs1.add(&frs2, Self::rm_from_bits(self.rm(ir)), Some(fp_state))
     }
 }
@@ -92,7 +92,7 @@ struct FSUBD();
 impl FloatInsn for FSUBD {}
 
 impl FCompute<u64, F64Traits> for FSUBD {
-    fn opt(&self, ir: InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
+    fn opt(&self, ir: &InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
         frs1.sub(&frs2, Self::rm_from_bits(self.rm(ir)), Some(fp_state))
     }
 }
@@ -122,7 +122,7 @@ struct FMULD();
 impl FloatInsn for FMULD {}
 
 impl FCompute<u64, F64Traits> for FMULD {
-    fn opt(&self, ir: InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
+    fn opt(&self, ir: &InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
         frs1.mul(&frs2, Self::rm_from_bits(self.rm(ir)), Some(fp_state))
     }
 }
@@ -152,7 +152,7 @@ struct FDIVD();
 impl FloatInsn for FDIVD {}
 
 impl FCompute<u64, F64Traits> for FDIVD {
-    fn opt(&self, ir: InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
+    fn opt(&self, ir: &InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
         frs1.div(&frs2, Self::rm_from_bits(self.rm(ir)), Some(fp_state))
     }
 }
@@ -182,7 +182,7 @@ struct FSQRTD();
 impl FloatInsn for FSQRTD {}
 
 impl FCompute<u64, F64Traits> for FSQRTD {
-    fn opt(&self, ir: InsnT, frs1: F64, _: F64, _: F64, fp_state: &mut FPState) -> F64 {
+    fn opt(&self, ir: &InsnT, frs1: F64, _: F64, _: F64, fp_state: &mut FPState) -> F64 {
         frs1.sqrt(Self::rm_from_bits(self.rm(ir)), Some(fp_state))
     }
 }
@@ -211,7 +211,7 @@ struct FMIND();
 impl FloatInsn for FMIND {}
 
 impl FCompute<u64, F64Traits> for FMIND {
-    fn opt(&self, _: InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
+    fn opt(&self, _: &InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
         if frs1.is_nan() && frs2.is_nan() {
             return F64::quiet_nan();
         }
@@ -251,7 +251,7 @@ struct FMAXD();
 impl FloatInsn for FMAXD {}
 
 impl FCompute<u64, F64Traits> for FMAXD {
-    fn opt(&self, _: InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
+    fn opt(&self, _: &InsnT, frs1: F64, frs2: F64, _: F64, fp_state: &mut FPState) -> F64 {
         if frs1.is_nan() && frs2.is_nan() {
             return F64::quiet_nan();
         }
@@ -291,7 +291,7 @@ struct FMADDD();
 impl FloatInsn for FMADDD {}
 
 impl FCompute<u64, F64Traits> for FMADDD {
-    fn opt(&self, ir: InsnT, frs1: F64, frs2: F64, frs3: F64, state: &mut FPState) -> F64 {
+    fn opt(&self, ir: &InsnT, frs1: F64, frs2: F64, frs3: F64, state: &mut FPState) -> F64 {
         frs1.fused_mul_add(&frs2, &frs3, Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
@@ -322,7 +322,7 @@ struct FMSUBD();
 impl FloatInsn for FMSUBD {}
 
 impl FCompute<u64, F64Traits> for FMSUBD {
-    fn opt(&self, ir: InsnT, frs1: F64, frs2: F64, frs3: F64, state: &mut FPState) -> F64 {
+    fn opt(&self, ir: &InsnT, frs1: F64, frs2: F64, frs3: F64, state: &mut FPState) -> F64 {
         frs1.fused_mul_add(&frs2, &frs3.neg(), Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
@@ -354,7 +354,7 @@ struct FMNSUBD();
 impl FloatInsn for FMNSUBD {}
 
 impl FCompute<u64, F64Traits> for FMNSUBD {
-    fn opt(&self, ir: InsnT, frs1: F64, frs2: F64, frs3: F64, state: &mut FPState) -> F64 {
+    fn opt(&self, ir: &InsnT, frs1: F64, frs2: F64, frs3: F64, state: &mut FPState) -> F64 {
         frs1.fused_mul_add(&frs2, &frs3.neg(), Self::rm_from_bits(self.rm(ir)), Some(state)).neg()
     }
 }
@@ -385,7 +385,7 @@ struct FMNADDD();
 impl FloatInsn for FMNADDD {}
 
 impl FCompute<u64, F64Traits> for FMNADDD {
-    fn opt(&self, ir: InsnT, frs1: F64, frs2: F64, frs3: F64, state: &mut FPState) -> F64 {
+    fn opt(&self, ir: &InsnT, frs1: F64, frs2: F64, frs3: F64, state: &mut FPState) -> F64 {
         frs1.fused_mul_add(&frs2, &frs3, Self::rm_from_bits(self.rm(ir)), Some(state)).neg()
     }
 }
@@ -418,7 +418,7 @@ impl FloatInsn for FCVTWD {}
 
 impl FToX<u64, F64Traits> for FCVTWD {
     type T = i32;
-    fn opt(&self, ir: InsnT, frs1: F64, state: &mut FPState) -> Self::T {
+    fn opt(&self, ir: &InsnT, frs1: F64, state: &mut FPState) -> Self::T {
         if let Some(v) = frs1.to_i32(true, Self::rm_from_bits(self.rm(ir)), Some(state)) {
             v
         } else {
@@ -456,7 +456,7 @@ impl FloatInsn for FCVTWUD {}
 
 impl FToX<u64, F64Traits> for FCVTWUD {
     type T = u32;
-    fn opt(&self, ir: InsnT, frs1: F64, state: &mut FPState) -> Self::T {
+    fn opt(&self, ir: &InsnT, frs1: F64, state: &mut FPState) -> Self::T {
         if let Some(v) = frs1.to_u32(true, Self::rm_from_bits(self.rm(ir)), Some(state)) {
             v
         } else {
@@ -494,7 +494,7 @@ impl FloatInsn for FCVTLD {}
 
 impl FToX<u64, F64Traits> for FCVTLD {
     type T = i64;
-    fn opt(&self, ir: InsnT, frs1: F64, state: &mut FPState) -> Self::T {
+    fn opt(&self, ir: &InsnT, frs1: F64, state: &mut FPState) -> Self::T {
         if let Some(v) = frs1.to_i64(true, Self::rm_from_bits(self.rm(ir)), Some(state)) {
             v
         } else {
@@ -533,7 +533,7 @@ impl FloatInsn for FCVTLUD {}
 
 impl FToX<u64, F64Traits> for FCVTLUD {
     type T = u64;
-    fn opt(&self, ir: InsnT, frs1: F64, state: &mut FPState) -> Self::T {
+    fn opt(&self, ir: &InsnT, frs1: F64, state: &mut FPState) -> Self::T {
         if let Some(v) = frs1.to_u64(true, Self::rm_from_bits(self.rm(ir)), Some(state)) {
             v
         } else {
@@ -572,7 +572,7 @@ impl FloatInsn for FCVTDW {}
 
 impl XToF<u64, F64Traits> for FCVTDW {
     type T = i32;
-    fn opt(&self, ir: InsnT, rs1: Self::T, state: &mut FPState) -> F64 {
+    fn opt(&self, ir: &InsnT, rs1: Self::T, state: &mut FPState) -> F64 {
         F64::from_i32(rs1, Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
@@ -602,7 +602,7 @@ impl FloatInsn for FCVTDWU {}
 
 impl XToF<u64, F64Traits> for FCVTDWU {
     type T = u32;
-    fn opt(&self, ir: InsnT, rs1: Self::T, state: &mut FPState) -> F64 {
+    fn opt(&self, ir: &InsnT, rs1: Self::T, state: &mut FPState) -> F64 {
         F64::from_u32(rs1, Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
@@ -632,7 +632,7 @@ impl FloatInsn for FCVTDL {}
 
 impl XToF<u64, F64Traits> for FCVTDL {
     type T = i64;
-    fn opt(&self, ir: InsnT, rs1: Self::T, state: &mut FPState) -> F64 {
+    fn opt(&self, ir: &InsnT, rs1: Self::T, state: &mut FPState) -> F64 {
         F64::from_i64(rs1, Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
@@ -663,7 +663,7 @@ impl FloatInsn for FCVTDLU {}
 
 impl XToF<u64, F64Traits> for FCVTDLU {
     type T = u64;
-    fn opt(&self, ir: InsnT, rs1: Self::T, state: &mut FPState) -> F64 {
+    fn opt(&self, ir: &InsnT, rs1: Self::T, state: &mut FPState) -> F64 {
         F64::from_u64(rs1, Self::rm_from_bits(self.rm(ir)), Some(state))
     }
 }
@@ -694,7 +694,7 @@ impl FloatInsn for FCVTSD {}
 
 impl FToX<u64, F64Traits> for FCVTSD {
     type T = u32;
-    fn opt(&self, ir: InsnT, frs1: F64, state: &mut FPState) -> Self::T {
+    fn opt(&self, ir: &InsnT, frs1: F64, state: &mut FPState) -> Self::T {
         *frs1.convert_to_float::<F32Traits>(Self::rm_from_bits(self.rm(ir)), Some(state)).bits()
     }
 }
@@ -724,7 +724,7 @@ impl FloatInsn for FCVTDS {}
 
 impl XToF<u64, F64Traits> for FCVTDS {
     type T = u32;
-    fn opt(&self, ir: InsnT, rs1: Self::T, state: &mut FPState) -> F64 {
+    fn opt(&self, ir: &InsnT, rs1: Self::T, state: &mut FPState) -> F64 {
         let frs1 = F32::from_bits(rs1);
         F64::convert_from_float::<F32Traits>(&frs1, Self::rm_from_bits(self.rm(ir)), Some(state))
     }
