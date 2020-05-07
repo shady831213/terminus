@@ -25,6 +25,7 @@ A verification-friendly riscv isa simulator in rust.
 - [ ] VirtIO framebuffer
 - [ ] co-sim with RTL simulator
 - [ ] debug mode
+- [ ] other extensions(b, v ...)
 
 
 
