@@ -84,6 +84,7 @@ pub struct ProcessorState {
     ir: InsnT,
     clint: Rc<IrqVec>,
     insns_cnt: Rc<RefCell<u64>>,
+    wfi: bool,
 }
 
 impl ProcessorState {
@@ -135,6 +136,7 @@ impl ProcessorState {
             ir: 0,
             clint: clint.clone(),
             insns_cnt: Rc::new(RefCell::new(0)),
+            wfi: false,
         };
         state.add_extension().expect("add extension error!");
         state
@@ -148,6 +150,7 @@ impl ProcessorState {
         self.pc = 0;
         self.next_pc = start_address;
         self.ir = 0;
+        self.wfi = false;
         let csrs = self.icsrs();
         //register clint:0:msip, 1:mtip
         csrs.mip_mut().msip_transform({
@@ -238,6 +241,14 @@ impl ProcessorState {
     fn get_extension_mut(&mut self, id: char) -> &mut Extension {
         unsafe { self.extensions.get_unchecked_mut((id as u8 - 'a' as u8) as usize) }
         // &self.extensions[(id as u8 - 'a' as u8) as usize]
+    }
+
+    pub fn wfi(&self) -> bool {
+        self.wfi
+    }
+
+    pub fn set_wfi(&mut self, value: bool) {
+        self.wfi = value
     }
 
     pub fn isa_string(&self) -> String {
@@ -515,8 +526,15 @@ impl Processor {
             Trap::Interrupt(i) => (true, mcsrs.mideleg().get(), i.code(), i.tval()),
         };
         //deleg to s-mode
-        let degeged = *self.state().privilege() != Privilege::M && (deleg >> code) & 1 == 1;
-        let (pc, privilege) = if degeged {
+        let
+            degeged = *
+            self.
+                state().
+                privilege() !=
+            Privilege::M && (deleg >> code) & 1 == 1;
+        let
+            (pc, privilege) = if
+        degeged {
             let tvec = scsrs.stvec();
             let offset = if tvec.mode() == 1 && int_flag {
                 code << 2
@@ -567,8 +585,12 @@ impl Processor {
             self.fetcher().flush_icache();
             (pc, Privilege::M)
         };
-        self.state_mut().set_pc(pc);
-        self.state_mut().set_privilege(privilege);
+        self.
+            state_mut().
+            set_pc(pc);
+        self.
+            state_mut().
+            set_privilege(privilege);
     }
 
     fn one_step(&mut self) -> Result<(), Trap> {
@@ -579,7 +601,16 @@ impl Processor {
 
     pub fn step(&mut self, n: usize) {
         assert!(n > 0);
+
         for _ in 0..n {
+            if self.state().wfi() {
+                let csrs = self.state().icsrs();
+                if csrs.mip().get() & csrs.mie().get() == 0 {
+                    continue
+                } else {
+                    self.state_mut().set_wfi(false)
+                }
+            }
             if let Err(trap) = self.one_step() {
                 self.handle_trap(trap)
             }

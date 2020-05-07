@@ -906,7 +906,7 @@ impl Execution for LD {
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
         let mut data: u64 = 0;
-        p.load_store().load_double_word(p.state(), &(base + offset).0, &mut data,p.mmu())?;
+        p.load_store().load_double_word(p.state(), &(base + offset).0, &mut data, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let pc = *p.state().pc() + 4;
         p.state_mut().set_xreg(rd, data as RegT);
@@ -938,7 +938,7 @@ impl Execution for SB {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let data = p.state().xreg(self.src(p.state().ir()));
-        p.load_store.store_byte(p.state(), &(base + self.offset(p.state().ir())).0, unsafe{ &*(data as *const RegT as *const u8)}, p.mmu())?;
+        p.load_store.store_byte(p.state(), &(base + self.offset(p.state().ir())).0, unsafe { &*(data as *const RegT as *const u8) }, p.mmu())?;
         let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
@@ -957,7 +957,7 @@ impl Execution for SH {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let data = p.state().xreg(self.src(p.state().ir()));
-        p.load_store.store_half_word(p.state(), &(base + self.offset(p.state().ir())).0, unsafe{ &*(data as *const RegT as *const u16)}, p.mmu())?;
+        p.load_store.store_half_word(p.state(), &(base + self.offset(p.state().ir())).0, unsafe { &*(data as *const RegT as *const u16) }, p.mmu())?;
         let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
@@ -976,7 +976,7 @@ impl Execution for SW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let data = p.state().xreg(self.src(p.state().ir()));
-        p.load_store.store_word(p.state(), &(base + self.offset(p.state().ir())).0, unsafe{ &*(data as *const RegT as *const u32)}, p.mmu())?;
+        p.load_store.store_word(p.state(), &(base + self.offset(p.state().ir())).0, unsafe { &*(data as *const RegT as *const u32) }, p.mmu())?;
         let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
@@ -1209,6 +1209,9 @@ impl Execution for WFI {
         if csrs.mip().get() & csrs.mie().get() != 0 {
             let pc = *p.state().pc() + 4;
             p.state_mut().set_pc(pc);
+            p.state_mut().set_wfi(false);
+        } else {
+            p.state_mut().set_wfi(true);
         }
         Ok(())
     }
