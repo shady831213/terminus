@@ -5,6 +5,15 @@ A verification-friendly riscv isa simulator in rust.
 ## Boot Linux in 40s
 ![Boot Linux in 40s](video/linux_boot.gif)
 
+## Getting Start
+
+```
+  git clone https://github.com/shady831213/terminus
+  cd terminus
+  cargo install --path .
+  terminus examples/linux/image/br-5-4
+```
+
 ## RoadMap
 - [x] RV32/64I
 - [x] MADFC
@@ -14,7 +23,7 @@ A verification-friendly riscv isa simulator in rust.
 - [x] FDT generation
 - [x] Multi Cores
 - [x] Boot Linux
-- [ ] Emu mode binary
+- [x] Emu mode binary
 - [ ] Boot Linux(smp)
 - [ ] DPI support
 - [ ] Publish to crate.io
