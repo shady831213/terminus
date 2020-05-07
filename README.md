@@ -13,14 +13,14 @@ A verification-friendly riscv isa simulator in rust.
 - [x] HTIF console
 - [x] FDT generation
 - [x] Boot Linux
-- [] Emu mode binary
-- [] DPI and co-sim
-- [] Publish to crate.io
-- [] debug mode
-- [] VirtIO console
-- [] VirtIO disk
-- [] VirtIO network
-- [] VirtIO framebuffer
+- [ ] Emu mode binary
+- [ ] DPI and co-sim
+- [ ] Publish to crate.io
+- [ ] debug mode
+- [ ] VirtIO console
+- [ ] VirtIO disk
+- [ ] VirtIO network
+- [ ] VirtIO framebuffer
 
 
 
