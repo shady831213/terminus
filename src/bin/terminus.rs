@@ -107,6 +107,5 @@ fn main() {
         }
         sys.timer().tick(50)
     }
-    eprintln!("{}", sys.processor(0).unwrap().state().to_string());
     term_exit();
 }
