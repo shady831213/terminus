@@ -12,15 +12,20 @@ A verification-friendly riscv isa simulator in rust.
 - [x] CLINT and Timer
 - [x] HTIF console
 - [x] FDT generation
+- [x] Multi Cores
 - [x] Boot Linux
 - [ ] Emu mode binary
-- [ ] DPI and co-sim
+- [ ] Boot Linux(smp)
+- [ ] DPI support
 - [ ] Publish to crate.io
-- [ ] debug mode
+- [ ] PLIC
 - [ ] VirtIO console
 - [ ] VirtIO disk
 - [ ] VirtIO network
 - [ ] VirtIO framebuffer
+- [ ] co-sim with RTL simulator
+- [ ] debug mode
+
 
 
 
