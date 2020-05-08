@@ -7,25 +7,27 @@ use std::ops::Deref;
 
 struct PlicInner {
     irq_vecs: Vec<IrqVecSender>,
-    priority_threshold: Vec<u16>,
+    priority_threshold: Vec<u32>,
     irq_src: IrqVec,
-    priority: Vec<u16>,
+    priority: Vec<u32>,
     enables: Vec<Vec<u32>>,
+    num_src: usize,
 }
 
 impl PlicInner {
-    fn new(len: usize) -> PlicInner {
+    fn new(max_len: usize) -> PlicInner {
         PlicInner {
             irq_vecs: vec![],
             priority_threshold: vec![],
-            irq_src: IrqVec::new(len),
-            priority: vec![0; len],
+            irq_src: IrqVec::new(max_len),
+            priority: vec![0; max_len],
             enables: vec![],
+            num_src: 1,
         }
     }
 
-    fn alloc_irq(&mut self) -> Rc<IrqVec> {
-        let irq_vec = Rc::new(IrqVec::new(1));
+    fn alloc_irq(&mut self) -> IrqVec {
+        let irq_vec = IrqVec::new(1);
         let len = self.priority.len();
         irq_vec.set_enable_uncheck(0, true);
         self.irq_vecs.push(irq_vec.sender(0).unwrap());
@@ -34,14 +36,45 @@ impl PlicInner {
         irq_vec
     }
 
-    fn alloc_src(&self, id: usize) -> IrqVecSender {
+    fn alloc_src(&mut self, id: usize) -> IrqVecSender {
+        assert!(id != 0);
+        self.num_src += 1;
         self.irq_src.enable(id).unwrap();
         self.irq_src.sender(id).unwrap()
     }
 
-    // fn update_irq(&self) {
-    //
-    // }
+    fn update_irq(&self) {
+        for vec in self.irq_vecs.iter() {
+            vec.clear().unwrap();
+        }
+        for i in 1..self.num_src {
+            if self.irq_src.pending_uncheck(i) {
+                for (vec, (ths, enables)) in self.irq_vecs.iter().zip(self.priority_threshold.iter().zip(self.enables.iter())) {
+                    if unsafe {
+                        (*enables.get_unchecked(i >> 5) >> (i as u32 & 0x1f)) & 0x1 == 0x1 && *self.priority.get_unchecked(i) > *ths
+                    } {
+                        vec.send().unwrap();
+                    }
+                }
+            }
+        }
+    }
+
+    fn pick_claim(&self) -> u32 {
+        let mut max_pri: u32 = 0;
+        let mut idx: u32 = 0;
+        for i in 1..self.num_src {
+            if self.irq_src.pending_uncheck(i) {
+                let pri = unsafe { self.priority.get_unchecked(i) };
+                if *pri == 0x7 {
+                    return i as u32;
+                } else if *pri > max_pri {
+                    idx = i as u32
+                }
+            }
+        }
+        idx
+    }
 }
 
 const PLIC_PRI_BASE: u64 = 0x0;
