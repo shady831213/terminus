@@ -10,6 +10,7 @@ A verification-friendly riscv isa simulator in rust.
 ```
   git clone https://github.com/shady831213/terminus
   cd terminus
+  cargo update -p terminus-spaceport
   cargo install --path .
   terminus examples/linux/image/br-5-4
 ```
