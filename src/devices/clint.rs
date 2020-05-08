@@ -1,6 +1,6 @@
 use std::num::Wrapping;
 use terminus_spaceport::memory::prelude::*;
-use terminus_spaceport::irq::IrqVec;
+use terminus_spaceport::irq::{IrqVec, IrqVecSender, IrqVecListener};
 use terminus_macros::*;
 use std::rc::Rc;
 use std::cell::{Ref, RefMut, RefCell};
@@ -8,7 +8,9 @@ use std::cell::{Ref, RefMut, RefCell};
 struct TimerInner {
     freq: usize,
     cnt: u64,
-    irq_vecs: Vec<Rc<IrqVec>>,
+    tints: Vec<IrqVecSender>,
+    sints: Vec<IrqVecSender>,
+    sint_status: Vec<IrqVecListener>,
     mtimecmps: Vec<u64>,
 }
 
@@ -17,9 +19,19 @@ impl TimerInner {
         TimerInner {
             freq,
             cnt: 0,
-            irq_vecs: vec![],
+            tints: vec![],
+            sints: vec![],
+            sint_status: vec![],
             mtimecmps: vec![],
         }
+    }
+
+    fn reset(&mut self) {
+        self.cnt = 0;
+        self.tints = vec![];
+        self.sints = vec![];
+        self.sint_status = vec![];
+        self.mtimecmps = vec![];
     }
 
     fn cnt_tick(&mut self, n: u64) {
@@ -31,17 +43,19 @@ impl TimerInner {
         let irq_vec = Rc::new(IrqVec::new(2));
         irq_vec.set_enable_uncheck(0, true);
         irq_vec.set_enable_uncheck(1, true);
-        self.irq_vecs.push(irq_vec.clone());
+        self.sints.push(irq_vec.sender(0).unwrap());
+        self.sint_status.push(irq_vec.listener(0).unwrap());
+        self.tints.push(irq_vec.sender(1).unwrap());
         self.mtimecmps.push(0);
         irq_vec
     }
 
     fn tick(&mut self, n: u64) {
         self.cnt_tick(n);
-        for (irq_vec, mtimecmp) in self.irq_vecs.iter().zip(self.mtimecmps.iter()) {
-            irq_vec.set_pending_uncheck(1, false);
+        for (tint, mtimecmp) in self.tints.iter().zip(self.mtimecmps.iter()) {
+            tint.clear().unwrap();
             if self.cnt >= *mtimecmp {
-                irq_vec.sender(1).unwrap().send().unwrap();
+                tint.send().unwrap();
             }
         }
     }
@@ -64,6 +78,10 @@ impl Timer {
 
     pub fn freq(&self) -> usize {
         self.0.borrow().freq
+    }
+
+    pub fn reset(&self) {
+        self.0.borrow_mut().reset()
     }
 
     fn inner(&self) -> Ref<'_, TimerInner> {
@@ -118,9 +136,13 @@ impl U32Access for Clint {
     fn write(&self, addr: &u64, data: u32) {
         assert!((*addr).trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
         let mut timer = self.0.inner_mut();
-        if *addr >= MSIP_BASE && *addr + 4 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
+        if *addr >= MSIP_BASE && *addr + 4 <= MSIP_BASE + timer.sints.len() as u64 * MSIP_SIZE {
             let offset = ((*addr - MSIP_BASE) >> 2) as usize;
-            timer.irq_vecs[offset].set_pending_uncheck(0, (data & 1) != 0);
+            if (data & 1) == 1 {
+                timer.sints[offset].send().unwrap();
+            } else {
+                timer.sints[offset].clear().unwrap();
+            }
             return;
         } else if *addr >= MTIMECMP_BASE && *addr + 4 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
             let offset = ((*addr - MTIMECMP_BASE) >> 3) as usize;
@@ -145,9 +167,9 @@ impl U32Access for Clint {
     fn read(&self, addr: &u64) -> u32 {
         assert!((*addr).trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
         let timer = self.0.inner();
-        if *addr >= MSIP_BASE && *addr + 4 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
+        if *addr >= MSIP_BASE && *addr + 4 <= MSIP_BASE + timer.sint_status.len() as u64 * MSIP_SIZE {
             let offset = ((*addr - MSIP_BASE) >> 2) as usize;
-            return timer.irq_vecs[offset].pending(0).unwrap() as u32;
+            return timer.sint_status[offset].pending_uncheck() as u32;
         } else if *addr >= MTIMECMP_BASE && *addr + 4 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
             let offset = ((*addr - MTIMECMP_BASE) >> 3) as usize;
             return if (*addr).trailing_zeros() == 2 {
@@ -173,10 +195,18 @@ impl U64Access for Clint {
         assert!((*addr).trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", addr));
 
         let mut timer = self.0.inner_mut();
-        if *addr >= MSIP_BASE && *addr + 8 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
+        if *addr >= MSIP_BASE && *addr + 8 <= MSIP_BASE + timer.sints.len() as u64 * MSIP_SIZE {
             let offset = (((*addr - MSIP_BASE) >> 3) << 1) as usize;
-            timer.irq_vecs[offset].set_pending_uncheck(0, (data & 1) != 0);
-            timer.irq_vecs[offset + 1].set_pending_uncheck(0, ((data >> 32) & 1) != 0);
+            if (data & 1) == 1 {
+                timer.sints[offset].send().unwrap();
+            } else {
+                timer.sints[offset].clear().unwrap();
+            }
+            if ((data >> 32) & 1) == 1 {
+                timer.sints[offset + 1].send().unwrap();
+            } else {
+                timer.sints[offset + 1].clear().unwrap();
+            }
             return;
         } else if *addr >= MTIMECMP_BASE && *addr + 8 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
             let offset = ((*addr - MTIMECMP_BASE) >> 3) as usize;
@@ -194,9 +224,9 @@ impl U64Access for Clint {
         assert!((*addr).trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", addr));
 
         let timer = self.0.inner();
-        if *addr >= MSIP_BASE && *addr + 8 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
+        if *addr >= MSIP_BASE && *addr + 8 <= MSIP_BASE + timer.sint_status.len() as u64 * MSIP_SIZE {
             let offset = (((*addr - MSIP_BASE) >> 3) << 1) as usize;
-            return (timer.irq_vecs[offset].pending(0).unwrap() as u64) | ((timer.irq_vecs[offset + 1].pending(0).unwrap() as u64) << 32);
+            return (timer.sint_status[offset].pending_uncheck() as u64) | ((timer.sint_status[offset + 1].pending_uncheck() as u64) << 32);
         } else if *addr >= MTIMECMP_BASE && *addr + 8 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
             let offset = ((addr - MTIMECMP_BASE) >> 3) as usize;
             return timer.mtimecmps[offset];

@@ -82,7 +82,6 @@ pub struct ProcessorState {
     pc: RegT,
     next_pc: RegT,
     ir: InsnT,
-    clint: Rc<IrqVec>,
     insns_cnt: Rc<RefCell<u64>>,
     wfi: bool,
 }
@@ -118,7 +117,7 @@ impl Display for ProcessorState {
 
 
 impl ProcessorState {
-    fn new(hartid: usize, config: ProcessorCfg, clint: &Rc<IrqVec>) -> ProcessorState {
+    fn new(hartid: usize, config: ProcessorCfg) -> ProcessorState {
         let mut state = ProcessorState {
             hartid,
             config,
@@ -134,7 +133,6 @@ impl ProcessorState {
             pc: 0,
             next_pc: 0,
             ir: 0,
-            clint: clint.clone(),
             insns_cnt: Rc::new(RefCell::new(0)),
             wfi: false,
         };
@@ -142,7 +140,7 @@ impl ProcessorState {
         state
     }
 
-    fn reset(&mut self, start_address: u64) -> Result<(), String> {
+    fn reset(&mut self, start_address: u64, clint: &IrqVec) -> Result<(), String> {
         if self.config.xlen == XLen::X32 && start_address.leading_zeros() < 32 {
             return Err(format!("cpu{}:invalid start addr {:#x} when xlen == X32!", self.hartid, start_address));
         }
@@ -154,15 +152,15 @@ impl ProcessorState {
         let csrs = self.icsrs();
         //register clint:0:msip, 1:mtip
         csrs.mip_mut().msip_transform({
-            let clint = self.clint.clone();
+            let l = clint.listener(0).unwrap();
             move |_| {
-                clint.pending_uncheck(0) as RegT
+                l.pending_uncheck() as RegT
             }
         });
         csrs.mip_mut().mtip_transform({
-            let clint = self.clint.clone();
+            let l = clint.listener(1).unwrap();
             move |_| {
-                clint.pending_uncheck(1) as RegT
+                l.pending_uncheck() as RegT
             }
         });
         //hartid
@@ -409,8 +407,8 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn new(hartid: usize, config: ProcessorCfg, bus: &Rc<Bus>, clint: &Rc<IrqVec>) -> Processor {
-        let state = ProcessorState::new(hartid, config, clint);
+    pub fn new(hartid: usize, config: ProcessorCfg, bus: &Rc<Bus>) -> Processor {
+        let state = ProcessorState::new(hartid, config);
         let mmu = Mmu::new(bus);
         let fetcher = Fetcher::new(bus);
         let load_store = LoadStore::new(bus);
@@ -422,8 +420,8 @@ impl Processor {
         }
     }
 
-    pub fn reset(&mut self, start_address: u64) -> Result<(), String> {
-        self.state.reset(start_address)?;
+    pub fn reset(&mut self, start_address: u64, clint: &IrqVec) -> Result<(), String> {
+        self.state.reset(start_address, clint)?;
         self.load_store().release(self.state());
         self.mmu.flush_tlb();
         self.fetcher.flush_icache();
@@ -606,7 +604,7 @@ impl Processor {
             if self.state().wfi() {
                 let csrs = self.state().icsrs();
                 if csrs.mip().get() & csrs.mie().get() == 0 {
-                    continue
+                    continue;
                 } else {
                     self.state_mut().set_wfi(false)
                 }
