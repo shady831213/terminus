@@ -43,7 +43,7 @@ impl PlicInner {
         self.irq_src.sender(id).unwrap()
     }
 
-    fn update_irq(&self) {
+    fn update_meip(&self) {
         for vec in self.irq_vecs.iter() {
             vec.clear().unwrap();
         }
