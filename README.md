@@ -14,6 +14,38 @@ A verification-friendly riscv isa simulator in rust.
   terminus examples/linux/image/br-5-4
 ```
 
+## Multi-cores support
+```
+  terminus examples/linux/image/br-5-4 -p 4
+  //booting...
+  //booting...
+  //booting...
+  //...
+  buildroot login: root
+  //password is terminus
+  Password: 
+  # cat /proc/cpuinfo
+```
+then you will see:
+```
+processor	: 0
+hart		: 0
+mmu		: sv48
+
+processor	: 1
+hart		: 1
+mmu		: sv48
+
+processor	: 2
+hart		: 2
+mmu		: sv48
+
+processor	: 3
+hart		: 3
+mmu		: sv48
+
+```
+
 ## RoadMap
 - [x] RV32/64I
 - [x] MADFC
@@ -24,7 +56,7 @@ A verification-friendly riscv isa simulator in rust.
 - [x] Multi Cores
 - [x] Boot Linux
 - [x] Emu mode binary
-- [ ] Boot Linux(smp)
+- [x] Boot Linux(smp)
 - [ ] DPI support
 - [ ] Publish to crate.io
 - [ ] PLIC
