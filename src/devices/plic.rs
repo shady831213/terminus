@@ -1,8 +1,9 @@
 use terminus_spaceport::irq::{IrqVec, IrqVecSender};
 use terminus_spaceport::memory::prelude::*;
-use std::cell::RefCell;
+use std::cell::{RefCell, Ref, RefMut};
+use std::rc::Rc;
 
-struct PlicInner {
+struct IntcInner {
     irq_vecs: Vec<IrqVecSender>,
     priority_threshold: Vec<u32>,
     irq_src: IrqVec,
@@ -11,9 +12,9 @@ struct PlicInner {
     num_src: usize,
 }
 
-impl PlicInner {
-    fn new(max_len: usize) -> PlicInner {
-        PlicInner {
+impl IntcInner {
+    fn new(max_len: usize) -> IntcInner {
+        IntcInner {
             irq_vecs: vec![],
             priority_threshold: vec![],
             irq_src: IrqVec::new(max_len),
@@ -88,30 +89,41 @@ impl PlicInner {
     }
 }
 
+pub struct Intc(RefCell<IntcInner>);
+
+impl Intc {
+    pub fn new(max_len: usize) -> Intc {
+        Intc(RefCell::new(IntcInner::new(max_len)))
+    }
+
+    pub fn alloc_irq(&self) -> IrqVec {
+        self.0.borrow_mut().alloc_irq()
+    }
+
+    pub fn alloc_src(&self, id: usize) -> IrqVecSender {
+        self.0.borrow_mut().alloc_src(id)
+    }
+
+    fn inner(&self) -> Ref<'_, IntcInner> {
+        self.0.borrow()
+    }
+
+    fn inner_mut(&self) -> RefMut<'_, IntcInner> {
+        self.0.borrow_mut()
+    }
+}
+
 const PLIC_PRI_BASE: u64 = 0x0;
 const PLIC_PENDING_BASE: u64 = 0x1000;
 const PLIC_ENABLE_BASE: u64 = 0x2000;
 const PLIC_HART_BASE: u64 = 0x200000;
 
 #[derive_io(Bytes, U32, U64)]
-pub struct Plic {
-    inner: RefCell<PlicInner>,
-
-}
+pub struct Plic(Rc<Intc>);
 
 impl Plic {
-    pub fn new(len: usize) -> Plic {
-        Plic {
-            inner: RefCell::new(PlicInner::new(len))
-        }
-    }
-
-    pub fn alloc_irq(&self) -> IrqVec {
-        self.inner.borrow_mut().alloc_irq()
-    }
-
-    pub fn alloc_src(&self, id: usize) -> IrqVecSender {
-        self.inner.borrow_mut().alloc_src(id)
+    pub fn new(intc: &Rc<Intc>) -> Plic {
+        Plic(intc.clone())
     }
 }
 
@@ -140,7 +152,7 @@ impl BytesAccess for Plic {
 impl U32Access for Plic {
     fn write(&self, addr: &u64, data: u32) {
         assert!((*addr).trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
-        let mut inner = self.inner.borrow_mut();
+        let mut inner = self.0.inner_mut();
         if *addr >= PLIC_PRI_BASE && *addr + 4 <= PLIC_PRI_BASE + ((inner.num_src as u64) << 2) {
             let offset = ((*addr - PLIC_PRI_BASE) >> 2) as usize;
             inner.priority[offset] = data & 0x7;
@@ -151,7 +163,7 @@ impl U32Access for Plic {
             let hart_offset = offset / enable_per_hart;
             let en_offset = offset % enable_per_hart;
             inner.enables[hart_offset][en_offset] = data;
-        } else if *addr >= PLIC_HART_BASE  {
+        } else if *addr >= PLIC_HART_BASE {
             if (*addr).trailing_zeros() == 2 {
                 inner.update_all_meip()
             } else {
@@ -165,20 +177,20 @@ impl U32Access for Plic {
 
     fn read(&self, addr: &u64) -> u32 {
         assert!((*addr).trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
-        let inner = self.inner.borrow();
+        let inner = self.0.inner();
         if *addr >= PLIC_PRI_BASE && *addr + 4 <= PLIC_PRI_BASE + ((inner.num_src as u64) << 2) {
             let offset = ((*addr - PLIC_PRI_BASE) >> 2) as usize;
             return inner.priority[offset];
         } else if *addr >= PLIC_PENDING_BASE && *addr + 4 <= PLIC_PENDING_BASE + (((inner.num_src + 31) as u64) >> 3) {
             let offset = *addr - PLIC_PENDING_BASE;
-            return inner.pending(offset)
+            return inner.pending(offset);
         } else if *addr >= PLIC_ENABLE_BASE && *addr + 4 <= PLIC_ENABLE_BASE + (((inner.num_src + 31) as u64) >> 3) * (inner.irq_vecs.len() as u64) {
             let offset = ((*addr - PLIC_ENABLE_BASE) >> 2) as usize;
             let enable_per_hart = inner.enable_per_hart();
             let hart_offset = offset / enable_per_hart;
             let en_offset = offset % enable_per_hart;
             return inner.enables[hart_offset][en_offset];
-        } else if *addr >= PLIC_HART_BASE  {
+        } else if *addr >= PLIC_HART_BASE {
             if (*addr).trailing_zeros() == 2 {
                 let claim = inner.pick_claim();
                 inner.irq_src.set_pending_uncheck(claim as usize, false);

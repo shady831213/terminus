@@ -84,6 +84,7 @@ pub struct ProcessorState {
     ir: InsnT,
     insns_cnt: Rc<RefCell<u64>>,
     clint: IrqVec,
+    plic: IrqVec,
     wfi: bool,
 }
 
@@ -118,7 +119,7 @@ impl Display for ProcessorState {
 
 
 impl ProcessorState {
-    fn new(hartid: usize, config: ProcessorCfg, clint: IrqVec) -> ProcessorState {
+    fn new(hartid: usize, config: ProcessorCfg, clint: IrqVec, plic: IrqVec) -> ProcessorState {
         let mut state = ProcessorState {
             hartid,
             config,
@@ -136,6 +137,7 @@ impl ProcessorState {
             ir: 0,
             insns_cnt: Rc::new(RefCell::new(0)),
             clint,
+            plic,
             wfi: false,
         };
         state.add_extension().expect("add extension error!");
@@ -161,6 +163,19 @@ impl ProcessorState {
         });
         csrs.mip_mut().mtip_transform({
             let l = self.clint.listener(1).unwrap();
+            move |_| {
+                l.pending_uncheck() as RegT
+            }
+        });
+        //register plic
+        csrs.mip_mut().meip_transform({
+            let l = self.plic.listener(0).unwrap();
+            move |_| {
+                l.pending_uncheck() as RegT
+            }
+        });
+        csrs.mip_mut().seip_transform({
+            let l = self.plic.listener(0).unwrap();
             move |_| {
                 l.pending_uncheck() as RegT
             }
@@ -409,8 +424,8 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn new(hartid: usize, config: ProcessorCfg, bus: &Rc<Bus>, clint: IrqVec) -> Processor {
-        let state = ProcessorState::new(hartid, config, clint);
+    pub fn new(hartid: usize, config: ProcessorCfg, bus: &Rc<Bus>, clint: IrqVec, plic: IrqVec) -> Processor {
+        let state = ProcessorState::new(hartid, config, clint, plic);
         let mmu = Mmu::new(bus);
         let fetcher = Fetcher::new(bus);
         let load_store = LoadStore::new(bus);

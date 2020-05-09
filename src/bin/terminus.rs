@@ -91,7 +91,7 @@ fn main() {
         extensions,
         freq: 1000000000,
     }; core_num];
-    let mut sys = System::new("sys", elf, configs, 10000000);
+    let mut sys = System::new("sys", elf, configs, 10000000, 32);
     sys.register_memory("main_memory", 0x80000000, &GHEAP.alloc(memory_size, 1).expect("main_memory alloc fail!")).unwrap();
     sys.register_device("clint", 0x02000000, 0x000c0000, Clint::new(sys.timer())).unwrap();
     sys.make_boot_rom(0x20000000, -1i64 as u64).unwrap();

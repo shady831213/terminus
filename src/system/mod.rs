@@ -11,6 +11,16 @@ use std::cmp::min;
 use crate::devices::clint::Timer;
 use std::ops::Deref;
 use std::rc::Rc;
+use terminus_global::XLen;
+use crate::devices::plic::Intc;
+
+pub mod fdt;
+
+use fdt::{FdtNode, FdtProp};
+
+pub mod elf;
+
+use elf::ElfLoader;
 
 #[derive(Debug)]
 pub enum Error {
@@ -28,31 +38,24 @@ impl From<space::Error> for Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub mod elf;
-
-use elf::ElfLoader;
-use crate::system::fdt::{FdtNode, FdtProp};
-use terminus_global::XLen;
-
-
-pub mod fdt;
-
 pub struct System {
     name: String,
     bus: Rc<Bus>,
     timer: Rc<Timer>,
+    intc: Rc<Intc>,
     elf: ElfLoader,
     processors: Vec<Processor>,
 }
 
 impl System {
-    pub fn new(name: &str, elf_file: &str, processor_cfgs: Vec<ProcessorCfg>, timer_freq: usize) -> System {
+    pub fn new(name: &str, elf_file: &str, processor_cfgs: Vec<ProcessorCfg>, timer_freq: usize, max_int_src: usize) -> System {
         let bus = Rc::new(Bus::new());
         let elf = ElfLoader::new(elf_file).expect(&format!("Invalid Elf {}", elf_file));
         let mut sys = System {
             name: name.to_string(),
             bus,
             timer: Rc::new(Timer::new(timer_freq)),
+            intc: Rc::new(Intc::new(max_int_src)),
             elf,
             processors: vec![],
         };
@@ -64,7 +67,7 @@ impl System {
     }
 
     fn new_processor(&mut self, config: ProcessorCfg) {
-        let p = Processor::new(self.processors.len(), config, &self.bus, self.timer.alloc_irq());
+        let p = Processor::new(self.processors.len(), config, &self.bus, self.timer.alloc_irq(), self.intc.alloc_irq());
         self.processors.push(p)
     }
 
@@ -97,6 +100,10 @@ impl System {
 
     pub fn timer(&self) -> &Rc<Timer> {
         &self.timer
+    }
+
+    pub fn intc(&self) -> &Rc<Intc> {
+        &self.intc
     }
 
     pub fn register_device<D: IOAccess + 'static>(&self, name: &str, base: u64, size: u64, device: D) -> Result<()> {
