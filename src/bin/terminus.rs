@@ -9,8 +9,10 @@ use terminus::system::System;
 use terminus::devices::clint::Clint;
 use terminus_spaceport::devices::term_exit;
 use terminus_spaceport::EXIT_CTRL;
-use terminus_spaceport::memory::region::GHEAP;
+use terminus_spaceport::memory::region::{GHEAP, Region};
 use terminus::devices::plic::Plic;
+use std::rc::Rc;
+use terminus::devices::virtio_console::{VirtIOConsoleDevice, VirtIOConsole};
 
 fn main() {
     let matches = App::new("terminus")
@@ -93,9 +95,16 @@ fn main() {
         freq: 1000000000,
     }; core_num];
     let mut sys = System::new("sys", elf, configs, 10000000, 32);
-    sys.register_memory("main_memory", 0x80000000, &GHEAP.alloc(memory_size, 1).expect("main_memory alloc fail!")).unwrap();
+    let main_memory = GHEAP.alloc(memory_size, 1).expect("main_memory alloc fail!");
+    sys.register_memory("main_memory", 0x80000000, &main_memory).unwrap();
     sys.register_device("clint", 0x02000000, 0x000c0000, Clint::new(sys.timer())).unwrap();
     sys.register_device("plic", 0x0c000000, 0x4000000, Plic::new(sys.intc())).unwrap();
+    //virtios
+    let virtio_mem = Region::remap(0x80000000, &main_memory);
+    let irq_num = sys.intc().num_src();
+    let virtio_console_device = Rc::new(VirtIOConsoleDevice::new(&virtio_mem, sys.intc().alloc_src(irq_num)));
+    sys.register_virtio("virtio_console", VirtIOConsole::new(&virtio_console_device)).unwrap();
+
     sys.make_boot_rom(0x20000000, -1i64 as u64).unwrap();
     sys.load_elf().unwrap();
     sys.reset(vec![-1i64 as u64; core_num]).unwrap();
@@ -107,6 +116,7 @@ fn main() {
         for p in sys.processors() {
             p.step(5000);
         }
+        virtio_console_device.console_read();
         sys.timer().tick(50)
     }
     term_exit();

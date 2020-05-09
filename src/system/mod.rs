@@ -21,6 +21,10 @@ use fdt::{FdtNode, FdtProp};
 pub mod elf;
 
 use elf::ElfLoader;
+use terminus_spaceport::virtio::{MMIODevice, VirtIOInfo};
+
+const VIRTIO_BASE: u64 = 0x40000000;
+const VIRTIO_SIZE: u64 = 0x1000;
 
 #[derive(Debug)]
 pub enum Error {
@@ -45,6 +49,7 @@ pub struct System {
     intc: Rc<Intc>,
     elf: ElfLoader,
     processors: Vec<Processor>,
+    virtio_infos: Vec<VirtIOInfo>,
 }
 
 impl System {
@@ -58,6 +63,7 @@ impl System {
             intc: Rc::new(Intc::new(max_int_src)),
             elf,
             processors: vec![],
+            virtio_infos: vec![],
         };
         sys.try_register_htif();
         for cfg in processor_cfgs {
@@ -108,6 +114,20 @@ impl System {
 
     pub fn register_device<D: IOAccess + 'static>(&self, name: &str, base: u64, size: u64, device: D) -> Result<()> {
         self.register_region(name, base, &Region::io(0, size, Box::new(device)))
+    }
+
+    pub fn register_virtio<D: IOAccess + MMIODevice + 'static>(&mut self, name: &str, device: D) -> Result<()> {
+        let id = self.virtio_infos.len() as u64;
+        let base = VIRTIO_BASE + id * VIRTIO_SIZE;
+        let irq_id = device.device().irq_id() as u32;
+        self.register_device(name, base, VIRTIO_SIZE, device)?;
+        self.virtio_infos.push(VirtIOInfo {
+            base,
+            size: VIRTIO_SIZE,
+            irq_id,
+            ty: "mmio".to_string(),
+        });
+        Ok(())
     }
 
 
@@ -243,6 +263,7 @@ impl System {
             return Err(Error::FdtErr("\"clint\" is not in memory space!".to_string()));
         }
 
+        let plic_phandle = self.processors.len() as u32 + 1;
         if let Some(plic_region) = self.bus.space().get_region("plic") {
             let num_ints = self.intc.num_src() as u32 - 1;
             if num_ints != 0 {
@@ -261,7 +282,19 @@ impl System {
                 }
                 plic.add_prop(FdtProp::u32_prop("interrupts-extended", interrupts_extended));
                 plic.add_prop(FdtProp::u64_prop("reg", vec![plic_region.info.base, plic_region.info.size]));
+                plic.add_prop(FdtProp::u32_prop("phandle", vec![plic_phandle]));
                 soc.add_node(plic);
+            }
+        }
+
+        if !self.virtio_infos.is_empty() {
+            assert!(self.bus.space().get_region("plic").is_some());
+            for info in self.virtio_infos.iter() {
+                let mut virtio = FdtNode::new_with_num("virtio", info.base);
+                virtio.add_prop(FdtProp::str_prop("compatible", vec![&format!("virtio,{}", info.ty)]));
+                virtio.add_prop(FdtProp::u64_prop("reg", vec![info.base, info.size]));
+                virtio.add_prop(FdtProp::u32_prop("interrupts-extended", vec![plic_phandle, info.irq_id]));
+                soc.add_node(virtio)
             }
         }
 

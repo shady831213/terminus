@@ -6,6 +6,7 @@ use terminus_spaceport::devices::TERM;
 use std::io::{Write, ErrorKind, Read};
 use std::ops::Deref;
 use std::cmp::min;
+use terminus_spaceport::irq::IrqVecSender;
 
 
 struct VirtIOInputQueue {}
@@ -50,14 +51,14 @@ impl QueueClient for VirtIOOutputQueue {
     }
 }
 
-struct VirtIOConsoleDevice {
+pub struct VirtIOConsoleDevice {
     virtio_device: Device,
 }
 
 impl VirtIOConsoleDevice {
-    pub fn new(memory: &Rc<Region>) -> VirtIOConsoleDevice {
+    pub fn new(memory: &Rc<Region>, irq_sender: IrqVecSender) -> VirtIOConsoleDevice {
         let mut virtio_device = Device::new(memory,
-                                            None,
+                                            irq_sender,
                                             0,
                                             3, 0, 1,
         );
@@ -71,14 +72,15 @@ impl VirtIOConsoleDevice {
         };
         virtio_device.add_queue(input_queue);
         virtio_device.add_queue(output_queue);
-
-        virtio_device.get_irq_vec().set_enable(1, true).unwrap();
         VirtIOConsoleDevice {
             virtio_device,
         }
     }
     pub fn console_read(&self) {
         let input_queue = self.virtio_device.get_queue(0);
+        if !input_queue.get_ready() {
+            return;
+        }
         if let Some(desc_head) = input_queue.avail_iter().unwrap().last() {
             let desc = input_queue.get_desc(desc_head).unwrap();
             let len = min(desc.len as usize, 128);
@@ -97,7 +99,7 @@ impl VirtIOConsoleDevice {
 }
 
 #[derive_io(Bytes, U32)]
-struct VirtIOConsole(Rc<VirtIOConsoleDevice>);
+pub struct VirtIOConsole(Rc<VirtIOConsoleDevice>);
 
 impl VirtIOConsole {
     pub fn new(d: &Rc<VirtIOConsoleDevice>) -> VirtIOConsole {
