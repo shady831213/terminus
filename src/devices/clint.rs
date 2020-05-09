@@ -28,10 +28,6 @@ impl TimerInner {
 
     fn reset(&mut self) {
         self.cnt = 0;
-        self.tints = vec![];
-        self.sints = vec![];
-        self.sint_status = vec![];
-        self.mtimecmps = vec![];
     }
 
     fn cnt_tick(&mut self, n: u64) {
@@ -39,8 +35,8 @@ impl TimerInner {
         self.cnt = (cnt + Wrapping(n)).0
     }
 
-    fn alloc_irq(&mut self) -> Rc<IrqVec> {
-        let irq_vec = Rc::new(IrqVec::new(2));
+    fn alloc_irq(&mut self) -> IrqVec {
+        let irq_vec = IrqVec::new(2);
         irq_vec.set_enable_uncheck(0, true);
         irq_vec.set_enable_uncheck(1, true);
         self.sints.push(irq_vec.sender(0).unwrap());
@@ -68,7 +64,7 @@ impl Timer {
         Timer(RefCell::new(TimerInner::new(freq)))
     }
 
-    pub fn alloc_irq(&self) -> Rc<IrqVec> {
+    pub fn alloc_irq(&self) -> IrqVec {
         self.0.borrow_mut().alloc_irq()
     }
 

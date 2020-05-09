@@ -64,7 +64,7 @@ impl System {
     }
 
     fn new_processor(&mut self, config: ProcessorCfg) {
-        let p = Processor::new(self.processors.len(), config, &self.bus);
+        let p = Processor::new(self.processors.len(), config, &self.bus, self.timer.alloc_irq());
         self.processors.push(p)
     }
 
@@ -285,19 +285,15 @@ impl System {
         self.timer.reset();
         let boot_rom = self.bus.space().get_region("boot_rom");
         let entry_point = self.elf.entry_point().unwrap();
-        let mut irqs =vec![];
-        for _ in 0..self.processors.len() {
-            irqs.push(self.timer.alloc_irq())
-        }
         for (i, p) in self.processors().iter_mut().enumerate() {
             if let Err(msg) = if reset_vecs[i] == -1i64 as u64 {
                 if let Some(ref boot_rom) = boot_rom {
-                    p.reset(boot_rom.info.base, &irqs[i])
+                    p.reset(boot_rom.info.base)
                 } else {
-                    p.reset(entry_point, &irqs[i])
+                    p.reset(entry_point)
                 }
             } else {
-                p.reset(reset_vecs[i], &irqs[i])
+                p.reset(reset_vecs[i])
             } {
                 return Err(Error::ResetErr(msg));
             }
