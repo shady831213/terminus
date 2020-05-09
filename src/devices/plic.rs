@@ -104,6 +104,10 @@ impl Intc {
         self.0.borrow_mut().alloc_src(id)
     }
 
+    pub fn num_src(&self) -> usize {
+        self.0.borrow().num_src
+    }
+
     fn inner(&self) -> Ref<'_, IntcInner> {
         self.0.borrow()
     }
@@ -116,7 +120,9 @@ impl Intc {
 const PLIC_PRI_BASE: u64 = 0x0;
 const PLIC_PENDING_BASE: u64 = 0x1000;
 const PLIC_ENABLE_BASE: u64 = 0x2000;
+// const PLIC_ENABLE_SIZE:u64 = 0x80;
 const PLIC_HART_BASE: u64 = 0x200000;
+// const PLIC_HART_SIZE:u64 = 0x1000;
 
 #[derive_io(Bytes, U32, U64)]
 pub struct Plic(Rc<Intc>);
@@ -163,16 +169,18 @@ impl U32Access for Plic {
             let hart_offset = offset / enable_per_hart;
             let en_offset = offset % enable_per_hart;
             inner.enables[hart_offset][en_offset] = data;
-        } else if *addr >= PLIC_HART_BASE {
+            return;
+        } else if *addr >= PLIC_HART_BASE && *addr + 4 <= PLIC_HART_BASE + ((inner.irq_vecs.len() as u64) << 3) {
             if (*addr).trailing_zeros() == 2 {
                 inner.update_all_meip()
             } else {
                 let offset = ((*addr - PLIC_HART_BASE) >> 3) as usize;
-                inner.priority[offset] = data & 0x7;
+                inner.priority_threshold[offset] = data & 0x7;
             }
+            return;
         }
 
-        panic!("clint:U32Access Invalid addr!".to_string());
+        // panic!(format!("plic:U32Access Invalid addr {:#x}!", *addr));
     }
 
     fn read(&self, addr: &u64) -> u32 {
@@ -190,7 +198,7 @@ impl U32Access for Plic {
             let hart_offset = offset / enable_per_hart;
             let en_offset = offset % enable_per_hart;
             return inner.enables[hart_offset][en_offset];
-        } else if *addr >= PLIC_HART_BASE {
+        } else if *addr >= PLIC_HART_BASE && *addr + 4 <= PLIC_HART_BASE + ((inner.irq_vecs.len() as u64) << 3) {
             if (*addr).trailing_zeros() == 2 {
                 let claim = inner.pick_claim();
                 inner.irq_src.set_pending_uncheck(claim as usize, false);
@@ -198,11 +206,11 @@ impl U32Access for Plic {
                 return claim;
             } else {
                 let offset = ((*addr - PLIC_HART_BASE) >> 3) as usize;
-                return inner.priority[offset];
+                return inner.priority_threshold[offset];
             }
         }
-
-        panic!("clint:U32Access Invalid addr!".to_string());
+        0
+        // panic!(format!("plic:U32Access Invalid addr {:#x}!", *addr));
     }
 }
 

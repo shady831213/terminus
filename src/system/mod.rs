@@ -224,7 +224,7 @@ impl System {
         soc.add_prop(FdtProp::u32_prop("#address-cells", vec![2]));
         soc.add_prop(FdtProp::u32_prop("#size-cells", vec![2]));
         soc.add_prop(FdtProp::str_prop("compatible", vec!["ucbbar,terminus-bare-soc", "simple-bus"]));
-        soc.add_prop(FdtProp::null_prop("range"));
+        soc.add_prop(FdtProp::null_prop("ranges"));
 
         if let Some(clint_region) = self.bus.space().get_region("clint") {
             let mut clint = FdtNode::new_with_num("clint", clint_region.info.base);
@@ -243,13 +243,35 @@ impl System {
             return Err(Error::FdtErr("\"clint\" is not in memory space!".to_string()));
         }
 
+        if let Some(plic_region) = self.bus.space().get_region("plic") {
+            let num_ints = self.intc.num_src() as u32 - 1;
+            if num_ints != 0 {
+                let mut plic = FdtNode::new_with_num("plic", plic_region.info.base);
+                plic.add_prop(FdtProp::u32_prop("#interrupt-cells", vec![1]));
+                plic.add_prop(FdtProp::null_prop("interrupt-controller"));
+                plic.add_prop(FdtProp::u32_prop("riscv,ndev", vec![num_ints]));
+                plic.add_prop(FdtProp::u32_prop("riscv,max-priority", vec![0x7]));
+                plic.add_prop(FdtProp::str_prop("compatible", vec!["riscv,plic0"]));
+                let mut interrupts_extended = vec![];
+                for p in self.processors.iter() {
+                    interrupts_extended.push((p.state().hartid() + 1) as u32);
+                    interrupts_extended.push(9 as u32);
+                    interrupts_extended.push((p.state().hartid() + 1) as u32);
+                    interrupts_extended.push(11 as u32);
+                }
+                plic.add_prop(FdtProp::u32_prop("interrupts-extended", interrupts_extended));
+                plic.add_prop(FdtProp::u64_prop("reg", vec![plic_region.info.base, plic_region.info.size]));
+                soc.add_node(plic);
+            }
+        }
+
         let mut htif = FdtNode::new("htif");
         htif.add_prop(FdtProp::str_prop("compatible", vec!["ucb,htif0"]));
         soc.add_node(htif);
 
         root.add_node(soc);
 
-        //println!("{}", root.to_string());
+        // eprintln!("{}", root.to_string());
         Ok(fdt::compile(&root))
     }
 
