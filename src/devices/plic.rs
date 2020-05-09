@@ -1,9 +1,6 @@
-use std::rc::Rc;
 use terminus_spaceport::irq::{IrqVec, IrqVecSender};
 use terminus_spaceport::memory::prelude::*;
 use std::cell::RefCell;
-use std::borrow::Borrow;
-use std::ops::Deref;
 
 struct PlicInner {
     irq_vecs: Vec<IrqVecSender>,
@@ -32,7 +29,7 @@ impl PlicInner {
         irq_vec.set_enable_uncheck(0, true);
         self.irq_vecs.push(irq_vec.sender(0).unwrap());
         self.priority_threshold.push(0);
-        self.enables.push(vec![0; len]);
+        self.enables.push(vec![0; (len + 31) >> 5]);
         irq_vec
     }
 
@@ -43,7 +40,7 @@ impl PlicInner {
         self.irq_src.sender(id).unwrap()
     }
 
-    fn update_meip(&self) {
+    fn update_all_meip(&self) {
         for vec in self.irq_vecs.iter() {
             vec.clear().unwrap();
         }
@@ -60,6 +57,19 @@ impl PlicInner {
         }
     }
 
+    fn enable_per_hart(&self) -> usize {
+        (self.num_src + 31) >> 5
+    }
+
+    fn pending(&self, offset: u64) -> u32 {
+        let mut res: u32 = 0;
+        let start = offset << 3;
+        for i in start..start + 32 {
+            res |= self.irq_src.pending_uncheck(i as usize) as u32
+        }
+        res
+    }
+
     fn pick_claim(&self) -> u32 {
         let mut max_pri: u32 = 0;
         let mut idx: u32 = 0;
@@ -69,6 +79,7 @@ impl PlicInner {
                 if *pri == 0x7 {
                     return i as u32;
                 } else if *pri > max_pri {
+                    max_pri = *pri;
                     idx = i as u32
                 }
             }
@@ -81,145 +92,120 @@ const PLIC_PRI_BASE: u64 = 0x0;
 const PLIC_PENDING_BASE: u64 = 0x1000;
 const PLIC_ENABLE_BASE: u64 = 0x2000;
 const PLIC_HART_BASE: u64 = 0x200000;
-const PLIC_HART_PRI_TH: u64 = 0x0;
-const PLIC_HART_CLAIM: u64 = 0x4;
 
-// #[derive_io(Bytes, U32, U64)]
-// pub struct Plic {
-//     inner: RefCell<PlicInner>,
-//
-// }
-//
-// impl Plic {
-//     pub fn new(len: usize) -> Plic {
-//         Plic {
-//             inner: RefCell::new(PlicInner::new(len))
-//         }
-//     }
-//
-//     pub fn alloc_irq(&self) -> Rc<IrqVec> {
-//         self.inner.borrow_mut().alloc_irq()
-//     }
-//
-//     pub fn alloc_src(&self, id: usize) -> IrqVecSender {
-//         self.inner.borrow().alloc_src(id)
-//     }
-// }
-//
-// impl BytesAccess for Plic {
-//     fn write(&self, addr: &u64, data: &[u8]) {
-//         if data.len() == 4 {
-//             let mut bytes = [0; 4];
-//             bytes.copy_from_slice(data);
-//             U32Access::write(self, addr, u32::from_le_bytes(bytes))
-//         } else if data.len() == 8 {
-//             let mut bytes = [0; 8];
-//             bytes.copy_from_slice(data);
-//             U64Access::write(self, addr, u64::from_le_bytes(bytes))
-//         }
-//     }
-//
-//     fn read(&self, addr: &u64, data: &mut [u8]) {
-//         if data.len() == 4 {
-//             data.copy_from_slice(&U32Access::read(self, addr).to_le_bytes())
-//         } else if data.len() == 8 {
-//             data.copy_from_slice(&U64Access::read(self, addr).to_le_bytes())
-//         }
-//     }
-// }
-//
-// impl U32Access for Plic {
-//     fn write(&self, addr: &u64, data: u32) {
-//         assert!((*addr).trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
-//         let inner = self.inner.borrow_mut();
-//         if *addr >= PLIC_PRI_BASE && *addr + 4 <= PLIC_PRI_BASE + ((inner.priority.len() as u64) << 2) {
-//             let offset = ((*addr - PLIC_PRI_BASE) >> 2) as usize;
-//             *inner.priority[offset] = data as u16;
-//             return;
-//         } else if *addr >= MTIMECMP_BASE && *addr + 4 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
-//             let offset = ((*addr - MTIMECMP_BASE) >> 3) as usize;
-//             if (*addr).trailing_zeros() == 2 {
-//                 timer.mtimecmps[offset].set_bit_range(63, 32, data)
-//             } else {
-//                 timer.mtimecmps[offset].set_bit_range(31, 0, data)
-//             };
-//             timer.tick(0);
-//             return;
-//         } else if *addr >= MTIME_BASE && *addr + 4 <= MTIME_BASE + MTIME_SIZE {
-//             return if (*addr).trailing_zeros() == 2 {
-//                 timer.cnt.set_bit_range(63, 32, data)
-//             } else {
-//                 timer.cnt.set_bit_range(31, 0, data)
-//             };
-//         }
-//
-//         panic!("clint:U32Access Invalid addr!".to_string());
-//     }
-//
-//     fn read(&self, addr: &u64) -> u32 {
-//         assert!((*addr).trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
-//         let timer = self.0.inner();
-//         if *addr >= MSIP_BASE && *addr + 4 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
-//             let offset = ((*addr - MSIP_BASE) >> 2) as usize;
-//             return timer.irq_vecs[offset].pending(0).unwrap() as u32;
-//         } else if *addr >= MTIMECMP_BASE && *addr + 4 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
-//             let offset = ((*addr - MTIMECMP_BASE) >> 3) as usize;
-//             return if (*addr).trailing_zeros() == 2 {
-//                 timer.mtimecmps[offset] >> 32
-//             } else {
-//                 timer.mtimecmps[offset]
-//             } as u32;
-//         } else if *addr >= MTIME_BASE && *addr + 4 <= MTIME_BASE + MTIME_SIZE {
-//             return if (*addr).trailing_zeros() == 2 {
-//                 timer.cnt >> 32
-//             } else {
-//                 timer.cnt
-//             } as u32;
-//         }
-//
-//         panic!("clint:U32Access Invalid addr!".to_string());
-//     }
-// }
-//
-//
-// impl U64Access for Clint {
-//     fn write(&self, addr: &u64, data: u64) {
-//         assert!((*addr).trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", addr));
-//
-//         let mut timer = self.0.inner_mut();
-//         if *addr >= MSIP_BASE && *addr + 8 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
-//             let offset = (((*addr - MSIP_BASE) >> 3) << 1) as usize;
-//             timer.irq_vecs[offset].set_pending_uncheck(0, (data & 1) != 0);
-//             timer.irq_vecs[offset + 1].set_pending_uncheck(0, ((data >> 32) & 1) != 0);
-//             return;
-//         } else if *addr >= MTIMECMP_BASE && *addr + 8 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
-//             let offset = ((*addr - MTIMECMP_BASE) >> 3) as usize;
-//             timer.mtimecmps[offset] = data;
-//             timer.tick(0);
-//             return;
-//         } else if *addr >= MTIME_BASE && *addr + 8 <= MTIME_BASE + MTIME_SIZE {
-//             return timer.cnt = data;
-//         }
-//
-//         panic!("clint:U64Access Invalid addr!".to_string());
-//     }
-//
-//     fn read(&self, addr: &u64) -> u64 {
-//         assert!((*addr).trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", addr));
-//
-//         let timer = self.0.inner();
-//         if *addr >= MSIP_BASE && *addr + 8 <= MSIP_BASE + timer.irq_vecs.len() as u64 * MSIP_SIZE {
-//             let offset = (((*addr - MSIP_BASE) >> 3) << 1) as usize;
-//             return (timer.irq_vecs[offset].pending(0).unwrap() as u64) | ((timer.irq_vecs[offset + 1].pending(0).unwrap() as u64) << 32);
-//         } else if *addr >= MTIMECMP_BASE && *addr + 8 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
-//             let offset = ((addr - MTIMECMP_BASE) >> 3) as usize;
-//             return timer.mtimecmps[offset];
-//         } else if *addr >= MTIME_BASE && *addr + 8 <= MTIME_BASE + MTIME_SIZE {
-//             return timer.cnt;
-//         }
-//
-//         panic!("clint:U64Access Invalid addr!".to_string());
-//     }
-// }
+#[derive_io(Bytes, U32, U64)]
+pub struct Plic {
+    inner: RefCell<PlicInner>,
+
+}
+
+impl Plic {
+    pub fn new(len: usize) -> Plic {
+        Plic {
+            inner: RefCell::new(PlicInner::new(len))
+        }
+    }
+
+    pub fn alloc_irq(&self) -> IrqVec {
+        self.inner.borrow_mut().alloc_irq()
+    }
+
+    pub fn alloc_src(&self, id: usize) -> IrqVecSender {
+        self.inner.borrow_mut().alloc_src(id)
+    }
+}
+
+impl BytesAccess for Plic {
+    fn write(&self, addr: &u64, data: &[u8]) {
+        if data.len() == 4 {
+            let mut bytes = [0; 4];
+            bytes.copy_from_slice(data);
+            U32Access::write(self, addr, u32::from_le_bytes(bytes))
+        } else if data.len() == 8 {
+            let mut bytes = [0; 8];
+            bytes.copy_from_slice(data);
+            U64Access::write(self, addr, u64::from_le_bytes(bytes))
+        }
+    }
+
+    fn read(&self, addr: &u64, data: &mut [u8]) {
+        if data.len() == 4 {
+            data.copy_from_slice(&U32Access::read(self, addr).to_le_bytes())
+        } else if data.len() == 8 {
+            data.copy_from_slice(&U64Access::read(self, addr).to_le_bytes())
+        }
+    }
+}
+
+impl U32Access for Plic {
+    fn write(&self, addr: &u64, data: u32) {
+        assert!((*addr).trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
+        let mut inner = self.inner.borrow_mut();
+        if *addr >= PLIC_PRI_BASE && *addr + 4 <= PLIC_PRI_BASE + ((inner.num_src as u64) << 2) {
+            let offset = ((*addr - PLIC_PRI_BASE) >> 2) as usize;
+            inner.priority[offset] = data & 0x7;
+            return;
+        } else if *addr >= PLIC_ENABLE_BASE && *addr + 4 <= PLIC_ENABLE_BASE + (((inner.num_src + 31) as u64) >> 3) * (inner.irq_vecs.len() as u64) {
+            let offset = ((*addr - PLIC_ENABLE_BASE) >> 2) as usize;
+            let enable_per_hart = inner.enable_per_hart();
+            let hart_offset = offset / enable_per_hart;
+            let en_offset = offset % enable_per_hart;
+            inner.enables[hart_offset][en_offset] = data;
+        } else if *addr >= PLIC_HART_BASE  {
+            if (*addr).trailing_zeros() == 2 {
+                inner.update_all_meip()
+            } else {
+                let offset = ((*addr - PLIC_HART_BASE) >> 3) as usize;
+                inner.priority[offset] = data & 0x7;
+            }
+        }
+
+        panic!("clint:U32Access Invalid addr!".to_string());
+    }
+
+    fn read(&self, addr: &u64) -> u32 {
+        assert!((*addr).trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
+        let inner = self.inner.borrow();
+        if *addr >= PLIC_PRI_BASE && *addr + 4 <= PLIC_PRI_BASE + ((inner.num_src as u64) << 2) {
+            let offset = ((*addr - PLIC_PRI_BASE) >> 2) as usize;
+            return inner.priority[offset];
+        } else if *addr >= PLIC_PENDING_BASE && *addr + 4 <= PLIC_PENDING_BASE + (((inner.num_src + 31) as u64) >> 3) {
+            let offset = *addr - PLIC_PENDING_BASE;
+            return inner.pending(offset)
+        } else if *addr >= PLIC_ENABLE_BASE && *addr + 4 <= PLIC_ENABLE_BASE + (((inner.num_src + 31) as u64) >> 3) * (inner.irq_vecs.len() as u64) {
+            let offset = ((*addr - PLIC_ENABLE_BASE) >> 2) as usize;
+            let enable_per_hart = inner.enable_per_hart();
+            let hart_offset = offset / enable_per_hart;
+            let en_offset = offset % enable_per_hart;
+            return inner.enables[hart_offset][en_offset];
+        } else if *addr >= PLIC_HART_BASE  {
+            if (*addr).trailing_zeros() == 2 {
+                let claim = inner.pick_claim();
+                inner.irq_src.set_pending_uncheck(claim as usize, false);
+                inner.update_all_meip();
+                return claim;
+            } else {
+                let offset = ((*addr - PLIC_HART_BASE) >> 3) as usize;
+                return inner.priority[offset];
+            }
+        }
+
+        panic!("clint:U32Access Invalid addr!".to_string());
+    }
+}
+
+
+impl U64Access for Plic {
+    fn write(&self, addr: &u64, data: u64) {
+        assert!((*addr).trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", addr));
+        U32Access::write(self, addr, data as u32);
+        U32Access::write(self, &(*addr + 4), (data >> 32) as u32);
+    }
+
+    fn read(&self, addr: &u64) -> u64 {
+        assert!((*addr).trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", addr));
+        U32Access::read(self, addr) as u64 | ((U32Access::read(self, &(*addr + 4)) as u64) << 32)
+    }
+}
 
 
