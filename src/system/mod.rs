@@ -194,7 +194,8 @@ impl System {
         root.add_prop(FdtProp::str_prop("model", vec!["ucbbar,terminus-bare"]));
 
         let mut chosen = FdtNode::new("chosen");
-        chosen.add_prop(FdtProp::str_prop("bootargs", vec!["init=/bin/sh console=hvc0 earlycon=sbi"]));
+        chosen.add_prop(FdtProp::str_prop("bootargs", vec!["console=hvc0 earlycon=sbi"]));
+        //chosen.add_prop(FdtProp::str_prop("bootargs", vec!["console=ttyS0 earlycon=sbi"]));
         root.add_node(chosen);
 
         let mut cpus = FdtNode::new("cpus");

@@ -116,7 +116,8 @@ fn main() {
         for p in sys.processors() {
             p.step(5000);
         }
-        virtio_console_device.console_read();
+        // virtio_console_device.console_resize();
+        // virtio_console_device.console_read();
         sys.timer().tick(50)
     }
     term_exit();

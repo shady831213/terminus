@@ -34,6 +34,7 @@ impl IntcInner {
         irq_vec
     }
 
+    //fixme:need bind
     fn alloc_src(&mut self, id: usize) -> IrqVecSender {
         assert!(id != 0);
         self.num_src += 1;
