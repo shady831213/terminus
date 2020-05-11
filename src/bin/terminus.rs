@@ -13,6 +13,7 @@ use terminus_spaceport::memory::region::{GHEAP, Region};
 use terminus::devices::plic::Plic;
 use std::rc::Rc;
 use terminus::devices::virtio_console::{VirtIOConsoleDevice, VirtIOConsole};
+use terminus::devices::virtio_blk::VirtIOBlk;
 
 fn main() {
     let matches = App::new("terminus")
@@ -83,7 +84,14 @@ fn main() {
                 .takes_value(true)
                 .require_delimiter(true)
                 .help("set boot args")
-                .default_value("console=hvc1 earlycon=sbi")
+                .default_value("root=/dev/vda console=hvc1 earlycon=sbi")
+        )
+        .arg(
+            Arg::with_name("image")
+                .long("image")
+                .value_name("IMAGE")
+                .takes_value(true)
+                .help("image file")
         )
         .get_matches();
 
@@ -97,6 +105,8 @@ fn main() {
     let extensions = matches.values_of("extensions").unwrap_or_default().map(|s| -> char{ s.split_whitespace().collect::<String>().chars().last().unwrap() }).collect::<Vec<char>>().into_boxed_slice();
     let elf = Path::new(matches.value_of("elf").unwrap()).to_str().unwrap();
     let boot_args = matches.values_of("boot_args").unwrap_or_default().map(|s| { s }).collect::<Vec<_>>();
+    let image = matches.value_of("image");
+
 
     let configs = vec![ProcessorCfg {
         xlen,
@@ -114,6 +124,12 @@ fn main() {
     let irq_num = sys.intc().num_src();
     let virtio_console_device = Rc::new(VirtIOConsoleDevice::new(&virtio_mem, sys.intc().alloc_src(irq_num)));
     sys.register_virtio("virtio_console", VirtIOConsole::new(&virtio_console_device)).unwrap();
+
+    if let Some(image_file) = image {
+        let irq_num = sys.intc().num_src();
+        let virtio_blk = VirtIOBlk::new(&virtio_mem, sys.intc().alloc_src(irq_num), 1, Path::new(image_file).to_str().expect("image not found!"));
+        sys.register_virtio("virtio_blk", virtio_blk).unwrap();
+    }
 
     //use virtio console
     sys.make_boot_rom(0x20000000, -1i64 as u64, boot_args).unwrap();

@@ -13,7 +13,7 @@ const VIRTIO_BLK_SECTOR_SHIFT: u32 = 9;
 
 const VIRTIO_BLK_S_OK: u8 = 0;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct VirtIOBlkHeader {
     ty: u32,
     ioprio: u32,
@@ -23,13 +23,15 @@ struct VirtIOBlkHeader {
 struct VirtIOBlkQueue {
     memory: Rc<Region>,
     disk: Rc<Region>,
+    irq_sender: IrqVecSender,
 }
 
 impl VirtIOBlkQueue {
-    fn new(memory: &Rc<Region>, disk: &Rc<Region>) -> VirtIOBlkQueue {
+    fn new(memory: &Rc<Region>, disk: &Rc<Region>, irq_sender: IrqVecSender) -> VirtIOBlkQueue {
         VirtIOBlkQueue {
             memory: memory.clone(),
             disk: disk.clone(),
+            irq_sender,
         }
     }
 }
@@ -71,6 +73,7 @@ impl QueueClient for VirtIOBlkQueue {
         }
 
         let disk_offset = (header.sector_num << VIRTIO_BLK_SECTOR_SHIFT) as u64;
+
         match header.ty {
             VIRTIO_BLK_T_IN => {
                 BytesAccess::read(self.disk.deref(), &disk_offset, &mut read_buffer[..read_len as usize - 1]);
@@ -91,6 +94,7 @@ impl QueueClient for VirtIOBlkQueue {
             _ => return Err(Error::ClientError(format!("invalid block ty {:#x}!", header.ty)))
         }
         queue.update_last_avail();
+        self.irq_sender.send().unwrap();
         Ok(true)
     }
 }
@@ -105,14 +109,15 @@ impl VirtIOBlk {
         assert!(num_queues > 0);
         let mut virtio_device = Device::new(memory,
                                             irq_sender,
-                                            0,
+                                            1,
                                             2, 0, 8,
         );
+        virtio_device.get_irq_vec().set_enable_uncheck(0, true);
         let content = fs::read(file_name).unwrap().into_boxed_slice();
-        let disc = GHEAP.alloc(content.len() as u64, 1).unwrap();
+        let disc = Region::remap(0, &GHEAP.alloc(content.len() as u64, 1).unwrap());
         BytesAccess::write(disc.deref(), &0, &content);
         for _ in 0..num_queues {
-            virtio_device.add_queue(Queue::new(&memory, QueueSetting { max_queue_size: 16 }, VirtIOBlkQueue::new(memory, &disc)));
+            virtio_device.add_queue(Queue::new(&memory, QueueSetting { max_queue_size: 16 }, VirtIOBlkQueue::new(memory, &disc, virtio_device.get_irq_vec().sender(0).unwrap())));
         }
         VirtIOBlk {
             virtio_device,
