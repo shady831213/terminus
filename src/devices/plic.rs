@@ -1,29 +1,25 @@
 use terminus_spaceport::irq::{IrqVec, IrqVecSender};
 use terminus_spaceport::memory::prelude::*;
-use std::cell::{RefCell, Ref, RefMut};
+use std::cell::{RefCell, Ref};
 use std::rc::Rc;
+use std::ops::Deref;
 
-struct IntcInner {
+struct IntHarts {
     irq_vecs: Vec<IrqVecSender>,
     priority_threshold: Vec<u32>,
-    irq_src: IrqVec,
     priority: Vec<u32>,
     enables: Vec<Vec<u32>>,
-    num_src: usize,
 }
 
-impl IntcInner {
-    fn new(max_len: usize) -> IntcInner {
-        IntcInner {
+impl IntHarts {
+    fn new(max_len: usize) -> IntHarts {
+        IntHarts {
             irq_vecs: vec![],
             priority_threshold: vec![],
-            irq_src: IrqVec::new(max_len),
             priority: vec![0; max_len],
             enables: vec![],
-            num_src: 1,
         }
     }
-
     fn alloc_irq(&mut self) -> IrqVec {
         let irq_vec = IrqVec::new(1);
         let len = self.priority.len();
@@ -34,27 +30,61 @@ impl IntcInner {
         irq_vec
     }
 
-    //fixme:need bind
+    fn update_meip(&self, id: usize) {
+        for (vec, (ths, enables)) in self.irq_vecs.iter().zip(self.priority_threshold.iter().zip(self.enables.iter())) {
+            if unsafe {
+                (*enables.get_unchecked(id >> 5) >> (id as u32 & 0x1f)) & 0x1 == 0x1 && *self.priority.get_unchecked(id) > *ths
+            } {
+                vec.send().unwrap();
+            }
+        }
+    }
+
+    fn clear_all_meip(&self) {
+        for vec in self.irq_vecs.iter() {
+            vec.clear().unwrap();
+        }
+    }
+}
+
+struct IntcInner {
+    harts: Rc<RefCell<IntHarts>>,
+    irq_src: IrqVec,
+    num_src: usize,
+}
+
+impl IntcInner {
+    fn new(max_len: usize) -> IntcInner {
+        IntcInner {
+            harts: Rc::new(RefCell::new(IntHarts::new(max_len))),
+            irq_src: IrqVec::new(max_len),
+            num_src: 1,
+        }
+    }
+
+    fn alloc_irq(&mut self) -> IrqVec {
+        self.harts.deref().borrow_mut().alloc_irq()
+    }
+
     fn alloc_src(&mut self, id: usize) -> IrqVecSender {
         assert!(id != 0);
         self.num_src += 1;
-        self.irq_src.enable(id).unwrap();
+        self.irq_src.set_enable_uncheck(id, true);
+        self.irq_src.binder().bind(id, {
+            let harts = self.harts.clone();
+            move || {
+                harts.deref().borrow().update_meip(id)
+            }
+        }).unwrap();
         self.irq_src.sender(id).unwrap()
     }
 
     fn update_all_meip(&self) {
-        for vec in self.irq_vecs.iter() {
-            vec.clear().unwrap();
-        }
+        let harts = self.harts.deref().borrow();
+        harts.clear_all_meip();
         for i in 1..self.num_src {
             if self.irq_src.pending_uncheck(i) {
-                for (vec, (ths, enables)) in self.irq_vecs.iter().zip(self.priority_threshold.iter().zip(self.enables.iter())) {
-                    if unsafe {
-                        (*enables.get_unchecked(i >> 5) >> (i as u32 & 0x1f)) & 0x1 == 0x1 && *self.priority.get_unchecked(i) > *ths
-                    } {
-                        vec.send().unwrap();
-                    }
-                }
+                harts.update_meip(i)
             }
         }
     }
@@ -75,9 +105,10 @@ impl IntcInner {
     fn pick_claim(&self) -> u32 {
         let mut max_pri: u32 = 0;
         let mut idx: u32 = 0;
+        let harts = self.harts.deref().borrow();
         for i in 1..self.num_src {
             if self.irq_src.pending_uncheck(i) {
-                let pri = unsafe { self.priority.get_unchecked(i) };
+                let pri = unsafe { harts.priority.get_unchecked(i) };
                 if *pri == 0x7 {
                     return i as u32;
                 } else if *pri > max_pri {
@@ -111,10 +142,6 @@ impl Intc {
 
     fn inner(&self) -> Ref<'_, IntcInner> {
         self.0.borrow()
-    }
-
-    fn inner_mut(&self) -> RefMut<'_, IntcInner> {
-        self.0.borrow_mut()
     }
 }
 
@@ -159,24 +186,24 @@ impl BytesAccess for Plic {
 impl U32Access for Plic {
     fn write(&self, addr: &u64, data: u32) {
         assert!((*addr).trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
-        let mut inner = self.0.inner_mut();
+        let inner = self.0.inner();
         if *addr >= PLIC_PRI_BASE && *addr + 4 <= PLIC_PRI_BASE + ((inner.num_src as u64) << 2) {
             let offset = ((*addr - PLIC_PRI_BASE) >> 2) as usize;
-            inner.priority[offset] = data & 0x7;
+            inner.harts.borrow_mut().priority[offset] = data & 0x7;
             return;
-        } else if *addr >= PLIC_ENABLE_BASE && *addr + 4 <= PLIC_ENABLE_BASE + (((inner.num_src + 31) as u64) >> 3) * (inner.irq_vecs.len() as u64) {
+        } else if *addr >= PLIC_ENABLE_BASE && *addr + 4 <= PLIC_ENABLE_BASE + (((inner.num_src + 31) as u64) >> 3) * (inner.harts.borrow().irq_vecs.len() as u64) {
             let offset = ((*addr - PLIC_ENABLE_BASE) >> 2) as usize;
             let enable_per_hart = inner.enable_per_hart();
             let hart_offset = offset / enable_per_hart;
             let en_offset = offset % enable_per_hart;
-            inner.enables[hart_offset][en_offset] = data;
+            inner.harts.borrow_mut().enables[hart_offset][en_offset] = data;
             return;
-        } else if *addr >= PLIC_HART_BASE && *addr + 4 <= PLIC_HART_BASE + ((inner.irq_vecs.len() as u64) << 3) {
+        } else if *addr >= PLIC_HART_BASE && *addr + 4 <= PLIC_HART_BASE + ((inner.harts.borrow().irq_vecs.len() as u64) << 3) {
             if (*addr).trailing_zeros() == 2 {
                 inner.update_all_meip()
             } else {
                 let offset = ((*addr - PLIC_HART_BASE) >> 3) as usize;
-                inner.priority_threshold[offset] = data & 0x7;
+                inner.harts.borrow_mut().priority_threshold[offset] = data & 0x7;
             }
             return;
         }
@@ -189,17 +216,17 @@ impl U32Access for Plic {
         let inner = self.0.inner();
         if *addr >= PLIC_PRI_BASE && *addr + 4 <= PLIC_PRI_BASE + ((inner.num_src as u64) << 2) {
             let offset = ((*addr - PLIC_PRI_BASE) >> 2) as usize;
-            return inner.priority[offset];
+            return inner.harts.borrow().priority[offset];
         } else if *addr >= PLIC_PENDING_BASE && *addr + 4 <= PLIC_PENDING_BASE + (((inner.num_src + 31) as u64) >> 3) {
             let offset = *addr - PLIC_PENDING_BASE;
             return inner.pending(offset);
-        } else if *addr >= PLIC_ENABLE_BASE && *addr + 4 <= PLIC_ENABLE_BASE + (((inner.num_src + 31) as u64) >> 3) * (inner.irq_vecs.len() as u64) {
+        } else if *addr >= PLIC_ENABLE_BASE && *addr + 4 <= PLIC_ENABLE_BASE + (((inner.num_src + 31) as u64) >> 3) * (inner.harts.borrow().irq_vecs.len() as u64) {
             let offset = ((*addr - PLIC_ENABLE_BASE) >> 2) as usize;
             let enable_per_hart = inner.enable_per_hart();
             let hart_offset = offset / enable_per_hart;
             let en_offset = offset % enable_per_hart;
-            return inner.enables[hart_offset][en_offset];
-        } else if *addr >= PLIC_HART_BASE && *addr + 4 <= PLIC_HART_BASE + ((inner.irq_vecs.len() as u64) << 3) {
+            return inner.harts.borrow().enables[hart_offset][en_offset];
+        } else if *addr >= PLIC_HART_BASE && *addr + 4 <= PLIC_HART_BASE + ((inner.harts.borrow().irq_vecs.len() as u64) << 3) {
             if (*addr).trailing_zeros() == 2 {
                 let claim = inner.pick_claim();
                 inner.irq_src.set_pending_uncheck(claim as usize, false);
@@ -207,7 +234,7 @@ impl U32Access for Plic {
                 return claim;
             } else {
                 let offset = ((*addr - PLIC_HART_BASE) >> 3) as usize;
-                return inner.priority_threshold[offset];
+                return inner.harts.borrow().priority_threshold[offset];
             }
         }
         0

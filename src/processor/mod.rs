@@ -516,14 +516,12 @@ impl Processor {
         } else {
             // MEI > MSI > MTI > SEI > SSI > STI
             if interrupts & MEIP != 0 {
-                eprintln!("get m e int!");
                 return Err(Interrupt::MEInt);
             } else if interrupts & MSIP != 0 {
                 return Err(Interrupt::MSInt);
             } else if interrupts & MTIP != 0 {
                 return Err(Interrupt::MTInt);
             } else if interrupts & SEIP != 0 {
-                eprintln!("get s e int!");
                 return Err(Interrupt::SEInt);
             } else if interrupts & SSIP != 0 {
                 return Err(Interrupt::SSInt);

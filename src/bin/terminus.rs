@@ -76,6 +76,15 @@ fn main() {
                 })
                 .help("elf file path")
         )
+        .arg(
+            Arg::with_name("boot_args")
+                .long("boot_args")
+                .value_name("BOOT_ARGS")
+                .takes_value(true)
+                .require_delimiter(true)
+                .help("set boot args")
+                .default_value("console=hvc1 earlycon=sbi")
+        )
         .get_matches();
 
     let core_num = usize::from_str(matches.value_of("core_num").unwrap_or_default()).expect("-p expect a decimal int");
@@ -87,6 +96,7 @@ fn main() {
     };
     let extensions = matches.values_of("extensions").unwrap_or_default().map(|s| -> char{ s.split_whitespace().collect::<String>().chars().last().unwrap() }).collect::<Vec<char>>().into_boxed_slice();
     let elf = Path::new(matches.value_of("elf").unwrap()).to_str().unwrap();
+    let boot_args = matches.values_of("boot_args").unwrap_or_default().map(|s| { s }).collect::<Vec<_>>();
 
     let configs = vec![ProcessorCfg {
         xlen,
@@ -105,7 +115,8 @@ fn main() {
     let virtio_console_device = Rc::new(VirtIOConsoleDevice::new(&virtio_mem, sys.intc().alloc_src(irq_num)));
     sys.register_virtio("virtio_console", VirtIOConsole::new(&virtio_console_device)).unwrap();
 
-    sys.make_boot_rom(0x20000000, -1i64 as u64).unwrap();
+    //use virtio console
+    sys.make_boot_rom(0x20000000, -1i64 as u64, boot_args).unwrap();
     sys.load_elf().unwrap();
     sys.reset(vec![-1i64 as u64; core_num]).unwrap();
     loop {
@@ -116,8 +127,7 @@ fn main() {
         for p in sys.processors() {
             p.step(5000);
         }
-        // virtio_console_device.console_resize();
-        // virtio_console_device.console_read();
+        virtio_console_device.console_read();
         sys.timer().tick(50)
     }
     term_exit();

@@ -186,17 +186,12 @@ impl System {
         }
     }
 
-    fn compile_fdt(&self) -> Result<Vec<u8>> {
+    fn compile_fdt(&self, boot_args: Vec<&str>) -> Result<Vec<u8>> {
         let mut root = FdtNode::new("");
         root.add_prop(FdtProp::u32_prop("#address-cells", vec![2]));
         root.add_prop(FdtProp::u32_prop("#size-cells", vec![2]));
         root.add_prop(FdtProp::str_prop("compatible", vec!["ucbbar,terminus-bare-dev"]));
         root.add_prop(FdtProp::str_prop("model", vec!["ucbbar,terminus-bare"]));
-
-        let mut chosen = FdtNode::new("chosen");
-        chosen.add_prop(FdtProp::str_prop("bootargs", vec!["console=hvc0 earlycon=sbi"]));
-        //chosen.add_prop(FdtProp::str_prop("bootargs", vec!["console=ttyS0 earlycon=sbi"]));
-        root.add_node(chosen);
 
         let mut cpus = FdtNode::new("cpus");
         cpus.add_prop(FdtProp::u32_prop("#address-cells", vec![1]));
@@ -305,17 +300,24 @@ impl System {
 
         root.add_node(soc);
 
+        let mut chosen = FdtNode::new("chosen");
+        if boot_args.is_empty() {
+            chosen.add_prop(FdtProp::str_prop("bootargs", vec!["console=hvc0 earlycon=sbi"]));
+        } else {
+            chosen.add_prop(FdtProp::str_prop("bootargs", boot_args));
+        }
+        root.add_node(chosen);
         // eprintln!("{}", root.to_string());
         Ok(fdt::compile(&root))
     }
 
-    pub fn make_boot_rom(&mut self, base: u64, entry: u64) -> Result<()> {
+    pub fn make_boot_rom(&mut self, base: u64, entry: u64, boot_args: Vec<&str>) -> Result<()> {
         let start_address = if entry == -1i64 as u64 {
             self.elf.entry_point().unwrap()
         } else {
             entry
         };
-        let mut dtb = self.compile_fdt()?;
+        let mut dtb = self.compile_fdt(boot_args)?;
         let mut reset_vec: Vec<u32> = vec![
             0x297,                                                            //auipc t0, 0x0
             0,                                                                //placeholder[addi   a1, t0, &dtb]
