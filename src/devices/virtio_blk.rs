@@ -1,8 +1,10 @@
-use terminus_spaceport::memory::region::Region;
+use terminus_spaceport::memory::region::{Region, GHEAP};
 use terminus_spaceport::memory::prelude::*;
 use std::rc::Rc;
-use terminus_spaceport::virtio::{QueueClient, Queue, Result, Error, DESC_F_WRITE, DescMeta};
+use terminus_spaceport::virtio::{QueueClient, Queue, Result, Error, DESC_F_WRITE, DescMeta, Device, QueueSetting, DeviceAccess, MMIODevice};
 use std::ops::Deref;
+use terminus_spaceport::irq::IrqVecSender;
+use std::fs;
 
 const VIRTIO_BLK_T_IN: u32 = 0;
 const VIRTIO_BLK_T_OUT: u32 = 1;
@@ -92,3 +94,60 @@ impl QueueClient for VirtIOBlkQueue {
         Ok(true)
     }
 }
+
+#[derive_io(Bytes, U32)]
+pub struct VirtIOBlk {
+    virtio_device: Device,
+}
+
+impl VirtIOBlk {
+    pub fn new(memory: &Rc<Region>, irq_sender: IrqVecSender, num_queues: usize, file_name: &str) -> VirtIOBlk {
+        assert!(num_queues > 0);
+        let mut virtio_device = Device::new(memory,
+                                            irq_sender,
+                                            0,
+                                            2, 0, 8,
+        );
+        let content = fs::read(file_name).unwrap().into_boxed_slice();
+        let disc = GHEAP.alloc(content.len() as u64, 1).unwrap();
+        BytesAccess::write(disc.deref(), &0, &content);
+        for _ in 0..num_queues {
+            virtio_device.add_queue(Queue::new(&memory, QueueSetting { max_queue_size: 16 }, VirtIOBlkQueue::new(memory, &disc)));
+        }
+        VirtIOBlk {
+            virtio_device,
+        }
+    }
+}
+
+impl DeviceAccess for VirtIOBlk {
+    fn device(&self) -> &Device {
+        &self.virtio_device
+    }
+}
+
+impl MMIODevice for VirtIOBlk {}
+
+impl BytesAccess for VirtIOBlk {
+    fn write(&self, addr: &u64, data: &[u8]) {
+        self.write_bytes(addr, data)
+    }
+
+    fn read(&self, addr: &u64, data: &mut [u8]) {
+        self.read_bytes(addr, data);
+    }
+}
+
+impl U32Access for VirtIOBlk {
+    fn write(&self, addr: &u64, data: u32) {
+        MMIODevice::write(self, addr, &data)
+    }
+
+    fn read(&self, addr: &u64) -> u32 {
+        MMIODevice::read(self, addr)
+    }
+}
+
+
+
+
