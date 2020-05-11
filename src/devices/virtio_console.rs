@@ -9,33 +9,33 @@ use std::cmp::min;
 use terminus_spaceport::irq::IrqVecSender;
 
 
-struct VirtIOInputQueue {}
+struct VirtIOConsoleInputQueue {}
 
-impl VirtIOInputQueue {
-    fn new() -> VirtIOInputQueue {
-        VirtIOInputQueue {}
+impl VirtIOConsoleInputQueue {
+    fn new() -> VirtIOConsoleInputQueue {
+        VirtIOConsoleInputQueue {}
     }
 }
 
-impl QueueClient for VirtIOInputQueue {
+impl QueueClient for VirtIOConsoleInputQueue {
     fn receive(&self, _: &Queue, _: u16) -> Result<bool> {
         Ok(false)
     }
 }
 
-struct VirtIOOutputQueue {
+struct VirtIOConsoleOutputQueue {
     memory: Rc<Region>,
 }
 
-impl VirtIOOutputQueue {
-    fn new(memory: &Rc<Region>) -> VirtIOOutputQueue {
-        VirtIOOutputQueue {
+impl VirtIOConsoleOutputQueue {
+    fn new(memory: &Rc<Region>) -> VirtIOConsoleOutputQueue {
+        VirtIOConsoleOutputQueue {
             memory: memory.clone(),
         }
     }
 }
 
-impl QueueClient for VirtIOOutputQueue {
+impl QueueClient for VirtIOConsoleOutputQueue {
     fn receive(&self, queue: &Queue, desc_head: u16) -> Result<bool> {
         let desc = queue.get_desc(desc_head)?;
         if desc.len > 0 {
@@ -64,12 +64,12 @@ impl VirtIOConsoleDevice {
                                             3, 0, 1,
         );
         let input_queue = {
-            let input = VirtIOInputQueue::new();
+            let input = VirtIOConsoleInputQueue::new();
             Queue::new(&memory, QueueSetting { max_queue_size: 1 }, input)
         };
         virtio_device.get_irq_vec().set_enable_uncheck(0, true);
         let output_queue = {
-            let output = VirtIOOutputQueue::new(memory);
+            let output = VirtIOConsoleOutputQueue::new(memory);
             Queue::new(&memory, QueueSetting { max_queue_size: 1 }, output)
         };
         virtio_device.add_queue(input_queue);
