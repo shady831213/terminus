@@ -60,8 +60,8 @@ mmu		: sv48
 - [x] Boot Linux(smp)
 - [ ] DPI support
 - [ ] Publish to crate.io
-- [ ] PLIC
-- [ ] VirtIO console
+- [x] PLIC
+- [x] VirtIO console
 - [ ] VirtIO disk
 - [ ] VirtIO network
 - [ ] VirtIO framebuffer
