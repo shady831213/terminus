@@ -13,6 +13,11 @@ A verification-friendly riscv isa simulator in rust.
   cargo update -p terminus-spaceport
   cargo install --path .
   terminus examples/linux/image/br-5-4
+  //or
+  cd examples/linux/image
+  tar -zxvf rootfs.ext4.gz
+  cd -
+  terminus examples/linux/image/br-5-4.disk --image=examples/linux/image/rootfs.ext4
 ```
 
 ## Multi-cores support
@@ -62,7 +67,7 @@ mmu		: sv48
 - [ ] Publish to crate.io
 - [x] PLIC
 - [x] VirtIO console
-- [ ] VirtIO disk
+- [x] VirtIO disk
 - [ ] VirtIO network
 - [ ] VirtIO framebuffer
 - [ ] co-sim with RTL simulator
