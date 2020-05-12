@@ -132,6 +132,7 @@ fn main() {
     sys.register_memory("main_memory", 0x80000000, &main_memory).unwrap();
     sys.register_device("clint", 0x02000000, 0x000c0000, Clint::new(sys.timer())).unwrap();
     sys.register_device("plic", 0x0c000000, 0x4000000, Plic::new(sys.intc())).unwrap();
+
     //virtios
     let virtio_mem = Region::remap(0x80000000, &main_memory);
     let irq_num = sys.intc().num_src();
