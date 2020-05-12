@@ -12,6 +12,7 @@ const VIRTIO_BLK_T_OUT: u32 = 1;
 const VIRTIO_BLK_SECTOR_SHIFT: u32 = 9;
 
 const VIRTIO_BLK_S_OK: u8 = 0;
+const VIRTIO_BLK_S_IOERR: u8 = 1;
 
 #[derive(Default, Debug)]
 struct VirtIOBlkHeader {
@@ -76,8 +77,11 @@ impl QueueClient for VirtIOBlkQueue {
 
         match header.ty {
             VIRTIO_BLK_T_IN => {
-                BytesAccess::read(self.disk.deref(), &disk_offset, &mut read_buffer[..read_len as usize - 1]).unwrap();
-                read_buffer[read_len as usize - 1] = VIRTIO_BLK_S_OK;
+                if BytesAccess::read(self.disk.deref(), &disk_offset, &mut read_buffer[..read_len as usize - 1]).is_ok() {
+                    read_buffer[read_len as usize - 1] = VIRTIO_BLK_S_OK;
+                } else {
+                    read_buffer[read_len as usize - 1] = VIRTIO_BLK_S_IOERR;
+                }
                 let mut offset: usize = 0;
                 for desc in read_descs.iter() {
                     let next_offset = offset + desc.len as usize;
@@ -87,8 +91,11 @@ impl QueueClient for VirtIOBlkQueue {
                 queue.set_used(desc_head, read_len)?;
             }
             VIRTIO_BLK_T_OUT => {
-                BytesAccess::write(self.disk.deref(), &disk_offset, &write_buffer[header_size..]).unwrap();
-                U8Access::write(self.memory.deref(), &read_descs.first().unwrap().addr, VIRTIO_BLK_S_OK);
+                if BytesAccess::write(self.disk.deref(), &disk_offset, &write_buffer[header_size..]).is_ok() {
+                    U8Access::write(self.memory.deref(), &read_descs.first().unwrap().addr, VIRTIO_BLK_S_OK);
+                } else {
+                    U8Access::write(self.memory.deref(), &read_descs.first().unwrap().addr, VIRTIO_BLK_S_IOERR);
+                }
                 queue.set_used(desc_head, 1)?;
             }
             _ => return Err(Error::ClientError(format!("invalid block ty {:#x}!", header.ty)))
