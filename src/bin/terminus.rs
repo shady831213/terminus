@@ -13,7 +13,7 @@ use terminus_spaceport::memory::region::{GHEAP, Region};
 use terminus::devices::plic::Plic;
 use std::rc::Rc;
 use terminus::devices::virtio_console::{VirtIOConsoleDevice, VirtIOConsole};
-use terminus::devices::virtio_blk::VirtIOBlk;
+use terminus::devices::virtio_blk::{VirtIOBlk, VirtIOBlkConfig};
 
 fn main() {
     let matches = App::new("terminus")
@@ -84,7 +84,7 @@ fn main() {
                 .takes_value(true)
                 .require_delimiter(true)
                 .help("set boot args")
-                .default_value("root=/dev/vda console=hvc1 earlycon=sbi")
+                .default_value("root=/dev/vda console=hvc1 earlycon=sbi fsck.repair=yes")
         )
         .arg(
             Arg::with_name("image")
@@ -92,6 +92,20 @@ fn main() {
                 .value_name("IMAGE")
                 .takes_value(true)
                 .help("image file")
+        )
+        .arg(
+            Arg::with_name("image_mode")
+                .long("image_mode")
+                .value_name("IMAGE_MODE")
+                .takes_value(true)
+                .validator(|mode| {
+                    match mode.as_str() {
+                        "ro" | "rw" | "snapshot" => Ok(()),
+                        _ => Err("image file mode:[ro|rw|snapshot]".to_string())
+                    }
+                })
+                .help("image file mode:[ro|rw|snapshot]")
+                .default_value("snapshot")
         )
         .get_matches();
 
@@ -106,7 +120,6 @@ fn main() {
     let elf = Path::new(matches.value_of("elf").unwrap()).to_str().unwrap();
     let boot_args = matches.values_of("boot_args").unwrap_or_default().map(|s| { s }).collect::<Vec<_>>();
     let image = matches.value_of("image");
-
 
     let configs = vec![ProcessorCfg {
         xlen,
@@ -127,7 +140,8 @@ fn main() {
 
     if let Some(image_file) = image {
         let irq_num = sys.intc().num_src();
-        let virtio_blk = VirtIOBlk::new(&virtio_mem, sys.intc().alloc_src(irq_num), 1, Path::new(image_file).to_str().expect("image not found!"));
+        let virtio_blk = VirtIOBlk::new(&virtio_mem, sys.intc().alloc_src(irq_num), 8,
+                                        Path::new(image_file).to_str().expect("image not found!"), VirtIOBlkConfig::new(matches.value_of("image_mode").unwrap_or_default()));
         sys.register_virtio("virtio_blk", virtio_blk).unwrap();
     }
 
