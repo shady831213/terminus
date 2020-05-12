@@ -21,23 +21,51 @@ struct VirtIOBlkHeader {
     sector_num: u32,
 }
 
-struct VirtIOBlkQueue {
+struct VirtIOBlkDiskSnapshot {
+    snapshot: Rc<Region>,
+}
+
+impl VirtIOBlkDiskSnapshot {
+    fn new(snapshot: &Rc<Region>) -> VirtIOBlkDiskSnapshot {
+        VirtIOBlkDiskSnapshot { snapshot: snapshot.clone() }
+    }
+}
+
+impl BytesAccess for VirtIOBlkDiskSnapshot {
+    fn write(&self, addr: &u64, data: &[u8]) -> std::result::Result<usize, String> {
+        if *addr + data.len() as u64 > self.snapshot.info.size {
+            Err("out of range!".to_string())
+        } else {
+            BytesAccess::write(self.snapshot.deref(), addr, data)
+        }
+    }
+
+    fn read(&self, addr: &u64, data: &mut [u8]) -> std::result::Result<usize, String> {
+        if *addr + data.len() as u64 > self.snapshot.info.size {
+            Err("out of range!".to_string())
+        } else {
+            BytesAccess::read(self.snapshot.deref(), addr, data)
+        }
+    }
+}
+
+struct VirtIOBlkQueue<T:BytesAccess> {
     memory: Rc<Region>,
-    disk: Rc<Region>,
+    disk: T,
     irq_sender: IrqVecSender,
 }
 
-impl VirtIOBlkQueue {
-    fn new(memory: &Rc<Region>, disk: &Rc<Region>, irq_sender: IrqVecSender) -> VirtIOBlkQueue {
+impl<T:BytesAccess> VirtIOBlkQueue<T> {
+    fn new(memory: &Rc<Region>, disk: T, irq_sender: IrqVecSender) -> VirtIOBlkQueue<T> {
         VirtIOBlkQueue {
             memory: memory.clone(),
-            disk: disk.clone(),
+            disk,
             irq_sender,
         }
     }
 }
 
-impl QueueClient for VirtIOBlkQueue {
+impl<T:BytesAccess> QueueClient for VirtIOBlkQueue<T> {
     fn receive(&self, queue: &Queue, desc_head: u16) -> Result<bool> {
         let mut read_descs: Vec<DescMeta> = vec![];
         let mut read_len: u32 = 0;
@@ -77,7 +105,7 @@ impl QueueClient for VirtIOBlkQueue {
 
         match header.ty {
             VIRTIO_BLK_T_IN => {
-                if BytesAccess::read(self.disk.deref(), &disk_offset, &mut read_buffer[..read_len as usize - 1]).is_ok() {
+                if BytesAccess::read(&self.disk, &disk_offset, &mut read_buffer[..read_len as usize - 1]).is_ok() {
                     read_buffer[read_len as usize - 1] = VIRTIO_BLK_S_OK;
                 } else {
                     read_buffer[read_len as usize - 1] = VIRTIO_BLK_S_IOERR;
@@ -91,7 +119,7 @@ impl QueueClient for VirtIOBlkQueue {
                 queue.set_used(desc_head, read_len)?;
             }
             VIRTIO_BLK_T_OUT => {
-                if BytesAccess::write(self.disk.deref(), &disk_offset, &write_buffer[header_size..]).is_ok() {
+                if BytesAccess::write(&self.disk, &disk_offset, &write_buffer[header_size..]).is_ok() {
                     U8Access::write(self.memory.deref(), &read_descs.first().unwrap().addr, VIRTIO_BLK_S_OK);
                 } else {
                     U8Access::write(self.memory.deref(), &read_descs.first().unwrap().addr, VIRTIO_BLK_S_IOERR);
@@ -121,10 +149,10 @@ impl VirtIOBlk {
         );
         virtio_device.get_irq_vec().set_enable_uncheck(0, true);
         let content = fs::read(file_name).unwrap().into_boxed_slice();
-        let disc = Region::remap(0, &GHEAP.alloc(content.len() as u64, 1).unwrap());
-        BytesAccess::write(disc.deref(), &0, &content).unwrap();
+        let snapshot = Region::remap(0, &GHEAP.alloc(content.len() as u64, 1).unwrap());
+        BytesAccess::write(snapshot.deref(), &0, &content).unwrap();
         for _ in 0..num_queues {
-            virtio_device.add_queue(Queue::new(&memory, QueueSetting { max_queue_size: 16 }, VirtIOBlkQueue::new(memory, &disc, virtio_device.get_irq_vec().sender(0).unwrap())));
+            virtio_device.add_queue(Queue::new(&memory, QueueSetting { max_queue_size: 16 }, VirtIOBlkQueue::new(memory, VirtIOBlkDiskSnapshot::new(&snapshot), virtio_device.get_irq_vec().sender(0).unwrap())));
         }
         VirtIOBlk {
             virtio_device,
