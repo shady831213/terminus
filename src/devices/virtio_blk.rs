@@ -58,7 +58,7 @@ impl QueueClient for VirtIOBlkQueue {
             let mut offset: usize = 0;
             for desc in write_descs.iter() {
                 let next_offset = offset + desc.len as usize;
-                BytesAccess::read(self.memory.deref(), &desc.addr, &mut buffer[offset..next_offset]);
+                BytesAccess::read(self.memory.deref(), &desc.addr, &mut buffer[offset..next_offset]).unwrap();
                 offset = next_offset;
             }
             buffer
@@ -76,18 +76,18 @@ impl QueueClient for VirtIOBlkQueue {
 
         match header.ty {
             VIRTIO_BLK_T_IN => {
-                BytesAccess::read(self.disk.deref(), &disk_offset, &mut read_buffer[..read_len as usize - 1]);
+                BytesAccess::read(self.disk.deref(), &disk_offset, &mut read_buffer[..read_len as usize - 1]).unwrap();
                 read_buffer[read_len as usize - 1] = VIRTIO_BLK_S_OK;
                 let mut offset: usize = 0;
                 for desc in read_descs.iter() {
                     let next_offset = offset + desc.len as usize;
-                    BytesAccess::write(self.memory.deref(), &desc.addr, &read_buffer[offset..next_offset]);
+                    BytesAccess::write(self.memory.deref(), &desc.addr, &read_buffer[offset..next_offset]).unwrap();
                     offset = next_offset;
                 }
                 queue.set_used(desc_head, read_len)?;
             }
             VIRTIO_BLK_T_OUT => {
-                BytesAccess::write(self.disk.deref(), &disk_offset, &write_buffer[header_size..]);
+                BytesAccess::write(self.disk.deref(), &disk_offset, &write_buffer[header_size..]).unwrap();
                 U8Access::write(self.memory.deref(), &read_descs.first().unwrap().addr, VIRTIO_BLK_S_OK);
                 queue.set_used(desc_head, 1)?;
             }
@@ -115,7 +115,7 @@ impl VirtIOBlk {
         virtio_device.get_irq_vec().set_enable_uncheck(0, true);
         let content = fs::read(file_name).unwrap().into_boxed_slice();
         let disc = Region::remap(0, &GHEAP.alloc(content.len() as u64, 1).unwrap());
-        BytesAccess::write(disc.deref(), &0, &content);
+        BytesAccess::write(disc.deref(), &0, &content).unwrap();
         for _ in 0..num_queues {
             virtio_device.add_queue(Queue::new(&memory, QueueSetting { max_queue_size: 16 }, VirtIOBlkQueue::new(memory, &disc, virtio_device.get_irq_vec().sender(0).unwrap())));
         }
@@ -134,12 +134,14 @@ impl DeviceAccess for VirtIOBlk {
 impl MMIODevice for VirtIOBlk {}
 
 impl BytesAccess for VirtIOBlk {
-    fn write(&self, addr: &u64, data: &[u8]) {
-        self.write_bytes(addr, data)
+    fn write(&self, addr: &u64, data: &[u8]) -> std::result::Result<usize, String> {
+        self.write_bytes(addr, data);
+        Ok(0)
     }
 
-    fn read(&self, addr: &u64, data: &mut [u8]) {
+    fn read(&self, addr: &u64, data: &mut [u8]) -> std::result::Result<usize, String> {
         self.read_bytes(addr, data);
+        Ok(0)
     }
 }
 

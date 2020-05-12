@@ -107,7 +107,7 @@ impl Clint {
 }
 
 impl BytesAccess for Clint {
-    fn write(&self, addr: &u64, data: &[u8]) {
+    fn write(&self, addr: &u64, data: &[u8])  -> std::result::Result<usize, String> {
         if data.len() == 4 {
             let mut bytes = [0; 4];
             bytes.copy_from_slice(data);
@@ -117,14 +117,16 @@ impl BytesAccess for Clint {
             bytes.copy_from_slice(data);
             U64Access::write(self, addr, u64::from_le_bytes(bytes))
         }
+        Ok(0)
     }
 
-    fn read(&self, addr: &u64, data: &mut [u8]) {
+    fn read(&self, addr: &u64, data: &mut [u8]) -> std::result::Result<usize, String>  {
         if data.len() == 4 {
             data.copy_from_slice(&U32Access::read(self, addr).to_le_bytes())
         } else if data.len() == 8 {
             data.copy_from_slice(&U64Access::read(self, addr).to_le_bytes())
         }
+        Ok(0)
     }
 }
 

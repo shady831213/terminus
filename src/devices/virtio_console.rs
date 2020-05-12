@@ -40,7 +40,7 @@ impl QueueClient for VirtIOConsoleOutputQueue {
         let desc = queue.get_desc(desc_head)?;
         if desc.len > 0 {
             let mut buffer: Vec<u8> = vec![0; desc.len as usize];
-            BytesAccess::read(self.memory.deref(), &desc.addr, &mut buffer);
+            BytesAccess::read(self.memory.deref(), &desc.addr, &mut buffer).unwrap();
             let stdout = TERM.stdout();
             let mut handle = stdout.lock();
             handle.write(&buffer).unwrap();
@@ -93,7 +93,7 @@ impl VirtIOConsoleDevice {
                 Err(e) => panic!("{:?}", e)
             };
             if ret > 0 {
-                BytesAccess::write(self.virtio_device.memory().deref(), &desc.addr, &buffer[..ret]);
+                BytesAccess::write(self.virtio_device.memory().deref(), &desc.addr, &buffer[..ret]).unwrap();
                 input_queue.set_used(desc_head, ret as u32).unwrap();
                 input_queue.update_last_avail();
                 self.virtio_device.get_irq_vec().sender(0).unwrap().send().unwrap();
@@ -120,12 +120,14 @@ impl DeviceAccess for VirtIOConsole {
 impl MMIODevice for VirtIOConsole {}
 
 impl BytesAccess for VirtIOConsole {
-    fn write(&self, addr: &u64, data: &[u8]) {
-        self.write_bytes(addr, data)
+    fn write(&self, addr: &u64, data: &[u8]) -> std::result::Result<usize, String> {
+        self.write_bytes(addr, data);
+        Ok(0)
     }
 
-    fn read(&self, addr: &u64, data: &mut [u8]) {
+    fn read(&self, addr: &u64, data: &mut [u8]) -> std::result::Result<usize, String> {
         self.read_bytes(addr, data);
+        Ok(0)
     }
 }
 
