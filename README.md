@@ -2,8 +2,8 @@
 A verification-friendly riscv isa simulator in rust.
 
 
-## Boot Linux in 40s
-![Boot Linux in 40s](video/linux_boot.gif)
+## Boot Linux in 30s
+![Boot Linux in 30s](video/linux_boot.gif)
 
 ## Getting Start
 
