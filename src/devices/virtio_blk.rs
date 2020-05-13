@@ -188,6 +188,7 @@ impl<T: BytesAccess> QueueClient for VirtIOBlkQueue<T> {
 #[derive_io(Bytes, U32)]
 pub struct VirtIOBlk {
     virtio_device: Device,
+    num_sectors: u64,
 }
 
 impl VirtIOBlk {
@@ -196,16 +197,17 @@ impl VirtIOBlk {
         let mut virtio_device = Device::new(memory,
                                             irq_sender,
                                             1,
-                                            2, 0, 8,
+                                            2, 0, 0,
         );
         virtio_device.get_irq_vec().set_enable_uncheck(0, true);
-        match config {
+        let len = match config {
             VirtIOBlkConfig::RO => {
                 let file = Rc::new(OpenOptions::new().read(true).open(file_name).expect(&format!("can not open {}!", file_name)));
                 for _ in 0..num_queues {
                     // virtio_device.add_queue(Queue::new(&memory, QueueSetting { max_queue_size: 16 }, VirtIOBlkQueue::new(memory, VirtIOBlkDiskSnapshot::new(&snapshot), virtio_device.get_irq_vec().sender(0).unwrap())));
                     virtio_device.add_queue(Queue::new(&memory, QueueSetting { max_queue_size: 16 }, VirtIOBlkQueue::new(memory, VirtIOBlkFile::new(&file), virtio_device.get_irq_vec().sender(0).unwrap())));
                 }
+                file.metadata().unwrap().len()
             }
             VirtIOBlkConfig::RW => {
                 let file = Rc::new(OpenOptions::new().read(true).write(true).create(true).open(file_name).expect(&format!("can not open {}!", file_name)));
@@ -213,6 +215,7 @@ impl VirtIOBlk {
                     // virtio_device.add_queue(Queue::new(&memory, QueueSetting { max_queue_size: 16 }, VirtIOBlkQueue::new(memory, VirtIOBlkDiskSnapshot::new(&snapshot), virtio_device.get_irq_vec().sender(0).unwrap())));
                     virtio_device.add_queue(Queue::new(&memory, QueueSetting { max_queue_size: 16 }, VirtIOBlkQueue::new(memory, VirtIOBlkFile::new(&file), virtio_device.get_irq_vec().sender(0).unwrap())));
                 }
+                file.metadata().unwrap().len()
             }
             VirtIOBlkConfig::SNAPSHOT => {
                 let content = fs::read(file_name).unwrap().into_boxed_slice();
@@ -221,10 +224,12 @@ impl VirtIOBlk {
                 for _ in 0..num_queues {
                     virtio_device.add_queue(Queue::new(&memory, QueueSetting { max_queue_size: 16 }, VirtIOBlkQueue::new(memory, VirtIOBlkDiskSnapshot::new(&snapshot), virtio_device.get_irq_vec().sender(0).unwrap())));
                 }
+                content.len() as u64
             }
-        }
+        };
         VirtIOBlk {
             virtio_device,
+            num_sectors: len >> VIRTIO_BLK_SECTOR_SHIFT,
         }
     }
 }
@@ -232,6 +237,13 @@ impl VirtIOBlk {
 impl DeviceAccess for VirtIOBlk {
     fn device(&self) -> &Device {
         &self.virtio_device
+    }
+    fn config(&self, offset: u64) -> u32 {
+        if offset < 8 {
+            ((self.num_sectors >> (offset << 3)) & self.config_mask(&offset)) as u32
+        } else {
+            0
+        }
     }
 }
 
