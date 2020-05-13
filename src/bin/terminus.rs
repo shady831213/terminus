@@ -14,6 +14,7 @@ use terminus::devices::plic::Plic;
 use std::rc::Rc;
 use terminus::devices::virtio_console::{VirtIOConsoleDevice, VirtIOConsole};
 use terminus::devices::virtio_blk::{VirtIOBlk, VirtIOBlkConfig};
+use terminus::devices::virtio_net::{VirtIONetDevice, VirtIONet};
 
 fn main() {
     let matches = App::new("terminus")
@@ -84,7 +85,7 @@ fn main() {
                 .takes_value(true)
                 .require_delimiter(true)
                 .help("set boot args")
-                .default_value("root=/dev/vda console=hvc1 earlycon=sbi fsck.repair=yes")
+                .default_value("root=/dev/vda console=hvc1 earlycon=sbi")
         )
         .arg(
             Arg::with_name("image")
@@ -107,6 +108,27 @@ fn main() {
                 .help("image file mode:[ro|rw|snapshot]")
                 .default_value("snapshot")
         )
+        .arg(
+            Arg::with_name("net")
+                .long("net")
+                .value_name("net")
+                .takes_value(true)
+                .help("tap iface name.
+                config in host:
+                sudo ip link add br0 type bridge
+                sudo ip tuntap add dev [tap iface] mode tap user $(whoami)
+                sudo ip link set [tap iface] master br0
+                sudo ip link set dev br0 up
+                sudo ip link set dev [tap iface] up
+                sudo ifconfig br0 192.168.3.1
+                sudo sysctl -w net.ipv4.ip_forward=1
+                sudo iptables -D FORWARD 1
+                sudo iptables -t nat -A POSTROUTING -o [eth] -j MASQUERADE
+                config in guest:
+                ifconfig eth0 192.168.3.2
+                route add -net 0.0.0.0 netmask 0.0.0.0 gw 192.168.3.1
+                ")
+        )
         .get_matches();
 
     let core_num = usize::from_str(matches.value_of("core_num").unwrap_or_default()).expect("-p expect a decimal int");
@@ -120,6 +142,7 @@ fn main() {
     let elf = Path::new(matches.value_of("elf").unwrap()).to_str().unwrap();
     let boot_args = matches.values_of("boot_args").unwrap_or_default().map(|s| { s }).collect::<Vec<_>>();
     let image = matches.value_of("image");
+    let net = matches.value_of("net");
 
     let configs = vec![ProcessorCfg {
         xlen,
@@ -145,7 +168,14 @@ fn main() {
                                         Path::new(image_file).to_str().expect("image not found!"), VirtIOBlkConfig::new(matches.value_of("image_mode").unwrap_or_default()));
         sys.register_virtio("virtio_blk", virtio_blk).unwrap();
     }
-
+    let virtio_net_device = if let Some(tap) = net {
+        let irq_num = sys.intc().num_src();
+        let virtio_net_device = Rc::new(VirtIONetDevice::new(&virtio_mem, sys.intc().alloc_src(irq_num), tap, 0x0100_00000002));
+        sys.register_virtio("virtio_net", VirtIONet::new(&virtio_net_device)).unwrap();
+        Some(virtio_net_device)
+    } else {
+        None
+    };
     //use virtio console
     sys.make_boot_rom(0x20000000, -1i64 as u64, boot_args).unwrap();
     sys.load_elf().unwrap();
@@ -159,6 +189,9 @@ fn main() {
             p.step(5000);
         }
         virtio_console_device.console_read();
+        if let Some(ref net_d) = virtio_net_device {
+            net_d.net_read();
+        }
         sys.timer().tick(50)
     }
     term_exit();

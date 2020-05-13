@@ -54,6 +54,7 @@ impl VirtIONetOutputQueue {
 
 impl QueueClient for VirtIONetOutputQueue {
     fn receive(&self, queue: &Queue, desc_head: u16) -> Result<bool> {
+        eprintln!("send package begin!");
         let mut write_descs: Vec<DescMeta> = vec![];
         let mut write_len: u32 = 0;
         for desc_res in queue.desc_iter(desc_head) {
@@ -86,6 +87,7 @@ impl QueueClient for VirtIONetOutputQueue {
         queue.set_used(desc_head, 0)?;
         queue.update_last_avail();
         self.irq_sender.send().unwrap();
+        eprintln!("send package len {} {:#x?}!", write_len, write_buffer);
         Ok(true)
     }
 }
@@ -93,7 +95,7 @@ impl QueueClient for VirtIONetOutputQueue {
 pub struct VirtIONetDevice {
     virtio_device: Device,
     tap: Rc<TunTap>,
-    mac: u64,
+    mac: RefCell<u64>,
     status: RefCell<u16>,
 }
 
@@ -112,14 +114,14 @@ impl VirtIONetDevice {
         let tap = Rc::new(TunTap::new(tap_name, TUNTAP_MODE::Tap, false, true).unwrap());
         let output_queue = {
             let output = VirtIONetOutputQueue::new(memory, &tap, virtio_device.get_irq_vec().sender(0).unwrap());
-            Queue::new(&memory, QueueSetting { max_queue_size: 1 }, output)
+            Queue::new(&memory, QueueSetting { max_queue_size: 16 }, output)
         };
         virtio_device.add_queue(input_queue);
         virtio_device.add_queue(output_queue);
         VirtIONetDevice {
             virtio_device,
             tap,
-            mac,
+            mac: RefCell::new(mac),
             status: RefCell::new(0),
         }
     }
@@ -128,7 +130,8 @@ impl VirtIONetDevice {
         if !input_queue.get_ready() {
             return;
         }
-        for desc_head in input_queue.avail_iter().unwrap() {
+        let iter = input_queue.avail_iter().unwrap();
+        for desc_head in iter {
             let mut read_descs: Vec<DescMeta> = vec![];
             let mut read_len: u32 = 0;
             for desc_res in input_queue.desc_iter(desc_head) {
@@ -143,7 +146,7 @@ impl VirtIONetDevice {
             let ret = match self.tap.recv(&mut read_buffer[header_size..]) {
                 Ok(size) => {
                     read_buffer.resize(size + header_size, 0);
-                    size + header_size
+                    size
                 }
                 Err(ref e) if e.kind() == ErrorKind::WouldBlock => 0,
                 Err(e) => panic!("{:?}", e),
@@ -159,14 +162,16 @@ impl VirtIONetDevice {
                     }
                     offset = next_offset;
                 }
-                input_queue.set_used(desc_head, ret as u32).unwrap();
+                input_queue.set_used(desc_head, read_buffer.len() as u32).unwrap();
                 input_queue.update_last_avail();
+                eprintln!("receive package len {}!", ret);
+                self.virtio_device.get_irq_vec().sender(0).unwrap().send().unwrap();
             }
         }
     }
 }
 
-#[derive_io(Bytes, U32)]
+#[derive_io(Bytes, U32, U8)]
 pub struct VirtIONet(Rc<VirtIONetDevice>);
 
 impl VirtIONet {
@@ -180,17 +185,21 @@ impl DeviceAccess for VirtIONet {
         &self.0.virtio_device
     }
     fn config(&self, offset: u64) -> u32 {
-        if offset < 6 {
-            ((self.0.mac >> (offset << 3)) & self.config_mask(&offset)) as u32
+        let data = if offset < 6 {
+            ((*self.0.mac.borrow() >> (offset << 3)) & self.config_mask(&offset)) as u32
         } else if offset >= 6 && offset < 8 {
             (((*self.0.status.borrow() as u64) >> (offset << 3)) & self.config_mask(&offset)) as u32
         } else {
             0
-        }
+        };
+        data
     }
 
     fn set_config(&self, offset: u64, val: &u32) {
-        if offset >= 6 && offset < 8 {
+        if offset < 6 {
+            let mask = self.config_mask(&offset);
+            *self.0.mac.borrow_mut() = *self.0.mac.borrow() & !mask | (((*val as u64) & mask) << offset)
+        } else if offset >= 6 && offset < 8 {
             let mask = self.config_mask(&offset) as u16;
             *self.0.status.borrow_mut() = *self.0.status.borrow() & !mask | (((*val as u16) & mask) << (offset as u16))
         }
@@ -201,13 +210,37 @@ impl MMIODevice for VirtIONet {}
 
 impl BytesAccess for VirtIONet {
     fn write(&self, addr: &u64, data: &[u8]) -> std::result::Result<usize, String> {
+        eprintln!("virtio write @{:#x}! {:#x?}", *addr, data);
+        if self.device().get_queue(0).get_ready() {
+            eprintln!("queue0:avail_idx:{}, avail_len:{}, used:{}", self.device().get_queue(0).get_avail_idx().unwrap(), self.device().get_queue(0).last_avail(), self.device().get_queue(0).get_used_idx().unwrap());
+        }
+        if self.device().get_queue(1).get_ready() {
+            eprintln!("queue1:avail_idx:{}, avail_len:{}, used:{}", self.device().get_queue(1).get_avail_idx().unwrap(), self.device().get_queue(1).last_avail(), self.device().get_queue(1).get_used_idx().unwrap());
+        }
         self.write_bytes(addr, data);
         Ok(0)
     }
 
     fn read(&self, addr: &u64, data: &mut [u8]) -> std::result::Result<usize, String> {
         self.read_bytes(addr, data);
+        eprintln!("virtio read @{:#x}! {:#x?}", *addr, data);
+        if self.device().get_queue(0).get_ready() {
+            eprintln!("queue0:avail_idx:{}, avail_len:{}, used:{}", self.device().get_queue(0).get_avail_idx().unwrap(), self.device().get_queue(0).last_avail(), self.device().get_queue(0).get_used_idx().unwrap());
+        }
+        if self.device().get_queue(1).get_ready() {
+            eprintln!("queue1:avail_idx:{}, avail_len:{}, used:{}", self.device().get_queue(1).get_avail_idx().unwrap(), self.device().get_queue(1).last_avail(), self.device().get_queue(1).get_used_idx().unwrap());
+        }
         Ok(0)
+    }
+}
+
+impl U8Access for VirtIONet {
+    fn write(&self, addr: &u64, data: u8) {
+        MMIODevice::write(self, addr, &(data as u32))
+    }
+
+    fn read(&self, addr: &u64) -> u8 {
+        MMIODevice::read(self, addr) as u8
     }
 }
 

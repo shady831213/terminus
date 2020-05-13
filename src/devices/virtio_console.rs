@@ -25,12 +25,14 @@ impl QueueClient for VirtIOConsoleInputQueue {
 
 struct VirtIOConsoleOutputQueue {
     memory: Rc<Region>,
+    irq_sender: IrqVecSender,
 }
 
 impl VirtIOConsoleOutputQueue {
-    fn new(memory: &Rc<Region>) -> VirtIOConsoleOutputQueue {
+    fn new(memory: &Rc<Region>, irq_sender: IrqVecSender) -> VirtIOConsoleOutputQueue {
         VirtIOConsoleOutputQueue {
             memory: memory.clone(),
+            irq_sender,
         }
     }
 }
@@ -48,6 +50,7 @@ impl QueueClient for VirtIOConsoleOutputQueue {
         }
         queue.set_used(desc_head, desc.len)?;
         queue.update_last_avail();
+        self.irq_sender.send().unwrap();
         Ok(true)
     }
 }
@@ -63,13 +66,13 @@ impl VirtIOConsoleDevice {
                                             1,
                                             3, 0, 1,
         );
+        virtio_device.get_irq_vec().set_enable_uncheck(0, true);
         let input_queue = {
             let input = VirtIOConsoleInputQueue::new();
             Queue::new(&memory, QueueSetting { max_queue_size: 1 }, input)
         };
-        virtio_device.get_irq_vec().set_enable_uncheck(0, true);
         let output_queue = {
-            let output = VirtIOConsoleOutputQueue::new(memory);
+            let output = VirtIOConsoleOutputQueue::new(memory, virtio_device.get_irq_vec().sender(0).unwrap());
             Queue::new(&memory, QueueSetting { max_queue_size: 1 }, output)
         };
         virtio_device.add_queue(input_queue);
