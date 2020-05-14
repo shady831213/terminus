@@ -20,7 +20,7 @@ A verification-friendly riscv isa simulator in rust.
   terminus examples/linux/image/br-5-4.disk --image=examples/linux/image/rootfs.ext4
 ```
 
-## Multi-cores support
+### Multi-cores support
 ```
   terminus examples/linux/image/br-5-4 -p 4
   //booting...
@@ -51,7 +51,31 @@ hart		: 3
 mmu		: sv48
 
 ```
+### net support
+after instll terminus
+config your host according to help message.
+then
+```
+  terminus (TERMINUS_PATH)examples/linux/image/br-net --image=(TERMINUS_PATH)examples/linux/image/rootfs.ext4 --net=tap0 --boot_args="root=/dev/vda console=hvc0"
+  //booting...
+  //booting...
+  //booting...
+  //...
+  buildroot login: root
+  //password is terminus
+  Password:
+  //config guset according to help message.
+  # ping -c 1 www.baidu.com
+```
+then you will see:
+```
+PING www.baidu.com (103.235.47.103): 56 data bytes
+64 bytes from 103.235.47.103: seq=0 ttl=46 time=17.685 ms
 
+--- www.baidu.com ping statistics ---
+1 packets transmitted, 1 packets received, 0% packet loss
+round-trip min/avg/max = 17.685/17.685/17.685 ms
+```
 ## RoadMap
 - [x] RV32/64I
 - [x] MADFC
@@ -68,7 +92,7 @@ mmu		: sv48
 - [x] PLIC
 - [x] VirtIO console
 - [x] VirtIO disk
-- [ ] VirtIO network
+- [x] VirtIO network
 - [ ] VirtIO framebuffer
 - [ ] co-sim with RTL simulator
 - [ ] debug mode
