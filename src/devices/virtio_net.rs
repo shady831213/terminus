@@ -1,11 +1,9 @@
 use terminus_spaceport::memory::region::Region;
 use terminus_spaceport::memory::prelude::*;
 use std::rc::Rc;
-use terminus_spaceport::virtio::{Device, Queue, QueueClient, QueueSetting, Result, Error, DeviceAccess, MMIODevice, DescMeta, DESC_F_WRITE};
+use terminus_spaceport::virtio::{Device, Queue, QueueClient, QueueSetting, Result, Error, DeviceAccess, MMIODevice, DescMeta};
 use terminus_spaceport::devices::{TunTap, TUNTAP_MODE};
 use std::io::ErrorKind;
-use std::ops::Deref;
-use std::cmp::min;
 use terminus_spaceport::irq::IrqVecSender;
 use std::cell::RefCell;
 
@@ -36,16 +34,14 @@ impl QueueClient for VirtIONetInputQueue {
 }
 
 struct VirtIONetOutputQueue {
-    memory: Rc<Region>,
     tap: Rc<TunTap>,
     irq_sender: IrqVecSender,
 
 }
 
 impl VirtIONetOutputQueue {
-    fn new(memory: &Rc<Region>, tap: &Rc<TunTap>, irq_sender: IrqVecSender) -> VirtIONetOutputQueue {
+    fn new(tap: &Rc<TunTap>, irq_sender: IrqVecSender) -> VirtIONetOutputQueue {
         VirtIONetOutputQueue {
-            memory: memory.clone(),
             tap: tap.clone(),
             irq_sender,
         }
@@ -54,26 +50,11 @@ impl VirtIONetOutputQueue {
 
 impl QueueClient for VirtIONetOutputQueue {
     fn receive(&self, queue: &Queue, desc_head: u16) -> Result<bool> {
+        let mut read_descs: Vec<DescMeta> = vec![];
         let mut write_descs: Vec<DescMeta> = vec![];
-        let mut write_len: u32 = 0;
-        for desc_res in queue.desc_iter(desc_head) {
-            let (_, desc) = desc_res?;
-            if desc.flags & DESC_F_WRITE == 0 {
-                write_len += desc.len;
-                write_descs.push(desc);
-            }
-        }
-        let write_buffer: Vec<u8> = {
-            let mut buffer: Vec<u8> = vec![0; write_len as usize];
-            let mut offset: usize = 0;
-            for desc in write_descs.iter() {
-                let next_offset = offset + desc.len as usize;
-                BytesAccess::read(self.memory.deref(), &desc.addr, &mut buffer[offset..next_offset]).unwrap();
-                offset = next_offset;
-            }
-            buffer
-        };
-
+        let mut write_buffer:Vec<u8> = vec![];
+        let mut read_buffer:Vec<u8> = vec![];
+        let (_,write_len) = queue.extract(desc_head, &mut read_buffer, &mut write_buffer, &mut read_descs, &mut write_descs,false, true)?;
         let mut header = VirtIONetHeader::default();
         let header_size = std::mem::size_of::<VirtIONetHeader>();
         if write_len as usize >= header_size {
@@ -111,7 +92,7 @@ impl VirtIONetDevice {
         };
         let tap = Rc::new(TunTap::new(tap_name, TUNTAP_MODE::Tap, false, true).unwrap());
         let output_queue = {
-            let output = VirtIONetOutputQueue::new(memory, &tap, virtio_device.get_irq_vec().sender(0).unwrap());
+            let output = VirtIONetOutputQueue::new(&tap, virtio_device.get_irq_vec().sender(0).unwrap());
             Queue::new(&memory, QueueSetting { max_queue_size: 1 }, output)
         };
         virtio_device.add_queue(input_queue);
@@ -131,16 +112,12 @@ impl VirtIONetDevice {
         let iter = input_queue.avail_iter().unwrap();
         for desc_head in iter {
             let mut read_descs: Vec<DescMeta> = vec![];
-            let mut read_len: u32 = 0;
-            for desc_res in input_queue.desc_iter(desc_head) {
-                let (_, desc) = desc_res.unwrap();
-                if desc.flags & DESC_F_WRITE != 0 {
-                    read_len += desc.len;
-                    read_descs.push(desc);
-                }
-            }
+            let mut write_descs: Vec<DescMeta> = vec![];
+            let mut write_buffer:Vec<u8> = vec![];
+            let mut read_buffer:Vec<u8> = vec![];
+            let (_,_) = input_queue.extract(desc_head, &mut read_buffer, &mut write_buffer, &mut read_descs, &mut write_descs,true, false).unwrap();
             let header_size = std::mem::size_of::<VirtIONetHeader>();
-            let mut read_buffer: Vec<u8> = vec![0; read_len as usize];
+            //
             let ret = match self.tap.recv(&mut read_buffer[header_size..]) {
                 Ok(size) => {
                     read_buffer.resize(size + header_size, 0);
@@ -150,16 +127,7 @@ impl VirtIONetDevice {
                 Err(e) => panic!("{:?}", e),
             };
             if ret > 0 {
-                let mut offset: usize = 0;
-                for desc in read_descs.iter() {
-                    let len = min(desc.len as usize, read_buffer.len() - offset);
-                    let next_offset = offset + len;
-                    BytesAccess::write(self.virtio_device.memory().deref(), &desc.addr, &read_buffer[offset..next_offset]).unwrap();
-                    if next_offset >= read_buffer.len() {
-                        break;
-                    }
-                    offset = next_offset;
-                }
+                input_queue.copy_to(&read_descs, &read_buffer).unwrap();
                 input_queue.set_used(desc_head, read_buffer.len() as u32).unwrap();
                 input_queue.update_last_avail();
                 self.virtio_device.get_irq_vec().sender(0).unwrap().send().unwrap();

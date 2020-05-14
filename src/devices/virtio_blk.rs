@@ -1,7 +1,7 @@
 use terminus_spaceport::memory::region::{Region, GHEAP};
 use terminus_spaceport::memory::prelude::*;
 use std::rc::Rc;
-use terminus_spaceport::virtio::{QueueClient, Queue, Result, Error, DESC_F_WRITE, DescMeta, Device, QueueSetting, DeviceAccess, MMIODevice};
+use terminus_spaceport::virtio::{QueueClient, Queue, Result, Error, DescMeta, Device, QueueSetting, DeviceAccess, MMIODevice};
 use std::ops::Deref;
 use terminus_spaceport::irq::IrqVecSender;
 use std::fs;
@@ -119,31 +119,10 @@ impl<T: BytesAccess> VirtIOBlkQueue<T> {
 impl<T: BytesAccess> QueueClient for VirtIOBlkQueue<T> {
     fn receive(&self, queue: &Queue, desc_head: u16) -> Result<bool> {
         let mut read_descs: Vec<DescMeta> = vec![];
-        let mut read_len: u32 = 0;
         let mut write_descs: Vec<DescMeta> = vec![];
-        let mut write_len: u32 = 0;
-        for desc_res in queue.desc_iter(desc_head) {
-            let (_, desc) = desc_res?;
-            if desc.flags & DESC_F_WRITE != 0 {
-                read_len += desc.len;
-                read_descs.push(desc);
-            } else {
-                write_len += desc.len;
-                write_descs.push(desc);
-            }
-        }
-        let mut read_buffer: Vec<u8> = vec![0; read_len as usize];
-        let write_buffer: Vec<u8> = {
-            let mut buffer: Vec<u8> = vec![0; write_len as usize];
-            let mut offset: usize = 0;
-            for desc in write_descs.iter() {
-                let next_offset = offset + desc.len as usize;
-                BytesAccess::read(self.memory.deref(), &desc.addr, &mut buffer[offset..next_offset]).unwrap();
-                offset = next_offset;
-            }
-            buffer
-        };
-
+        let mut write_buffer: Vec<u8> = vec![];
+        let mut read_buffer: Vec<u8> = vec![];
+        let (read_len, write_len) = queue.extract(desc_head, &mut read_buffer, &mut write_buffer, &mut read_descs, &mut write_descs, true, true)?;
         let mut header = VirtIOBlkHeader::default();
         let header_size = std::mem::size_of::<VirtIOBlkHeader>();
         if write_len as usize >= header_size {
@@ -161,13 +140,8 @@ impl<T: BytesAccess> QueueClient for VirtIOBlkQueue<T> {
                 } else {
                     read_buffer[read_len as usize - 1] = VIRTIO_BLK_S_IOERR;
                 }
-                let mut offset: usize = 0;
-                for desc in read_descs.iter() {
-                    let next_offset = offset + desc.len as usize;
-                    BytesAccess::write(self.memory.deref(), &desc.addr, &read_buffer[offset..next_offset]).unwrap();
-                    offset = next_offset;
-                }
-                queue.set_used(desc_head, read_len)?;
+                queue.copy_to(&read_descs, &read_buffer)?;
+                queue.set_used(desc_head, read_len as u32)?;
             }
             VIRTIO_BLK_T_OUT => {
                 if BytesAccess::write(&self.disk, &disk_offset, &write_buffer[header_size..]).is_ok() {
