@@ -8,7 +8,7 @@ use terminus_spaceport::devices::term_exit;
 
 
 fn main() {
-    let htif = HTIF::new(0, Some(8));
+    let htif = HTIF::new(0, Some(8), true);
     U64Access::write(&htif, &0, 0x0101_0000_0000_0000u64 | b'x' as u64);
     U64Access::write(&htif, &0, 0x0101_0000_0000_000au64);
     loop {

@@ -53,7 +53,7 @@ pub struct System {
 }
 
 impl System {
-    pub fn new(name: &str, elf_file: &str, processor_cfgs: Vec<ProcessorCfg>, timer_freq: usize, max_int_src: usize) -> System {
+    pub fn new(name: &str, elf_file: &str, processor_cfgs: Vec<ProcessorCfg>, htif_input_en: bool, timer_freq: usize, max_int_src: usize) -> System {
         let bus = Rc::new(Bus::new());
         let elf = ElfLoader::new(elf_file).expect(&format!("Invalid Elf {}", elf_file));
         let mut sys = System {
@@ -65,7 +65,7 @@ impl System {
             processors: vec![],
             virtio_infos: vec![],
         };
-        sys.try_register_htif();
+        sys.try_register_htif(htif_input_en);
         for cfg in processor_cfgs {
             sys.new_processor(cfg)
         }
@@ -82,9 +82,9 @@ impl System {
         Ok(())
     }
 
-    fn try_register_htif(&self) {
+    fn try_register_htif(&self, input_en: bool) {
         if let Some((base, tohost, fromhost)) = self.elf.htif_section().expect("Invalid ELF!") {
-            self.register_region("htif", base, &Region::io(0, 0x1000, Box::new(HTIF::new(tohost, fromhost)))).unwrap();
+            self.register_region("htif", base, &Region::io(0, 0x1000, Box::new(HTIF::new(tohost, fromhost, input_en)))).unwrap();
         }
     }
 

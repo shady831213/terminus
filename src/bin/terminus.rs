@@ -114,20 +114,34 @@ fn main() {
                 .value_name("net")
                 .takes_value(true)
                 .help("tap iface name.
-                config in host:
-                sudo ip link add br0 type bridge
-                sudo ip tuntap add dev [tap iface] mode tap user $(whoami)
-                sudo ip link set [tap iface] master br0
-                sudo ip link set dev br0 up
-                sudo ip link set dev [tap iface] up
-                sudo ifconfig br0 192.168.3.1
-                sudo sysctl -w net.ipv4.ip_forward=1
-                sudo iptables -D FORWARD 1
-                sudo iptables -t nat -A POSTROUTING -o [eth] -j MASQUERADE
-                config in guest:
-                ifconfig eth0 192.168.3.2
-                route add -net 0.0.0.0 netmask 0.0.0.0 gw 192.168.3.1
-                ")
+    config in host:
+        sudo ip link add br0 type bridge
+        sudo ip tuntap add dev [tap iface] mode tap user $(whoami)
+        sudo ip link set [tap iface] master br0
+        sudo ip link set dev br0 up
+        sudo ip link set dev [tap iface] up
+        sudo ifconfig br0 192.168.3.1
+        sudo sysctl -w net.ipv4.ip_forward=1
+        sudo iptables --policy FORWARD ACCEPT
+        sudo iptables -t nat -A POSTROUTING -o [eth] -j MASQUERADE
+    config in guest:
+        ifconfig eth0 192.168.3.2
+        echo \"nameserver 8.8.8.8\" > /etc/resolv.conf
+        route add -net 0.0.0.0 netmask 0.0.0.0 gw 192.168.3.1")
+        )
+        .arg(
+            Arg::with_name("console_input")
+                .long("console_input")
+                .value_name("CONSOLE_INPUT")
+                .takes_value(true)
+                .help("config console input type:[htif|virtio]")
+                .validator(|mode| {
+                    match mode.as_str() {
+                        "htif" | "virtio" => Ok(()),
+                        _ => Err("config console input type:[htif|virtio]".to_string())
+                    }
+                })
+                .default_value("virtio")
         )
         .get_matches();
 
@@ -143,6 +157,7 @@ fn main() {
     let boot_args = matches.values_of("boot_args").unwrap_or_default().map(|s| { s }).collect::<Vec<_>>();
     let image = matches.value_of("image");
     let net = matches.value_of("net");
+    let virtio_input_en = matches.value_of("console_input").unwrap_or_default() == "virtio";
 
     let configs = vec![ProcessorCfg {
         xlen,
@@ -150,7 +165,7 @@ fn main() {
         extensions,
         freq: 1000000000,
     }; core_num];
-    let mut sys = System::new("sys", elf, configs, 10000000, 32);
+    let mut sys = System::new("sys", elf, configs, !virtio_input_en, 10000000, 32);
     let main_memory = GHEAP.alloc(memory_size, 1).expect("main_memory alloc fail!");
     sys.register_memory("main_memory", 0x80000000, &main_memory).unwrap();
     sys.register_device("clint", 0x02000000, 0x000c0000, Clint::new(sys.timer())).unwrap();
@@ -188,7 +203,9 @@ fn main() {
         for p in sys.processors() {
             p.step(5000);
         }
-        virtio_console_device.console_read();
+        if virtio_input_en {
+            virtio_console_device.console_read();
+        }
         if let Some(ref net_d) = virtio_net_device {
             net_d.net_read();
         }

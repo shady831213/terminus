@@ -54,7 +54,6 @@ impl VirtIONetOutputQueue {
 
 impl QueueClient for VirtIONetOutputQueue {
     fn receive(&self, queue: &Queue, desc_head: u16) -> Result<bool> {
-        eprintln!("send package begin!");
         let mut write_descs: Vec<DescMeta> = vec![];
         let mut write_len: u32 = 0;
         for desc_res in queue.desc_iter(desc_head) {
@@ -87,7 +86,6 @@ impl QueueClient for VirtIONetOutputQueue {
         queue.set_used(desc_head, 0)?;
         queue.update_last_avail();
         self.irq_sender.send().unwrap();
-        eprintln!("send package len {} {:#x?}!", write_len, write_buffer);
         Ok(true)
     }
 }
@@ -109,12 +107,12 @@ impl VirtIONetDevice {
         virtio_device.get_irq_vec().set_enable_uncheck(0, true);
         let input_queue = {
             let input = VirtIONetInputQueue::new();
-            Queue::new(&memory, QueueSetting { max_queue_size: 16 }, input)
+            Queue::new(&memory, QueueSetting { max_queue_size: 1 }, input)
         };
         let tap = Rc::new(TunTap::new(tap_name, TUNTAP_MODE::Tap, false, true).unwrap());
         let output_queue = {
             let output = VirtIONetOutputQueue::new(memory, &tap, virtio_device.get_irq_vec().sender(0).unwrap());
-            Queue::new(&memory, QueueSetting { max_queue_size: 16 }, output)
+            Queue::new(&memory, QueueSetting { max_queue_size: 1 }, output)
         };
         virtio_device.add_queue(input_queue);
         virtio_device.add_queue(output_queue);
@@ -164,7 +162,6 @@ impl VirtIONetDevice {
                 }
                 input_queue.set_used(desc_head, read_buffer.len() as u32).unwrap();
                 input_queue.update_last_avail();
-                eprintln!("receive package len {}!", ret);
                 self.virtio_device.get_irq_vec().sender(0).unwrap().send().unwrap();
             }
         }
@@ -210,26 +207,12 @@ impl MMIODevice for VirtIONet {}
 
 impl BytesAccess for VirtIONet {
     fn write(&self, addr: &u64, data: &[u8]) -> std::result::Result<usize, String> {
-        eprintln!("virtio write @{:#x}! {:#x?}", *addr, data);
-        if self.device().get_queue(0).get_ready() {
-            eprintln!("queue0:avail_idx:{}, avail_len:{}, used:{}", self.device().get_queue(0).get_avail_idx().unwrap(), self.device().get_queue(0).last_avail(), self.device().get_queue(0).get_used_idx().unwrap());
-        }
-        if self.device().get_queue(1).get_ready() {
-            eprintln!("queue1:avail_idx:{}, avail_len:{}, used:{}", self.device().get_queue(1).get_avail_idx().unwrap(), self.device().get_queue(1).last_avail(), self.device().get_queue(1).get_used_idx().unwrap());
-        }
         self.write_bytes(addr, data);
         Ok(0)
     }
 
     fn read(&self, addr: &u64, data: &mut [u8]) -> std::result::Result<usize, String> {
         self.read_bytes(addr, data);
-        eprintln!("virtio read @{:#x}! {:#x?}", *addr, data);
-        if self.device().get_queue(0).get_ready() {
-            eprintln!("queue0:avail_idx:{}, avail_len:{}, used:{}", self.device().get_queue(0).get_avail_idx().unwrap(), self.device().get_queue(0).last_avail(), self.device().get_queue(0).get_used_idx().unwrap());
-        }
-        if self.device().get_queue(1).get_ready() {
-            eprintln!("queue1:avail_idx:{}, avail_len:{}, used:{}", self.device().get_queue(1).get_avail_idx().unwrap(), self.device().get_queue(1).last_avail(), self.device().get_queue(1).get_used_idx().unwrap());
-        }
         Ok(0)
     }
 }

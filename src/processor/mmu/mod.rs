@@ -282,7 +282,7 @@ fn pmp_basic_test() {
         enable_dirty: true,
         extensions: vec![].into_boxed_slice(),
         freq: 1000000000,
-    }], 100, 1);
+    }], false, 100, 1);
     sys.reset(vec![-1i64 as u64]).unwrap();
 
     let p = sys.processor(0).unwrap();

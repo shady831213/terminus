@@ -26,14 +26,16 @@ pub struct HTIF {
     desc: RefCell<HTIFDesp>,
     tohost_off: u64,
     fromhost_off: Option<u64>,
+    input_en: bool,
 }
 
 impl HTIF {
-    pub fn new(tohost_off: u64, fromhost_off: Option<u64>) -> HTIF {
+    pub fn new(tohost_off: u64, fromhost_off: Option<u64>, input_en: bool) -> HTIF {
         HTIF {
             desc: RefCell::new(HTIFDesp { tohost: 0, fromhost: 0 }),
             tohost_off,
             fromhost_off,
+            input_en,
         }
     }
 
@@ -56,7 +58,7 @@ impl HTIF {
     }
 
     fn fromhost_poll(&self, desp: &mut HTIFDesp) {
-        if desp.fromhost == 0 {
+        if desp.fromhost == 0 && self.input_en {
             let mut data = [0u8; 1];
             match TERM.stdin().lock().read_exact(&mut data) {
                 Ok(_) => {
