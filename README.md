@@ -93,7 +93,7 @@ round-trip min/avg/max = 17.685/17.685/17.685 ms
 - [x] VirtIO console
 - [x] VirtIO disk
 - [x] VirtIO network
-- [ ] VirtIO framebuffer
+- [ ] framebuffer
 - [ ] co-sim with RTL simulator
 - [ ] debug mode
 - [ ] other extensions(b, v ...)
