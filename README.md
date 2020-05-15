@@ -56,7 +56,7 @@ after instll terminus
 config your host according to help message.
 then
 ```
-  terminus (TERMINUS_PATH)examples/linux/image/br-net --image=(TERMINUS_PATH)examples/linux/image/rootfs.ext4 --net=tap0 --boot_args="root=/dev/vda console=hvc0"
+  terminus (TERMINUS_PATH)examples/linux/image/br-5-4.disk --image=(TERMINUS_PATH)examples/linux/image/rootfs.ext4 --net=tap0 --boot_args="root=/dev/vda console=hvc0"
   //booting...
   //booting...
   //booting...
@@ -98,6 +98,4 @@ round-trip min/avg/max = 17.685/17.685/17.685 ms
 - [ ] debug mode
 - [ ] other extensions(b, v ...)
 
-## Notice
-Kernel image 'examples/linux/image/br-net' is coming from [diskimage-linux-riscv-2018-09-23.tar.gz](https://bellard.org/tinyemu/diskimage-linux-riscv-2018-09-23.tar.gz) of [tinyemu](https://bellard.org/tinyemu/)
 
