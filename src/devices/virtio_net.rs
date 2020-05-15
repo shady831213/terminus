@@ -62,9 +62,8 @@ impl QueueClient for VirtIONetOutputQueue {
         } else {
             return Err(Error::ClientError("invalid net header!".to_string()));
         }
-
         self.tap.send(&write_buffer[header_size..]).unwrap();
-        queue.set_used(desc_head, 0)?;
+        queue.set_used(desc_head, write_len as u32)?;
         queue.update_last_avail();
         self.irq_sender.send().unwrap();
         Ok(true)
@@ -91,9 +90,10 @@ impl VirtIONetDevice {
             Queue::new(&memory, QueueSetting { max_queue_size: 1 }, input)
         };
         let tap = Rc::new(TunTap::new(tap_name, TUNTAP_MODE::Tap, false, true).unwrap());
+        //must be larger than 2 + MAX_SKB_FRAGS, according to linux /drivers/net/virtio_net.c
         let output_queue = {
             let output = VirtIONetOutputQueue::new(&tap, virtio_device.get_irq_vec().sender(0).unwrap());
-            Queue::new(&memory, QueueSetting { max_queue_size: 1 }, output)
+            Queue::new(&memory, QueueSetting { max_queue_size: 32 }, output)
         };
         virtio_device.add_queue(input_queue);
         virtio_device.add_queue(output_queue);
