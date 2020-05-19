@@ -38,3 +38,4 @@ path = "top_tests/decode_bench.rs"
 
 [features]
 no-inline = []
+sdl=["terminus-spaceport/sdl2"]
