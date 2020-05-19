@@ -5,3 +5,4 @@ pub mod plic;
 pub mod virtio_console;
 pub mod virtio_blk;
 pub mod virtio_net;
+pub mod simple_fb;
