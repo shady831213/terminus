@@ -12,27 +12,31 @@ const SIMPLE_FB_REFRESH_BATCH_SHIFT: u32 = 5;
 
 pub struct Fb {
     fb: RefCell<Vec<u8>>,
+    width: u32,
+    height: u32,
     pages: u32,
     dirties: RefCell<Vec<u32>>,
 }
 
 impl Fb {
-    pub fn new<D: Display>(d: &D) -> Fb {
-        let size = d.width() * d.height() * 4;
-        let pages = (size + SIMPLE_FB_PAGE_SIZE as usize - 1) / (SIMPLE_FB_PAGE_SIZE as usize);
-        let dirties_len = (pages + SIMPLE_FB_REFRESH_BATCH as usize - 1) >> (SIMPLE_FB_REFRESH_BATCH_SHIFT as usize);
+    pub fn new(width: u32, height: u32) -> Fb {
+        let size = width * height * 4;
+        let pages = (size + SIMPLE_FB_PAGE_SIZE - 1) / SIMPLE_FB_PAGE_SIZE;
+        let dirties_len = (pages + SIMPLE_FB_REFRESH_BATCH - 1) >> SIMPLE_FB_REFRESH_BATCH_SHIFT;
         Fb {
-            fb: RefCell::new(vec![0; size]),
+            fb: RefCell::new(vec![0; size as usize]),
+            width,
+            height,
             pages: pages as u32,
-            dirties: RefCell::new(vec![0; dirties_len]),
+            dirties: RefCell::new(vec![0; dirties_len as usize]),
         }
     }
     pub fn size(&self) -> u32 {
         self.pages << SIMPLE_FB_PAGE_SIZE_SHIFT
     }
-    fn set_dirty(&self, offset:&u64) {
+    fn set_dirty(&self, offset: &u64) {
         let page = ((*offset) as u32) >> SIMPLE_FB_PAGE_SIZE_SHIFT;
-        let bits = page & ((1 << SIMPLE_FB_REFRESH_BATCH_SHIFT) -1);
+        let bits = page & ((1 << SIMPLE_FB_REFRESH_BATCH_SHIFT) - 1);
         let pos = page >> SIMPLE_FB_REFRESH_BATCH_SHIFT;
         self.dirties.borrow_mut()[pos as usize] |= 1 << bits
     }
@@ -45,31 +49,27 @@ impl FrameBuffer for Fb {
         let mut page_idx: u32 = 0;
         let mut y_start: u32 = 0;
         let mut y_end: u32 = 0;
-        let width = d.width() as u32;
-        let stride = width << 2;
-        let height = d.height() as u32;
+        let stride = self.width << 2;
         while page_idx < self.pages {
             let dirties_offset = page_idx >> SIMPLE_FB_REFRESH_BATCH_SHIFT;
             let mut dirties = dirties_ref[dirties_offset as usize];
             if dirties != 0 {
                 let mut page_offset: u32 = 0;
-                while dirties != 0{
+                while dirties != 0 {
                     while (dirties >> page_offset) & 0x1 == 0 {
                         page_offset += 1;
                     }
                     dirties &= !(1 << page_offset);
                     let byte_offset = (page_idx + page_offset) << SIMPLE_FB_PAGE_SIZE_SHIFT;
                     let y_start_offset = byte_offset / stride;
-                    let y_end_offset = min(((byte_offset + SIMPLE_FB_PAGE_SIZE - 1) / stride) + 1, height);
+                    let y_end_offset = min(((byte_offset + SIMPLE_FB_PAGE_SIZE - 1) / stride) + 1, self.height);
                     if y_start == y_end {
                         y_start = y_start_offset;
                         y_end = y_end_offset;
                     } else if y_start_offset <= y_end + SIMPLE_FB_MERGE_TH {
                         y_end = y_end_offset
                     } else {
-                        let byte_start = (y_start * stride) as usize;
-                        let byte_end = (y_end * stride) as usize;
-                        d.draw(&mut data[byte_start..byte_end], 0, y_start as i32, width, y_end - y_start)?;
+                        d.draw(&mut data, self.width, self.height, stride, 0, y_start as i32, self.width, y_end - y_start)?;
                         y_start = y_start_offset;
                         y_end = y_end_offset;
                     }
@@ -80,9 +80,7 @@ impl FrameBuffer for Fb {
         }
 
         if y_start != y_end {
-            let byte_start = (y_start * stride) as usize;
-            let byte_end = (y_end * stride) as usize;
-            d.draw(&mut data[byte_start..byte_end], 0, y_start as i32, width, y_end - y_start)?
+            d.draw(&mut data, self.width, self.height, stride, 0, y_start as i32, self.width, y_end - y_start)?;
         }
         Ok(())
     }

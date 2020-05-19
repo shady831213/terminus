@@ -178,7 +178,7 @@ fn main() {
     #[cfg(feature = "sdl")]
         let (sdl, fb, kb, mouse) = {
         let sdl = SDL::new("terminus", 800, 600, || { EXIT_CTRL.exit("sdl exit!").unwrap() }).expect("sdl open fail!");
-        let fb = Rc::new(Fb::new(&sdl));
+        let fb = Rc::new(Fb::new(800, 600));
         let kb = DummyKb {};
         let mouse = DummyMouse {};
         sys.register_device("simple_fb", 0x30000000, fb.size() as u64, SimpleFb::new(&fb)).unwrap();
