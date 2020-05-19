@@ -15,6 +15,11 @@ use std::rc::Rc;
 use terminus::devices::virtio_console::{VirtIOConsoleDevice, VirtIOConsole};
 use terminus::devices::virtio_blk::{VirtIOBlk, VirtIOBlkConfig};
 use terminus::devices::virtio_net::{VirtIONetDevice, VirtIONet};
+#[cfg(feature = "sdl")]
+use terminus_spaceport::devices::SDL;
+use terminus::devices::display::{Fb, SimpleFb, DummyKb, DummyMouse};
+use std::ops::Deref;
+
 
 fn main() {
     let matches = App::new("terminus")
@@ -170,6 +175,15 @@ fn main() {
     sys.register_memory("main_memory", 0x80000000, &main_memory).unwrap();
     sys.register_device("clint", 0x02000000, 0x000c0000, Clint::new(sys.timer())).unwrap();
     sys.register_device("plic", 0x0c000000, 0x4000000, Plic::new(sys.intc())).unwrap();
+    #[cfg(feature = "sdl")]
+        let (sdl, fb, kb, mouse) = {
+        let sdl = SDL::new("terminus", 800, 600, || { EXIT_CTRL.exit("sdl exit!").unwrap() }).expect("sdl open fail!");
+        let fb = Rc::new(Fb::new(&sdl));
+        let kb = DummyKb {};
+        let mouse = DummyMouse {};
+        sys.register_device("simple_fb", 0x30000000, fb.size() as u64, SimpleFb::new(&fb)).unwrap();
+        (sdl, fb, kb, mouse)
+    };
 
     //virtios
     let virtio_mem = Region::remap(0x80000000, &main_memory);
@@ -209,6 +223,8 @@ fn main() {
         if let Some(ref net_d) = virtio_net_device {
             net_d.net_read();
         }
+        #[cfg(feature = "sdl")]
+        sdl.refresh(fb.deref(), &kb, &mouse).unwrap();
         sys.timer().tick(50)
     }
     term_exit();

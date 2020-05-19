@@ -294,8 +294,20 @@ impl System {
             }
         }
 
+        if let Some(fb_region) = self.bus.space().get_region("simple_fb") {
+            let mut fb = FdtNode::new_with_num("framebuffer", fb_region.info.base);
+            fb.add_prop(FdtProp::str_prop("compatible", vec!["simple-framebuffer"]));
+            fb.add_prop(FdtProp::u64_prop("reg", vec![fb_region.info.base, fb_region.info.size]));
+            fb.add_prop(FdtProp::u32_prop("width", vec![800]));
+            fb.add_prop(FdtProp::u32_prop("height", vec![600]));
+            fb.add_prop(FdtProp::u32_prop("stride", vec![800*4]));
+            fb.add_prop(FdtProp::str_prop("format", vec!["a8r8g8b8"]));
+            soc.add_node(fb)
+        }
+
         let mut htif = FdtNode::new("htif");
         htif.add_prop(FdtProp::str_prop("compatible", vec!["ucb,htif0"]));
+
         soc.add_node(htif);
 
         root.add_node(soc);
