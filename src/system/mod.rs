@@ -300,8 +300,8 @@ impl System {
             fb.add_prop(FdtProp::u64_prop("reg", vec![fb_region.info.base, fb_region.info.size]));
             fb.add_prop(FdtProp::u32_prop("width", vec![800]));
             fb.add_prop(FdtProp::u32_prop("height", vec![600]));
-            fb.add_prop(FdtProp::u32_prop("stride", vec![800*4]));
-            fb.add_prop(FdtProp::str_prop("format", vec!["a8r8g8b8"]));
+            fb.add_prop(FdtProp::u32_prop("stride", vec![800*2]));
+            fb.add_prop(FdtProp::str_prop("format", vec!["r5g6b5"]));
             soc.add_node(fb)
         }
 

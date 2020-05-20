@@ -211,7 +211,7 @@ fn main() {
     sys.load_elf().unwrap();
     sys.reset(vec![-1i64 as u64; core_num]).unwrap();
     let mut real_timer = std::time::Instant::now();
-    let interval = Duration::new(0, 1_000_000_000u32 / 60);
+    let interval = Duration::new(0, 1_000_000_000u32 / 30);
     loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
             eprintln!("{}", msg);

@@ -20,7 +20,7 @@ pub struct Fb {
 
 impl Fb {
     pub fn new(width: u32, height: u32) -> Fb {
-        let size = width * height * 4;
+        let size = width * height * 2;
         let pages = (size + SIMPLE_FB_PAGE_SIZE - 1) / SIMPLE_FB_PAGE_SIZE;
         let dirties_len = (pages + SIMPLE_FB_REFRESH_BATCH - 1) >> SIMPLE_FB_REFRESH_BATCH_SHIFT;
         Fb {
@@ -49,7 +49,7 @@ impl FrameBuffer for Fb {
         let mut page_idx: u32 = 0;
         let mut y_start: u32 = 0;
         let mut y_end: u32 = 0;
-        let stride = self.width << 2;
+        let stride = self.width << 1;
         while page_idx < self.pages {
             let dirties_offset = page_idx >> SIMPLE_FB_REFRESH_BATCH_SHIFT;
             let mut dirties = dirties_ref[dirties_offset as usize];
