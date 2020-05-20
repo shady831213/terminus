@@ -19,6 +19,7 @@ use terminus::devices::virtio_net::{VirtIONetDevice, VirtIONet};
 use terminus_spaceport::devices::SDL;
 use terminus::devices::display::{Fb, SimpleFb, DummyKb, DummyMouse};
 use std::ops::Deref;
+use std::time::Duration;
 
 
 fn main() {
@@ -209,6 +210,8 @@ fn main() {
     sys.make_boot_rom(0x20000000, -1i64 as u64, boot_args).unwrap();
     sys.load_elf().unwrap();
     sys.reset(vec![-1i64 as u64; core_num]).unwrap();
+    let mut real_timer = std::time::Instant::now();
+    let interval = Duration::new(0, 1_000_000_000u32 / 60);
     loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
             eprintln!("{}", msg);
@@ -223,8 +226,11 @@ fn main() {
         if let Some(ref net_d) = virtio_net_device {
             net_d.net_read();
         }
-        #[cfg(feature = "sdl")]
-        sdl.refresh(fb.deref(), &kb, &mouse).unwrap();
+        if real_timer.elapsed() >= interval {
+            #[cfg(feature = "sdl")]
+                sdl.refresh(fb.deref(), &kb, &mouse).unwrap();
+            real_timer = std::time::Instant::now();
+        }
         sys.timer().tick(50)
     }
     term_exit();
