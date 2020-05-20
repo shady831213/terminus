@@ -7,7 +7,7 @@ use std::path::Path;
 use terminus::processor::ProcessorCfg;
 use terminus::system::System;
 use terminus::devices::clint::Clint;
-use terminus_spaceport::devices::term_exit;
+use terminus_spaceport::devices::{term_exit, PixelFormat};
 use terminus_spaceport::EXIT_CTRL;
 use terminus_spaceport::memory::region::{GHEAP, Region};
 use terminus::devices::plic::Plic;
@@ -178,8 +178,8 @@ fn main() {
     sys.register_device("plic", 0x0c000000, 0x4000000, Plic::new(sys.intc())).unwrap();
     #[cfg(feature = "sdl")]
         let (sdl, fb, kb, mouse) = {
-        let sdl = SDL::new("terminus", 800, 600, || { EXIT_CTRL.exit("sdl exit!").unwrap() }).expect("sdl open fail!");
-        let fb = Rc::new(Fb::new(800, 600));
+        let sdl = SDL::new("terminus", 800, 600, PixelFormat::RGB565, || { EXIT_CTRL.exit("sdl exit!").unwrap() }).expect("sdl open fail!");
+        let fb = Rc::new(Fb::new(800, 600, PixelFormat::RGB565));
         let kb = DummyKb {};
         let mouse = DummyMouse {};
         sys.register_device("simple_fb", 0x30000000, fb.size() as u64, SimpleFb::new(&fb)).unwrap();
@@ -211,7 +211,7 @@ fn main() {
     sys.load_elf().unwrap();
     sys.reset(vec![-1i64 as u64; core_num]).unwrap();
     let mut real_timer = std::time::Instant::now();
-    let interval = Duration::new(0, 1_000_000_000u32 / 30);
+    let interval = Duration::new(0, 1_000_000_000u32 / 60);
     loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
             eprintln!("{}", msg);

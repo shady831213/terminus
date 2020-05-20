@@ -1,5 +1,5 @@
-use std::cell::RefCell;
-use terminus_spaceport::devices::{FrameBuffer, Display, KeyBoard, Mouse};
+use std::cell::{RefCell, RefMut};
+use terminus_spaceport::devices::{FrameBuffer, KeyBoard, Mouse, PixelFormat};
 use std::cmp::min;
 use terminus_spaceport::memory::prelude::*;
 use std::rc::Rc;
@@ -14,19 +14,21 @@ pub struct Fb {
     fb: RefCell<Vec<u8>>,
     width: u32,
     height: u32,
+    format: PixelFormat,
     pages: u32,
     dirties: RefCell<Vec<u32>>,
 }
 
 impl Fb {
-    pub fn new(width: u32, height: u32) -> Fb {
-        let size = width * height * 2;
+    pub fn new(width: u32, height: u32, format: PixelFormat) -> Fb {
+        let size = width * height * format.size();
         let pages = (size + SIMPLE_FB_PAGE_SIZE - 1) / SIMPLE_FB_PAGE_SIZE;
         let dirties_len = (pages + SIMPLE_FB_REFRESH_BATCH - 1) >> SIMPLE_FB_REFRESH_BATCH_SHIFT;
         Fb {
             fb: RefCell::new(vec![0; size as usize]),
             width,
             height,
+            format,
             pages: pages as u32,
             dirties: RefCell::new(vec![0; dirties_len as usize]),
         }
@@ -43,13 +45,12 @@ impl Fb {
 }
 
 impl FrameBuffer for Fb {
-    fn refresh<D: Display>(&self, d: &D) -> Result<(), String> {
-        let mut data = self.fb.borrow_mut();
+    fn refresh<DRAW: Fn(i32, i32, u32, u32) -> Result<(), String>>(&self, draw: DRAW) -> Result<(), String> {
         let mut dirties_ref = self.dirties.borrow_mut();
         let mut page_idx: u32 = 0;
         let mut y_start: u32 = 0;
         let mut y_end: u32 = 0;
-        let stride = self.width << 1;
+        let stride = self.stride();
         while page_idx < self.pages {
             let dirties_offset = page_idx >> SIMPLE_FB_REFRESH_BATCH_SHIFT;
             let mut dirties = dirties_ref[dirties_offset as usize];
@@ -69,7 +70,7 @@ impl FrameBuffer for Fb {
                     } else if y_start_offset <= y_end + SIMPLE_FB_MERGE_TH {
                         y_end = y_end_offset
                     } else {
-                        d.draw(&mut data, self.width, self.height, stride, 0, y_start as i32, self.width, y_end - y_start)?;
+                        draw(0, y_start as i32, self.width, y_end - y_start)?;
                         y_start = y_start_offset;
                         y_end = y_end_offset;
                     }
@@ -80,9 +81,24 @@ impl FrameBuffer for Fb {
         }
 
         if y_start != y_end {
-            d.draw(&mut data, self.width, self.height, stride, 0, y_start as i32, self.width, y_end - y_start)?;
+            draw(0, y_start as i32, self.width, y_end - y_start)?;
         }
         Ok(())
+    }
+    fn data(&self) -> RefMut<'_, Vec<u8>> {
+        self.fb.borrow_mut()
+    }
+    fn width(&self) -> u32 {
+        self.width
+    }
+    fn height(&self) -> u32 {
+        self.height
+    }
+    fn stride(&self) -> u32 {
+        self.width * self.format.size()
+    }
+    fn pixel_format(&self) -> &PixelFormat {
+        &self.format
     }
 }
 
