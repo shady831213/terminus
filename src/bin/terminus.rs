@@ -213,7 +213,7 @@ fn main() {
     #[cfg(feature = "sdl")]
     let mut real_timer = std::time::Instant::now();
     #[cfg(feature = "sdl")]
-    let interval = Duration::new(0, 1_000_000_000u32 / 30);
+    let interval = Duration::new(0, 1_000_000_000u32 / 60);
     loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
             eprintln!("{}", msg);
