@@ -169,7 +169,7 @@ fn main() {
         xlen,
         enable_dirty: true,
         extensions,
-        freq: 1000000000,
+        freq: 100000000,
     }; core_num];
     let mut sys = System::new("sys", elf, configs, !virtio_input_en, 10000000, 32);
     let main_memory = GHEAP.alloc(memory_size, 1).expect("main_memory alloc fail!");
@@ -210,15 +210,17 @@ fn main() {
     sys.make_boot_rom(0x20000000, -1i64 as u64, boot_args).unwrap();
     sys.load_elf().unwrap();
     sys.reset(vec![-1i64 as u64; core_num]).unwrap();
+    #[cfg(feature = "sdl")]
     let mut real_timer = std::time::Instant::now();
-    let interval = Duration::new(0, 1_000_000_000u32 / 60);
+    #[cfg(feature = "sdl")]
+    let interval = Duration::new(0, 1_000_000_000u32 / 30);
     loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
             eprintln!("{}", msg);
             break;
         }
         for p in sys.processors() {
-            p.step(5000);
+            p.step(500);
         }
         if virtio_input_en {
             virtio_console_device.console_read();
@@ -226,11 +228,13 @@ fn main() {
         if let Some(ref net_d) = virtio_net_device {
             net_d.net_read();
         }
-        if real_timer.elapsed() >= interval {
-            #[cfg(feature = "sdl")]
-                sdl.refresh(fb.deref(), &kb, &mouse).unwrap();
-            real_timer = std::time::Instant::now();
-        }
+        #[cfg(feature = "sdl")]
+            {
+                if real_timer.elapsed() >= interval {
+                    sdl.refresh(fb.deref(), &kb, &mouse).unwrap();
+                    real_timer = std::time::Instant::now();
+                }
+            }
         sys.timer().tick(50)
     }
     term_exit();
