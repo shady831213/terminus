@@ -7,7 +7,7 @@ use std::path::Path;
 use terminus::processor::ProcessorCfg;
 use terminus::system::System;
 use terminus::devices::clint::Clint;
-use terminus_spaceport::devices::{term_exit, PixelFormat};
+use terminus_spaceport::devices::term_exit;
 use terminus_spaceport::EXIT_CTRL;
 use terminus_spaceport::memory::region::{GHEAP, Region};
 use terminus::devices::plic::Plic;
@@ -16,10 +16,17 @@ use terminus::devices::virtio_console::{VirtIOConsoleDevice, VirtIOConsole};
 use terminus::devices::virtio_blk::{VirtIOBlk, VirtIOBlkConfig};
 use terminus::devices::virtio_net::{VirtIONetDevice, VirtIONet};
 #[cfg(feature = "sdl")]
-use terminus_spaceport::devices::SDL;
+use terminus_spaceport::devices::{PixelFormat, FrameBuffer};
+#[cfg(feature = "sdl")]
 use terminus::devices::display::{Fb, SimpleFb, DummyKb, DummyMouse};
+#[cfg(feature = "sdl")]
 use std::ops::Deref;
+#[cfg(feature = "sdl")]
 use std::time::Duration;
+#[cfg(feature = "sdl")]
+use terminus_spaceport::devices::SDL;
+#[cfg(feature = "sdl")]
+use terminus::system::fdt::FdtProp;
 
 
 fn main() {
@@ -182,7 +189,15 @@ fn main() {
         let fb = Rc::new(Fb::new(800, 600, PixelFormat::RGB565));
         let kb = DummyKb {};
         let mouse = DummyMouse {};
-        sys.register_device("simple_fb", 0x30000000, fb.size() as u64, SimpleFb::new(&fb)).unwrap();
+        sys.register_device_with_fdt_props("simple_fb", 0x30000000, fb.size() as u64, SimpleFb::new(&fb), vec![
+            FdtProp::u32_prop("width", vec![fb.width()]),
+            FdtProp::u32_prop("height", vec![fb.height()]),
+            FdtProp::u32_prop("stride", vec![fb.stride()]),
+            match fb.pixel_format() {
+                PixelFormat::RGB565 => FdtProp::str_prop("format", vec!["r5g6b5"]),
+                PixelFormat::RGB888 => FdtProp::str_prop("format", vec!["a8r8g8b8"]),
+            },
+        ]).unwrap();
         (sdl, fb, kb, mouse)
     };
 
@@ -211,9 +226,9 @@ fn main() {
     sys.load_elf().unwrap();
     sys.reset(vec![-1i64 as u64; core_num]).unwrap();
     #[cfg(feature = "sdl")]
-    let mut real_timer = std::time::Instant::now();
+        let mut real_timer = std::time::Instant::now();
     #[cfg(feature = "sdl")]
-    let interval = Duration::new(0, 1_000_000_000u32 / 60);
+        let interval = Duration::new(0, 1_000_000_000u32 / 30);
     loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
             eprintln!("{}", msg);

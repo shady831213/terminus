@@ -22,6 +22,7 @@ pub mod elf;
 
 use elf::ElfLoader;
 use terminus_spaceport::virtio::{MMIODevice, VirtIOInfo};
+use std::collections::HashMap;
 
 const VIRTIO_BASE: u64 = 0x40000000;
 const VIRTIO_SIZE: u64 = 0x1000;
@@ -50,6 +51,7 @@ pub struct System {
     elf: ElfLoader,
     processors: Vec<Processor>,
     virtio_infos: Vec<VirtIOInfo>,
+    ext_fdt_prop: HashMap<String, Vec<FdtProp>>,
 }
 
 impl System {
@@ -64,6 +66,7 @@ impl System {
             elf,
             processors: vec![],
             virtio_infos: vec![],
+            ext_fdt_prop: HashMap::new(),
         };
         sys.try_register_htif(htif_input_en);
         for cfg in processor_cfgs {
@@ -114,6 +117,12 @@ impl System {
 
     pub fn register_device<D: IOAccess + 'static>(&self, name: &str, base: u64, size: u64, device: D) -> Result<()> {
         self.register_region(name, base, &Region::io(0, size, Box::new(device)))
+    }
+
+    pub fn register_device_with_fdt_props<D: IOAccess + 'static>(&mut self, name: &str, base: u64, size: u64, device: D, props: Vec<FdtProp>) -> Result<()> {
+        self.register_device(name, base, size, device)?;
+        self.ext_fdt_prop.insert(name.to_string(), props);
+        Ok(())
     }
 
     pub fn register_virtio<D: IOAccess + MMIODevice + 'static>(&mut self, name: &str, device: D) -> Result<()> {
@@ -186,7 +195,7 @@ impl System {
         }
     }
 
-    fn compile_fdt(&self, boot_args: Vec<&str>) -> Result<Vec<u8>> {
+    fn compile_fdt(&mut self, boot_args: Vec<&str>) -> Result<Vec<u8>> {
         let mut root = FdtNode::new("");
         root.add_prop(FdtProp::u32_prop("#address-cells", vec![2]));
         root.add_prop(FdtProp::u32_prop("#size-cells", vec![2]));
@@ -298,10 +307,13 @@ impl System {
             let mut fb = FdtNode::new_with_num("framebuffer", fb_region.info.base);
             fb.add_prop(FdtProp::str_prop("compatible", vec!["simple-framebuffer"]));
             fb.add_prop(FdtProp::u64_prop("reg", vec![fb_region.info.base, fb_region.info.size]));
-            fb.add_prop(FdtProp::u32_prop("width", vec![800]));
-            fb.add_prop(FdtProp::u32_prop("height", vec![600]));
-            fb.add_prop(FdtProp::u32_prop("stride", vec![800*2]));
-            fb.add_prop(FdtProp::str_prop("format", vec!["r5g6b5"]));
+            if let Some(props) = self.ext_fdt_prop.get_mut("simple_fb") {
+                while !props.is_empty() {
+                    fb.add_prop(props.pop().unwrap())
+                }
+            } else {
+                return Err(Error::FdtErr("simple_fb need width, height, stride and format!".to_string()))
+            }
             soc.add_node(fb)
         }
 
