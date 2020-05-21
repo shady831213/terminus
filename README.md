@@ -95,6 +95,7 @@ Terminus with display supported need "sdl" feature and related dependencise.
 ## RoadMap
 - [x] RV32/64I
 - [x] MADFC
+- [x] M/S/U priviledge
 - [x] Pass all riscv_tests
 - [x] CLINT and Timer
 - [x] HTIF console
