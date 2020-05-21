@@ -164,6 +164,36 @@ fn main() {
                 .long("display")
                 .help("enable display device, need \"sdl\" feature")
         )
+        .arg(
+            Arg::with_name("width")
+                .long("width")
+                .value_name("WIDTH")
+                .takes_value(true)
+                .help("display width, need \"sdl\" feature")
+                .default_value("800")
+        )
+        .arg(
+            Arg::with_name("height")
+                .long("height")
+                .value_name("HEIGHT")
+                .takes_value(true)
+                .help("display height, need \"sdl\" feature")
+                .default_value("600")
+        )
+        .arg(
+            Arg::with_name("pixel_format")
+                .long("pixel_format")
+                .takes_value(true)
+                .value_name("PIXEL_FORMAT")
+                .help("display pixel format:[rgb566|rgb888], need \"sdl\" feature")
+                .validator(|format| {
+                    match format.as_str() {
+                        "rgb565" | "rgb888" => Ok(()),
+                        _ => Err("display pixel format:[rgb566|rgb888], need \"sdl\" feature".to_string())
+                    }
+                })
+                .default_value("rgb565")
+        )
         .get_matches();
 
     let core_num = usize::from_str(matches.value_of("core_num").unwrap_or_default()).expect("-p expect a decimal int");
@@ -180,7 +210,17 @@ fn main() {
     let net = matches.value_of("net");
     let virtio_input_en = matches.value_of("console_input").unwrap_or_default() == "virtio";
     #[cfg(feature = "sdl")]
-    let display_en = matches.is_present("display");
+        let display_en = matches.is_present("display");
+    #[cfg(feature = "sdl")]
+        let display_width = u32::from_str(matches.value_of("width").unwrap_or_default()).expect("width expect a decimal");
+    #[cfg(feature = "sdl")]
+        let display_height = u32::from_str(matches.value_of("height").unwrap_or_default()).expect("height expect a decimal");
+    #[cfg(feature = "sdl")]
+        let pixel_format = match matches.value_of("pixel_format").unwrap_or_default() {
+        "rgb565" => PixelFormat::RGB565,
+        "rgb888" => PixelFormat::RGB888,
+        _ => unreachable!()
+    };
 
     let configs = vec![ProcessorCfg {
         xlen,
@@ -199,8 +239,8 @@ fn main() {
     #[cfg(feature = "sdl")]
         let (sdl, fb, kb, mouse) = {
         if display_en {
-            let sdl = SDL::new("terminus", 800, 600, PixelFormat::RGB565, || { EXIT_CTRL.exit("sdl exit!").unwrap() }).expect("sdl open fail!");
-            let fb = Rc::new(Fb::new(800, 600, PixelFormat::RGB565));
+            let sdl = SDL::new("terminus", display_width, display_height, pixel_format, || { EXIT_CTRL.exit("sdl exit!").unwrap() }).expect("sdl open fail!");
+            let fb = Rc::new(Fb::new(display_width, display_height, pixel_format));
             let irq_num = sys.intc().num_src();
             let kb = Rc::new(VirtIOKbDevice::new(&virtio_mem, sys.intc().alloc_src(irq_num)));
             sys.register_virtio("virtio_keyboard", VirtIOKb::new(&kb)).unwrap();
