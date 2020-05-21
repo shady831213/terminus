@@ -29,6 +29,7 @@ use terminus_spaceport::devices::SDL;
 use terminus::system::fdt::FdtProp;
 #[cfg(feature = "sdl")]
 use terminus::devices::virtio_input::{VirtIOKbDevice, VirtIOKb};
+use terminus_spaceport::devices::KeyCode::N;
 
 
 fn main() {
@@ -158,6 +159,11 @@ fn main() {
                 })
                 .default_value("virtio")
         )
+        .arg(
+            Arg::with_name("display")
+                .long("display")
+                .help("enable display device, need \"sdl\" feature")
+        )
         .get_matches();
 
     let core_num = usize::from_str(matches.value_of("core_num").unwrap_or_default()).expect("-p expect a decimal int");
@@ -173,6 +179,8 @@ fn main() {
     let image = matches.value_of("image");
     let net = matches.value_of("net");
     let virtio_input_en = matches.value_of("console_input").unwrap_or_default() == "virtio";
+    #[cfg(feature = "sdl")]
+    let display_en = matches.is_present("display");
 
     let configs = vec![ProcessorCfg {
         xlen,
@@ -190,22 +198,26 @@ fn main() {
     let virtio_mem = Region::remap(0x80000000, &main_memory);
     #[cfg(feature = "sdl")]
         let (sdl, fb, kb, mouse) = {
-        let sdl = SDL::new("terminus", 800, 600, PixelFormat::RGB565, || { EXIT_CTRL.exit("sdl exit!").unwrap() }).expect("sdl open fail!");
-        let fb = Rc::new(Fb::new(800, 600, PixelFormat::RGB565));
-        let irq_num = sys.intc().num_src();
-        let kb = Rc::new(VirtIOKbDevice::new(&virtio_mem, sys.intc().alloc_src(irq_num)));
-        sys.register_virtio("virtio_keyboard", VirtIOKb::new(&kb)).unwrap();
-        let mouse = DummyMouse {};
-        sys.register_device_with_fdt_props("simple_fb", 0x30000000, fb.size() as u64, SimpleFb::new(&fb), vec![
-            FdtProp::u32_prop("width", vec![fb.width()]),
-            FdtProp::u32_prop("height", vec![fb.height()]),
-            FdtProp::u32_prop("stride", vec![fb.stride()]),
-            match fb.pixel_format() {
-                PixelFormat::RGB565 => FdtProp::str_prop("format", vec!["r5g6b5"]),
-                PixelFormat::RGB888 => FdtProp::str_prop("format", vec!["a8r8g8b8"]),
-            },
-        ]).unwrap();
-        (sdl, fb, kb, mouse)
+        if display_en {
+            let sdl = SDL::new("terminus", 800, 600, PixelFormat::RGB565, || { EXIT_CTRL.exit("sdl exit!").unwrap() }).expect("sdl open fail!");
+            let fb = Rc::new(Fb::new(800, 600, PixelFormat::RGB565));
+            let irq_num = sys.intc().num_src();
+            let kb = Rc::new(VirtIOKbDevice::new(&virtio_mem, sys.intc().alloc_src(irq_num)));
+            sys.register_virtio("virtio_keyboard", VirtIOKb::new(&kb)).unwrap();
+            let mouse = DummyMouse {};
+            sys.register_device_with_fdt_props("simple_fb", 0x30000000, fb.size() as u64, SimpleFb::new(&fb), vec![
+                FdtProp::u32_prop("width", vec![fb.width()]),
+                FdtProp::u32_prop("height", vec![fb.height()]),
+                FdtProp::u32_prop("stride", vec![fb.stride()]),
+                match fb.pixel_format() {
+                    PixelFormat::RGB565 => FdtProp::str_prop("format", vec!["r5g6b5"]),
+                    PixelFormat::RGB888 => FdtProp::str_prop("format", vec!["a8r8g8b8"]),
+                },
+            ]).unwrap();
+            (Some(sdl), Some(fb), Some(kb), Some(mouse))
+        } else {
+            (None, None, None, None)
+        }
     };
 
 
@@ -232,9 +244,9 @@ fn main() {
     sys.load_elf().unwrap();
     sys.reset(vec![-1i64 as u64; core_num]).unwrap();
     #[cfg(feature = "sdl")]
-        let mut real_timer = std::time::Instant::now();
+        let mut real_timer = if display_en { Some(std::time::Instant::now()) } else { None };
     #[cfg(feature = "sdl")]
-        let interval = Duration::new(0, 1_000_000_000u32 / 30);
+        let interval = if display_en { Some(Duration::new(0, 1_000_000_000u32 / 30)) } else { None };
     loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
             eprintln!("{}", msg);
@@ -251,9 +263,12 @@ fn main() {
         }
         #[cfg(feature = "sdl")]
             {
-                if real_timer.elapsed() >= interval {
-                    sdl.refresh(fb.deref(), kb.deref(), &mouse).unwrap();
-                    real_timer = std::time::Instant::now();
+                if let Some(ref display) = sdl {
+                    let rt = real_timer.as_mut().unwrap();
+                    if rt.elapsed() >= interval.unwrap() {
+                        display.refresh(fb.as_ref().unwrap().deref(), kb.as_ref().unwrap().deref(), mouse.as_ref().unwrap()).unwrap();
+                        *rt += interval.unwrap()
+                    }
                 }
             }
         sys.timer().tick(50)
