@@ -29,7 +29,6 @@ use terminus_spaceport::devices::SDL;
 use terminus::system::fdt::FdtProp;
 #[cfg(feature = "sdl")]
 use terminus::devices::virtio_input::{VirtIOKbDevice, VirtIOKb};
-use terminus_spaceport::devices::KeyCode::N;
 
 
 fn main() {
