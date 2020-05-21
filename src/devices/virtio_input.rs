@@ -4,12 +4,21 @@ use std::rc::Rc;
 use terminus_spaceport::virtio::{Device, Queue, QueueClient, QueueSetting, Result, Error, DeviceAccess, MMIODevice, DescMeta};
 use terminus_spaceport::irq::IrqVecSender;
 use terminus_spaceport::devices::KeyBoard;
+use std::cell::RefCell;
 
-const VIRTIO_INPUT_EV_SYN: u16 = 0x00;
-const VIRTIO_INPUT_EV_KEY: u16 = 0x01;
-const VIRTIO_INPUT_EV_REL: u16 = 0x02;
-const VIRTIO_INPUT_EV_ABS: u16 = 0x03;
-const VIRTIO_INPUT_EV_REP: u16 = 0x14;
+const VIRTIO_INPUT_EV_SYN: u8 = 0x00;
+const VIRTIO_INPUT_EV_KEY: u8 = 0x01;
+const VIRTIO_INPUT_EV_REL: u8 = 0x02;
+const VIRTIO_INPUT_EV_ABS: u8 = 0x03;
+const VIRTIO_INPUT_EV_REP: u8 = 0x14;
+
+const VIRTIO_INPUT_CFG_UNSET: u8 = 0x00;
+const VIRTIO_INPUT_CFG_ID_NAME: u8 = 0x01;
+const VIRTIO_INPUT_CFG_ID_SERIAL: u8 = 0x02;
+const VIRTIO_INPUT_CFG_ID_DEVIDS: u8 = 0x03;
+const VIRTIO_INPUT_CFG_PROP_BITS: u8 = 0x10;
+const VIRTIO_INPUT_CFG_EV_BITS: u8 = 0x11;
+const VIRTIO_INPUT_CFG_ABS_INFO: u8 = 0x12;
 
 struct VirtIOInputInputQueue {}
 
@@ -73,10 +82,40 @@ trait VirtIOInputDevice {
             false
         }
     }
+
+    fn config_id_name(&self) -> &str;
+
+    fn config_ev_write(&self, config: &mut [u8]);
+
+    fn config_abs_write(&self, _: &mut [u8]) {}
+
+    fn config_write(&self, config: &mut [u8]) {
+        match config[0] {
+            VIRTIO_INPUT_CFG_UNSET => {}
+            VIRTIO_INPUT_CFG_ID_NAME => {
+                let name = self.config_id_name();
+                let len = name.len();
+                config[2] = len as u8;
+                config[8..8 + len].copy_from_slice(name.as_bytes())
+            }
+            VIRTIO_INPUT_CFG_PROP_BITS => {
+                config[2] = 0
+            }
+            VIRTIO_INPUT_CFG_EV_BITS => {
+                config[2] = 0;
+                self.config_ev_write(config)
+            }
+            VIRTIO_INPUT_CFG_ABS_INFO => {
+                self.config_abs_write(config)
+            }
+            _ => {}
+        }
+    }
 }
 
 pub struct VirtIOKbDevice {
     virtio_device: Device,
+    config:RefCell<[u8;256]>
 }
 
 impl VirtIOKbDevice {
@@ -99,14 +138,105 @@ impl VirtIOKbDevice {
         virtio_device.add_queue(output_queue);
         VirtIOKbDevice {
             virtio_device,
+            config:RefCell::new([0;256])
         }
     }
 }
 
-impl VirtIOInputDevice for VirtIOKbDevice {}
+impl VirtIOInputDevice for VirtIOKbDevice {
+    fn config_id_name(&self) -> &str {
+        "virtio_keyboard"
+    }
+
+    fn config_ev_write(&self, config: &mut [u8]) {
+        match config[1] {
+            VIRTIO_INPUT_EV_KEY => {
+                config[2] = (256 >> 3) as u8;
+                for i in 8..8 + (256 >> 3) {
+                    config[i] = 0xff
+                }
+            }
+            VIRTIO_INPUT_EV_REP => {
+                config[2] = 1;
+            }
+            _ => {}
+        }
+    }
+}
 
 impl KeyBoard for VirtIOKbDevice {
     fn send_key_event(&self, key_down: bool, val: u16) {
-        // if !self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_KEY, )
+        if self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_KEY as u16, val, key_down as u32) {
+            self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_SYN as u16, 0, 0);
+        }
     }
 }
+
+// #[derive_io(Bytes, U32, U8)]
+// pub struct VirtIOKb(Rc<VirtIOKbDevice>);
+//
+// impl VirtIOKb {
+//     pub fn new(d: &Rc<VirtIOKbDevice>) -> VirtIOKb {
+//         VirtIOKb(d.clone())
+//     }
+// }
+//
+// impl DeviceAccess for VirtIOKb {
+//     fn device(&self) -> &Device {
+//         &self.0.virtio_device
+//     }
+//     fn config(&self, offset: u64) -> u32 {
+//         let data = if offset < 6 {
+//             ((*self.0.mac.borrow() >> (offset << 3)) & self.config_mask(&offset)) as u32
+//         } else if offset >= 6 && offset < 8 {
+//             (((*self.0.status.borrow() as u64) >> (offset << 3)) & self.config_mask(&offset)) as u32
+//         } else {
+//             0
+//         };
+//         data
+//     }
+//
+//     fn set_config(&self, offset: u64, val: &u32) {
+//         if offset < 6 {
+//             let mask = self.config_mask(&offset);
+//             *self.0.mac.borrow_mut() = *self.0.mac.borrow() & !mask | (((*val as u64) & mask) << offset)
+//         } else if offset >= 6 && offset < 8 {
+//             let mask = self.config_mask(&offset) as u16;
+//             *self.0.status.borrow_mut() = *self.0.status.borrow() & !mask | (((*val as u16) & mask) << (offset as u16))
+//         }
+//     }
+// }
+//
+// impl MMIODevice for VirtIOKb {}
+//
+// impl BytesAccess for VirtIOKb {
+//     fn write(&self, addr: &u64, data: &[u8]) -> std::result::Result<usize, String> {
+//         self.write_bytes(addr, data);
+//         Ok(0)
+//     }
+//
+//     fn read(&self, addr: &u64, data: &mut [u8]) -> std::result::Result<usize, String> {
+//         self.read_bytes(addr, data);
+//         Ok(0)
+//     }
+// }
+//
+// impl U8Access for VirtIOKb {
+//     fn write(&self, addr: &u64, data: u8) {
+//         MMIODevice::write(self, addr, &(data as u32))
+//     }
+//
+//     fn read(&self, addr: &u64) -> u8 {
+//         MMIODevice::read(self, addr) as u8
+//     }
+// }
+//
+// impl U32Access for VirtIOKb {
+//     fn write(&self, addr: &u64, data: u32) {
+//         MMIODevice::write(self, addr, &data)
+//     }
+//
+//     fn read(&self, addr: &u64) -> u32 {
+//         MMIODevice::read(self, addr)
+//     }
+// }

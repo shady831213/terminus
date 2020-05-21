@@ -52,9 +52,9 @@ impl QueueClient for VirtIONetOutputQueue {
     fn receive(&self, queue: &Queue, desc_head: u16) -> Result<bool> {
         let mut read_descs: Vec<DescMeta> = vec![];
         let mut write_descs: Vec<DescMeta> = vec![];
-        let mut write_buffer:Vec<u8> = vec![];
-        let mut read_buffer:Vec<u8> = vec![];
-        let (_,write_len) = queue.extract(desc_head, &mut read_buffer, &mut write_buffer, &mut read_descs, &mut write_descs,false, true)?;
+        let mut write_buffer: Vec<u8> = vec![];
+        let mut read_buffer: Vec<u8> = vec![];
+        let (_, write_len) = queue.extract(desc_head, &mut read_buffer, &mut write_buffer, &mut read_descs, &mut write_descs, false, true)?;
         let mut header = VirtIONetHeader::default();
         let header_size = std::mem::size_of::<VirtIONetHeader>();
         if write_len as usize >= header_size {
@@ -113,9 +113,9 @@ impl VirtIONetDevice {
         for desc_head in iter {
             let mut read_descs: Vec<DescMeta> = vec![];
             let mut write_descs: Vec<DescMeta> = vec![];
-            let mut write_buffer:Vec<u8> = vec![];
-            let mut read_buffer:Vec<u8> = vec![];
-            let (_,_) = input_queue.extract(desc_head, &mut read_buffer, &mut write_buffer, &mut read_descs, &mut write_descs,true, false).unwrap();
+            let mut write_buffer: Vec<u8> = vec![];
+            let mut read_buffer: Vec<u8> = vec![];
+            let (_, _) = input_queue.extract(desc_head, &mut read_buffer, &mut write_buffer, &mut read_descs, &mut write_descs, true, false).unwrap();
             let header_size = std::mem::size_of::<VirtIONetHeader>();
             //
             let ret = match self.tap.recv(&mut read_buffer[header_size..]) {
@@ -149,24 +149,29 @@ impl DeviceAccess for VirtIONet {
     fn device(&self) -> &Device {
         &self.0.virtio_device
     }
-    fn config(&self, offset: u64) -> u32 {
-        let data = if offset < 6 {
-            ((*self.0.mac.borrow() >> (offset << 3)) & self.config_mask(&offset)) as u32
-        } else if offset >= 6 && offset < 8 {
-            (((*self.0.status.borrow() as u64) >> (offset << 3)) & self.config_mask(&offset)) as u32
-        } else {
-            0
-        };
-        data
+    fn config(&self, offset: u64, data: &mut [u8]) {
+        let len = data.len();
+        let off = offset as usize;
+        if off < 6 && off + len <= 6 {
+            data.copy_from_slice(&(*self.0.mac.borrow()).to_le_bytes()[off..off + len])
+        } else if off < 8 && off + len <= 8 {
+            data.copy_from_slice(&(*self.0.status.borrow()).to_le_bytes()[off - 6..off - 6 + len])
+        }
     }
 
-    fn set_config(&self, offset: u64, val: &u32) {
-        if offset < 6 {
-            let mask = self.config_mask(&offset);
-            *self.0.mac.borrow_mut() = *self.0.mac.borrow() & !mask | (((*val as u64) & mask) << offset)
-        } else if offset >= 6 && offset < 8 {
-            let mask = self.config_mask(&offset) as u16;
-            *self.0.status.borrow_mut() = *self.0.status.borrow() & !mask | (((*val as u16) & mask) << (offset as u16))
+    fn set_config(&self, offset: u64, data: &[u8]) {
+        let len = data.len();
+        let off = offset as usize;
+        if off < 6 && off + len <= 6 {
+            let mut mac_ref = self.0.mac.borrow_mut();
+            let mut bytes = (*mac_ref).to_le_bytes();
+            bytes[off..off + len].copy_from_slice(data);
+            *mac_ref = u64::from_le_bytes(bytes);
+        } else if off < 8 && off + len <= 8 {
+            let mut status_ref = self.0.status.borrow_mut();
+            let mut bytes = (*status_ref).to_le_bytes();
+            bytes[off - 6..off - 6 + len].copy_from_slice(data);
+            *status_ref = u16::from_le_bytes(bytes);
         }
     }
 }
@@ -187,11 +192,13 @@ impl BytesAccess for VirtIONet {
 
 impl U8Access for VirtIONet {
     fn write(&self, addr: &u64, data: u8) {
-        MMIODevice::write(self, addr, &(data as u32))
+        self.write_bytes(addr, &[data])
     }
 
     fn read(&self, addr: &u64) -> u8 {
-        MMIODevice::read(self, addr) as u8
+        let mut bytes = [0 as u8; 1];
+        self.read_bytes(addr, &mut bytes);
+        bytes[0]
     }
 }
 

@@ -212,11 +212,11 @@ impl DeviceAccess for VirtIOBlk {
     fn device(&self) -> &Device {
         &self.virtio_device
     }
-    fn config(&self, offset: u64) -> u32 {
-        if offset < 8 {
-            ((self.num_sectors >> (offset << 3)) & self.config_mask(&offset)) as u32
-        } else {
-            0
+    fn config(&self, offset: u64, data:&mut[u8]) {
+        let len = data.len();
+        let off = offset as usize;
+        if off < 8 && (off + len) <= 8{
+            data.copy_from_slice(&self.num_sectors.to_le_bytes()[off..off+len])
         }
     }
 }
