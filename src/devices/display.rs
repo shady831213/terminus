@@ -141,7 +141,7 @@ impl U8Access for SimpleFb {
 pub struct DummyKb {}
 
 impl KeyBoard for DummyKb {
-    fn send_key_event(&self, key_down: bool, val: u32) {}
+    fn send_key_event(&self, key_down: bool, val: u16) {}
 }
 
 pub struct DummyMouse {}
