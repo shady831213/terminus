@@ -76,6 +76,22 @@ PING www.baidu.com (103.235.47.103): 56 data bytes
 1 packets transmitted, 1 packets received, 0% packet loss
 round-trip min/avg/max = 17.685/17.685/17.685 ms
 ```
+### display support
+Terminus with display supported need "sdl" feature and related dependencise.
+```
+  //suppose in ubuntu
+  sudo apt-get install libsdl2-dev
+  git clone https://github.com/shady831213/terminus
+  cd terminus
+  cargo update -p terminus-spaceport
+  cargo install --features="sdl" --path .
+  
+  cd examples/linux/image
+  tar -zxvf rootfs.ext4.gz
+  cd -
+  terminus examples/linux/image/br-5-4.disk --image=examples/linux/image/rootfs.ext4 --boot_args="root=/dev/vda console=tty0 earlycon=sbi" --display
+```
+
 ## RoadMap
 - [x] RV32/64I
 - [x] MADFC
@@ -93,7 +109,9 @@ round-trip min/avg/max = 17.685/17.685/17.685 ms
 - [x] VirtIO console
 - [x] VirtIO disk
 - [x] VirtIO network
-- [ ] framebuffer
+- [x] framebuffer
+- [x] VirtIO keyboard
+- [ ] VirtIO mouse
 - [ ] co-sim with RTL simulator
 - [ ] debug mode
 - [ ] other extensions(b, v ...)
