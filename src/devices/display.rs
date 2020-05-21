@@ -1,5 +1,5 @@
 use std::cell::{RefCell, RefMut};
-use terminus_spaceport::devices::{FrameBuffer, KeyBoard, Mouse, PixelFormat};
+use terminus_spaceport::devices::{FrameBuffer, Mouse, PixelFormat};
 use std::cmp::min;
 use terminus_spaceport::memory::prelude::*;
 use std::rc::Rc;
@@ -138,12 +138,6 @@ impl U8Access for SimpleFb {
 }
 
 //fixme:should be remove
-pub struct DummyKb {}
-
-impl KeyBoard for DummyKb {
-    fn send_key_event(&self, key_down: bool, val: u16) {}
-}
-
 pub struct DummyMouse {}
 
 impl Mouse for DummyMouse {

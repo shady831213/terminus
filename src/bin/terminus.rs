@@ -18,7 +18,7 @@ use terminus::devices::virtio_net::{VirtIONetDevice, VirtIONet};
 #[cfg(feature = "sdl")]
 use terminus_spaceport::devices::{PixelFormat, FrameBuffer};
 #[cfg(feature = "sdl")]
-use terminus::devices::display::{Fb, SimpleFb, DummyKb, DummyMouse};
+use terminus::devices::display::{Fb, SimpleFb, DummyMouse};
 #[cfg(feature = "sdl")]
 use std::ops::Deref;
 #[cfg(feature = "sdl")]
@@ -27,6 +27,8 @@ use std::time::Duration;
 use terminus_spaceport::devices::SDL;
 #[cfg(feature = "sdl")]
 use terminus::system::fdt::FdtProp;
+#[cfg(feature = "sdl")]
+use terminus::devices::virtio_input::{VirtIOKbDevice, VirtIOKb};
 
 
 fn main() {
@@ -183,11 +185,16 @@ fn main() {
     sys.register_memory("main_memory", 0x80000000, &main_memory).unwrap();
     sys.register_device("clint", 0x02000000, 0x000c0000, Clint::new(sys.timer())).unwrap();
     sys.register_device("plic", 0x0c000000, 0x4000000, Plic::new(sys.intc())).unwrap();
+
+    //virtios
+    let virtio_mem = Region::remap(0x80000000, &main_memory);
     #[cfg(feature = "sdl")]
         let (sdl, fb, kb, mouse) = {
         let sdl = SDL::new("terminus", 800, 600, PixelFormat::RGB565, || { EXIT_CTRL.exit("sdl exit!").unwrap() }).expect("sdl open fail!");
         let fb = Rc::new(Fb::new(800, 600, PixelFormat::RGB565));
-        let kb = DummyKb {};
+        let irq_num = sys.intc().num_src();
+        let kb = Rc::new(VirtIOKbDevice::new(&virtio_mem, sys.intc().alloc_src(irq_num)));
+        sys.register_virtio("virtio_keyboard", VirtIOKb::new(&kb)).unwrap();
         let mouse = DummyMouse {};
         sys.register_device_with_fdt_props("simple_fb", 0x30000000, fb.size() as u64, SimpleFb::new(&fb), vec![
             FdtProp::u32_prop("width", vec![fb.width()]),
@@ -201,8 +208,7 @@ fn main() {
         (sdl, fb, kb, mouse)
     };
 
-    //virtios
-    let virtio_mem = Region::remap(0x80000000, &main_memory);
+
     let irq_num = sys.intc().num_src();
     let virtio_console_device = Rc::new(VirtIOConsoleDevice::new(&virtio_mem, sys.intc().alloc_src(irq_num)));
     sys.register_virtio("virtio_console", VirtIOConsole::new(&virtio_console_device)).unwrap();
@@ -246,7 +252,7 @@ fn main() {
         #[cfg(feature = "sdl")]
             {
                 if real_timer.elapsed() >= interval {
-                    sdl.refresh(fb.deref(), &kb, &mouse).unwrap();
+                    sdl.refresh(fb.deref(), kb.deref(), &mouse).unwrap();
                     real_timer = std::time::Instant::now();
                 }
             }

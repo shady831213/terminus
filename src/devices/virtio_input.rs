@@ -1,10 +1,11 @@
 use terminus_spaceport::memory::region::Region;
 use terminus_spaceport::memory::prelude::*;
 use std::rc::Rc;
-use terminus_spaceport::virtio::{Device, Queue, QueueClient, QueueSetting, Result, Error, DeviceAccess, MMIODevice, DescMeta};
+use terminus_spaceport::virtio::{Device, Queue, QueueClient, QueueSetting, Result, DeviceAccess, MMIODevice, DescMeta};
 use terminus_spaceport::irq::IrqVecSender;
 use terminus_spaceport::devices::KeyBoard;
 use std::cell::RefCell;
+use std::ops::DerefMut;
 
 const VIRTIO_INPUT_EV_SYN: u8 = 0x00;
 const VIRTIO_INPUT_EV_KEY: u8 = 0x01;
@@ -115,15 +116,15 @@ trait VirtIOInputDevice {
 
 pub struct VirtIOKbDevice {
     virtio_device: Device,
-    config:RefCell<[u8;256]>
+    config: RefCell<[u8; 256]>,
 }
 
 impl VirtIOKbDevice {
-    pub fn new(memory: &Rc<Region>, irq_sender: IrqVecSender, tap_name: &str, mac: u64) -> VirtIOKbDevice {
+    pub fn new(memory: &Rc<Region>, irq_sender: IrqVecSender) -> VirtIOKbDevice {
         let mut virtio_device = Device::new(memory,
                                             irq_sender,
                                             1,
-                                            1, 0, 1 << 5,
+                                            18, 0, 0,
         );
         virtio_device.get_irq_vec().set_enable_uncheck(0, true);
         let input_queue = {
@@ -138,7 +139,7 @@ impl VirtIOKbDevice {
         virtio_device.add_queue(output_queue);
         VirtIOKbDevice {
             virtio_device,
-            config:RefCell::new([0;256])
+            config: RefCell::new([0; 256]),
         }
     }
 }
@@ -172,71 +173,70 @@ impl KeyBoard for VirtIOKbDevice {
     }
 }
 
-// #[derive_io(Bytes, U32, U8)]
-// pub struct VirtIOKb(Rc<VirtIOKbDevice>);
-//
-// impl VirtIOKb {
-//     pub fn new(d: &Rc<VirtIOKbDevice>) -> VirtIOKb {
-//         VirtIOKb(d.clone())
-//     }
-// }
-//
-// impl DeviceAccess for VirtIOKb {
-//     fn device(&self) -> &Device {
-//         &self.0.virtio_device
-//     }
-//     fn config(&self, offset: u64) -> u32 {
-//         let data = if offset < 6 {
-//             ((*self.0.mac.borrow() >> (offset << 3)) & self.config_mask(&offset)) as u32
-//         } else if offset >= 6 && offset < 8 {
-//             (((*self.0.status.borrow() as u64) >> (offset << 3)) & self.config_mask(&offset)) as u32
-//         } else {
-//             0
-//         };
-//         data
-//     }
-//
-//     fn set_config(&self, offset: u64, val: &u32) {
-//         if offset < 6 {
-//             let mask = self.config_mask(&offset);
-//             *self.0.mac.borrow_mut() = *self.0.mac.borrow() & !mask | (((*val as u64) & mask) << offset)
-//         } else if offset >= 6 && offset < 8 {
-//             let mask = self.config_mask(&offset) as u16;
-//             *self.0.status.borrow_mut() = *self.0.status.borrow() & !mask | (((*val as u16) & mask) << (offset as u16))
-//         }
-//     }
-// }
-//
-// impl MMIODevice for VirtIOKb {}
-//
-// impl BytesAccess for VirtIOKb {
-//     fn write(&self, addr: &u64, data: &[u8]) -> std::result::Result<usize, String> {
-//         self.write_bytes(addr, data);
-//         Ok(0)
-//     }
-//
-//     fn read(&self, addr: &u64, data: &mut [u8]) -> std::result::Result<usize, String> {
-//         self.read_bytes(addr, data);
-//         Ok(0)
-//     }
-// }
-//
-// impl U8Access for VirtIOKb {
-//     fn write(&self, addr: &u64, data: u8) {
-//         MMIODevice::write(self, addr, &(data as u32))
-//     }
-//
-//     fn read(&self, addr: &u64) -> u8 {
-//         MMIODevice::read(self, addr) as u8
-//     }
-// }
-//
-// impl U32Access for VirtIOKb {
-//     fn write(&self, addr: &u64, data: u32) {
-//         MMIODevice::write(self, addr, &data)
-//     }
-//
-//     fn read(&self, addr: &u64) -> u32 {
-//         MMIODevice::read(self, addr)
-//     }
-// }
+#[derive_io(Bytes, U32, U8)]
+pub struct VirtIOKb(Rc<VirtIOKbDevice>);
+
+impl VirtIOKb {
+    pub fn new(d: &Rc<VirtIOKbDevice>) -> VirtIOKb {
+        VirtIOKb(d.clone())
+    }
+}
+
+impl DeviceAccess for VirtIOKb {
+    fn device(&self) -> &Device {
+        &self.0.virtio_device
+    }
+    fn config(&self, offset: u64, data: &mut [u8]) {
+        let len = data.len();
+        let off = offset as usize;
+        if off < 256 && off + len <= 256 {
+            data.copy_from_slice(&(*self.0.config.borrow())[off..off + len])
+        }
+    }
+
+    fn set_config(&self, offset: u64, data: &[u8]) {
+        let len = data.len();
+        let off = offset as usize;
+        let mut config = self.0.config.borrow_mut();
+        if off < 256 && off + len <= 256 {
+            (*config)[off..off + len].copy_from_slice(data);
+            self.0.config_write(config.deref_mut())
+        }
+    }
+}
+
+impl MMIODevice for VirtIOKb {}
+
+impl BytesAccess for VirtIOKb {
+    fn write(&self, addr: &u64, data: &[u8]) -> std::result::Result<usize, String> {
+        self.write_bytes(addr, data);
+        Ok(0)
+    }
+
+    fn read(&self, addr: &u64, data: &mut [u8]) -> std::result::Result<usize, String> {
+        self.read_bytes(addr, data);
+        Ok(0)
+    }
+}
+
+impl U8Access for VirtIOKb {
+    fn write(&self, addr: &u64, data: u8) {
+        self.write_bytes(addr, &[data])
+    }
+
+    fn read(&self, addr: &u64) -> u8 {
+        let mut bytes = [0 as u8; 1];
+        self.read_bytes(addr, &mut bytes);
+        bytes[0]
+    }
+}
+
+impl U32Access for VirtIOKb {
+    fn write(&self, addr: &u64, data: u32) {
+        MMIODevice::write(self, addr, &data)
+    }
+
+    fn read(&self, addr: &u64) -> u32 {
+        MMIODevice::read(self, addr)
+    }
+}
