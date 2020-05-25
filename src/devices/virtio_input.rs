@@ -3,7 +3,7 @@ use terminus_spaceport::memory::prelude::*;
 use std::rc::Rc;
 use terminus_spaceport::virtio::{Device, Queue, QueueClient, QueueSetting, Result, DeviceAccess, MMIODevice, DescMeta};
 use terminus_spaceport::irq::IrqVecSender;
-use terminus_spaceport::devices::KeyBoard;
+use terminus_spaceport::devices::{KeyBoard, MAX_ABS_SCALE, Mouse};
 use std::cell::RefCell;
 use std::ops::DerefMut;
 
@@ -99,7 +99,7 @@ trait VirtIOInputDevice {
                 config[2] = len as u8;
                 config[8..8 + len].copy_from_slice(name.as_bytes())
             }
-            VIRTIO_INPUT_CFG_PROP_BITS => {
+            VIRTIO_INPUT_CFG_ID_SERIAL | VIRTIO_INPUT_CFG_ID_DEVIDS |VIRTIO_INPUT_CFG_PROP_BITS => {
                 config[2] = 0
             }
             VIRTIO_INPUT_CFG_EV_BITS => {
@@ -232,6 +232,211 @@ impl U8Access for VirtIOKb {
 }
 
 impl U32Access for VirtIOKb {
+    fn write(&self, addr: &u64, data: u32) {
+        MMIODevice::write(self, addr, &data)
+    }
+
+    fn read(&self, addr: &u64) -> u32 {
+        MMIODevice::read(self, addr)
+    }
+}
+
+const BTN_LEFT: u16 = 0x110;
+const BTN_RIGHT: u16 = 0x111;
+const BTN_MIDDLE: u16 = 0x112;
+
+const REL_X: u8 = 0x00;
+const REL_Y: u8 = 0x01;
+const REL_Z: u8 = 0x02;
+const REL_WHEEL: u8 = 0x08;
+
+const ABS_X: u8 = 0x00;
+const ABS_Y: u8 = 0x01;
+const ABS_Z: u8 = 0x02;
+
+
+pub struct VirtIOMouseDevice {
+    virtio_device: Device,
+    buttons: RefCell<u32>,
+    valid_buttons: Vec<u16>,
+    config: RefCell<[u8; 256]>,
+}
+
+impl VirtIOMouseDevice {
+    pub fn new(memory: &Rc<Region>, irq_sender: IrqVecSender) -> VirtIOMouseDevice {
+        let mut virtio_device = Device::new(memory,
+                                            irq_sender,
+                                            1,
+                                            18, 0, 0,
+        );
+        virtio_device.get_irq_vec().set_enable_uncheck(0, true);
+        let input_queue = {
+            let input = VirtIOInputInputQueue::new();
+            Queue::new(&memory, QueueSetting { max_queue_size: 32 }, input)
+        };
+        let output_queue = {
+            let output = VirtIOInputOutputQueue::new(virtio_device.get_irq_vec().sender(0).unwrap());
+            Queue::new(&memory, QueueSetting { max_queue_size: 1 }, output)
+        };
+        virtio_device.add_queue(input_queue);
+        virtio_device.add_queue(output_queue);
+        VirtIOMouseDevice {
+            virtio_device,
+            buttons: RefCell::new(0),
+            valid_buttons: vec![BTN_LEFT, BTN_RIGHT, BTN_MIDDLE],
+            config: RefCell::new([0; 256]),
+        }
+    }
+}
+
+impl VirtIOInputDevice for VirtIOMouseDevice {
+    fn config_id_name(&self) -> &str {
+        "virtio_mouse"
+    }
+
+    fn config_ev_write(&self, config: &mut [u8]) {
+        match config[1] {
+            VIRTIO_INPUT_EV_KEY => {
+                config[2] = (512 >> 3) as u8;
+                for i in 8..8 + (512 >> 3) {
+                    config[i] = 0x0
+                }
+                for b in self.valid_buttons.iter() {
+                    config[8 + (*b >> 3) as usize] |= (1 << (*b & 0x7)) as u8
+                }
+            }
+            VIRTIO_INPUT_EV_REL => {
+                config[2] = 2;
+                config[8] = 0;
+                config[9] = 0;
+                config[8 + (REL_X >> 3) as usize] |= (1 << (REL_X & 0x7)) as u8;
+                config[8 + (REL_Y >> 3) as usize] |= (1 << (REL_Y & 0x7)) as u8;
+                config[8 + (REL_WHEEL >> 3) as usize] |= (1 << (REL_WHEEL & 0x7)) as u8;
+            }
+            // VIRTIO_INPUT_EV_ABS => {
+            //     config[2] = 1;
+            //     config[8] = 0;
+            //     config[8] |= (1 << (ABS_X & 0x7)) as u8;
+            //     config[8] |= (1 << (ABS_Y & 0x7)) as u8;
+            //
+            // }
+            _ => {}
+        }
+    }
+
+    // fn config_abs_write(&self, config: &mut [u8]) {
+    //     if config[1] <= 1 {
+    //         config[2] = 5 * 4;
+    //         //min
+    //         config[8..8 + 4].copy_from_slice(&(0 as u32).to_le_bytes());
+    //         //max
+    //         config[8 + 4..8 + 8].copy_from_slice(&(MAX_ABS_SCALE - 1).to_le_bytes());
+    //         //fuzz
+    //         config[8 + 8..8 + 12].copy_from_slice(&(0 as u32).to_le_bytes());
+    //         //flat
+    //         config[8 + 12..8 + 16].copy_from_slice(&(0 as u32).to_le_bytes());
+    //         //res
+    //         config[8 + 16..8 + 20].copy_from_slice(&(0 as u32).to_le_bytes());
+    //     }
+    // }
+}
+
+impl Mouse for VirtIOMouseDevice {
+    fn send_mouse_event(&self, x: i32, y: i32, z: i32, buttons: u32) {
+        let ret = self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_REL as u16, REL_X as u16, x as u32);
+        if !ret {
+            return;
+        }
+        let ret = self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_REL as u16, REL_X as u16, y as u32);
+        if !ret {
+            return;
+        }
+        if z != 0 {
+            let ret = self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_REL as u16, REL_WHEEL as u16, z as u32);
+            if !ret {
+                return;
+            }
+        }
+
+        let mut cur_buttons = self.buttons.borrow_mut();
+        if buttons != *cur_buttons {
+            //left, right, middle
+            for (i, b) in self.valid_buttons.iter().enumerate() {
+                let button = (buttons >> i as u32) & 1;
+                let cur_button = (*cur_buttons >> i as u32) & 1;
+                if button != cur_button {
+                    let ret = self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_KEY as u16, *b, button);
+                    if !ret {
+                        return;
+                    }
+                }
+            }
+            *cur_buttons = buttons
+        }
+        self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_SYN as u16, 0, 0);
+    }
+    fn mouse_absolute(&self) -> bool { false }
+}
+
+#[derive_io(Bytes, U32, U8)]
+pub struct VirtIOMouse(Rc<VirtIOMouseDevice>);
+
+impl VirtIOMouse {
+    pub fn new(d: &Rc<VirtIOMouseDevice>) -> VirtIOMouse {
+        VirtIOMouse(d.clone())
+    }
+}
+
+impl DeviceAccess for VirtIOMouse {
+    fn device(&self) -> &Device {
+        &self.0.virtio_device
+    }
+    fn config(&self, offset: u64, data: &mut [u8]) {
+        let len = data.len();
+        let off = offset as usize;
+        if off < 256 && off + len <= 256 {
+            data.copy_from_slice(&(*self.0.config.borrow())[off..off + len])
+        }
+    }
+
+    fn set_config(&self, offset: u64, data: &[u8]) {
+        let len = data.len();
+        let off = offset as usize;
+        let mut config = self.0.config.borrow_mut();
+        if off < 256 && off + len <= 256 {
+            (*config)[off..off + len].copy_from_slice(data);
+            self.0.config_write(config.deref_mut())
+        }
+    }
+}
+
+impl MMIODevice for VirtIOMouse {}
+
+impl BytesAccess for VirtIOMouse {
+    fn write(&self, addr: &u64, data: &[u8]) -> std::result::Result<usize, String> {
+        self.write_bytes(addr, data);
+        Ok(0)
+    }
+
+    fn read(&self, addr: &u64, data: &mut [u8]) -> std::result::Result<usize, String> {
+        self.read_bytes(addr, data);
+        Ok(0)
+    }
+}
+
+impl U8Access for VirtIOMouse {
+    fn write(&self, addr: &u64, data: u8) {
+        self.write_bytes(addr, &[data])
+    }
+
+    fn read(&self, addr: &u64) -> u8 {
+        let mut bytes = [0 as u8; 1];
+        self.read_bytes(addr, &mut bytes);
+        bytes[0]
+    }
+}
+
+impl U32Access for VirtIOMouse {
     fn write(&self, addr: &u64, data: u32) {
         MMIODevice::write(self, addr, &data)
     }

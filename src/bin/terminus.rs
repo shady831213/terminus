@@ -29,6 +29,7 @@ use terminus_spaceport::devices::SDL;
 use terminus::system::fdt::FdtProp;
 #[cfg(feature = "sdl")]
 use terminus::devices::virtio_input::{VirtIOKbDevice, VirtIOKb};
+use terminus::devices::virtio_input::{VirtIOMouseDevice, VirtIOMouse};
 
 
 fn main() {
@@ -243,7 +244,10 @@ fn main() {
             let irq_num = sys.intc().num_src();
             let kb = Rc::new(VirtIOKbDevice::new(&virtio_mem, sys.intc().alloc_src(irq_num)));
             sys.register_virtio("virtio_keyboard", VirtIOKb::new(&kb)).unwrap();
-            let mouse = DummyMouse {};
+            let irq_num = sys.intc().num_src();
+            let mouse = Rc::new(VirtIOMouseDevice::new(&virtio_mem, sys.intc().alloc_src(irq_num)));
+            sys.register_virtio("virtio_mouse", VirtIOMouse::new(&mouse)).unwrap();
+            // let mouse = DummyMouse {};
             sys.register_device_with_fdt_props("simple_fb", 0x30000000, fb.size() as u64, SimpleFb::new(&fb), vec![
                 FdtProp::u32_prop("width", vec![fb.width()]),
                 FdtProp::u32_prop("height", vec![fb.height()]),
@@ -305,7 +309,7 @@ fn main() {
                 if let Some(ref display) = sdl {
                     let rt = real_timer.as_mut().unwrap();
                     if rt.elapsed() >= interval.unwrap() {
-                        display.refresh(fb.as_ref().unwrap().deref(), kb.as_ref().unwrap().deref(), mouse.as_ref().unwrap()).unwrap();
+                        display.refresh(fb.as_ref().unwrap().deref(), kb.as_ref().unwrap().deref(), mouse.as_ref().unwrap().deref()).unwrap();
                         *rt += interval.unwrap()
                     }
                 }
