@@ -99,7 +99,7 @@ trait VirtIOInputDevice {
                 config[2] = len as u8;
                 config[8..8 + len].copy_from_slice(name.as_bytes())
             }
-            VIRTIO_INPUT_CFG_ID_SERIAL | VIRTIO_INPUT_CFG_ID_DEVIDS |VIRTIO_INPUT_CFG_PROP_BITS => {
+            VIRTIO_INPUT_CFG_ID_SERIAL | VIRTIO_INPUT_CFG_ID_DEVIDS | VIRTIO_INPUT_CFG_PROP_BITS => {
                 config[2] = 0
             }
             VIRTIO_INPUT_CFG_EV_BITS => {
@@ -244,15 +244,17 @@ impl U32Access for VirtIOKb {
 const BTN_LEFT: u16 = 0x110;
 const BTN_RIGHT: u16 = 0x111;
 const BTN_MIDDLE: u16 = 0x112;
+const BTN_GEAR_DOWN: u16 = 0x150;
+const BTN_GEAR_UP: u16 = 0x151;
 
-const REL_X: u8 = 0x00;
-const REL_Y: u8 = 0x01;
-const REL_Z: u8 = 0x02;
+// const REL_X: u8 = 0x00;
+// const REL_Y: u8 = 0x01;
+// const REL_Z: u8 = 0x02;
 const REL_WHEEL: u8 = 0x08;
 
 const ABS_X: u8 = 0x00;
 const ABS_Y: u8 = 0x01;
-const ABS_Z: u8 = 0x02;
+// const ABS_Z: u8 = 0x02;
 
 
 pub struct VirtIOMouseDevice {
@@ -283,7 +285,7 @@ impl VirtIOMouseDevice {
         VirtIOMouseDevice {
             virtio_device,
             buttons: RefCell::new(0),
-            valid_buttons: vec![BTN_LEFT, BTN_RIGHT, BTN_MIDDLE],
+            valid_buttons: vec![BTN_LEFT, BTN_RIGHT, BTN_MIDDLE, BTN_GEAR_DOWN, BTN_GEAR_UP],
             config: RefCell::new([0; 256]),
         }
     }
@@ -309,60 +311,67 @@ impl VirtIOInputDevice for VirtIOMouseDevice {
                 config[2] = 2;
                 config[8] = 0;
                 config[9] = 0;
-                config[8 + (REL_X >> 3) as usize] |= (1 << (REL_X & 0x7)) as u8;
-                config[8 + (REL_Y >> 3) as usize] |= (1 << (REL_Y & 0x7)) as u8;
+                // config[8 + (REL_X >> 3) as usize] |= (1 << (REL_X & 0x7)) as u8;
+                // config[8 + (REL_Y >> 3) as usize] |= (1 << (REL_Y & 0x7)) as u8;
                 config[8 + (REL_WHEEL >> 3) as usize] |= (1 << (REL_WHEEL & 0x7)) as u8;
             }
-            // VIRTIO_INPUT_EV_ABS => {
-            //     config[2] = 1;
-            //     config[8] = 0;
-            //     config[8] |= (1 << (ABS_X & 0x7)) as u8;
-            //     config[8] |= (1 << (ABS_Y & 0x7)) as u8;
-            //
-            // }
+            VIRTIO_INPUT_EV_ABS => {
+                config[2] = 1;
+                config[8] = 0;
+                config[8] |= (1 << (ABS_X & 0x7)) as u8;
+                config[8] |= (1 << (ABS_Y & 0x7)) as u8;
+            }
             _ => {}
         }
     }
 
-    // fn config_abs_write(&self, config: &mut [u8]) {
-    //     if config[1] <= 1 {
-    //         config[2] = 5 * 4;
-    //         //min
-    //         config[8..8 + 4].copy_from_slice(&(0 as u32).to_le_bytes());
-    //         //max
-    //         config[8 + 4..8 + 8].copy_from_slice(&(MAX_ABS_SCALE - 1).to_le_bytes());
-    //         //fuzz
-    //         config[8 + 8..8 + 12].copy_from_slice(&(0 as u32).to_le_bytes());
-    //         //flat
-    //         config[8 + 12..8 + 16].copy_from_slice(&(0 as u32).to_le_bytes());
-    //         //res
-    //         config[8 + 16..8 + 20].copy_from_slice(&(0 as u32).to_le_bytes());
-    //     }
-    // }
+    fn config_abs_write(&self, config: &mut [u8]) {
+        if config[1] <= 1 {
+            config[2] = 5 * 4;
+            //min
+            config[8..8 + 4].copy_from_slice(&(0 as u32).to_le_bytes());
+            //max
+            config[8 + 4..8 + 8].copy_from_slice(&(MAX_ABS_SCALE - 1).to_le_bytes());
+            //fuzz
+            config[8 + 8..8 + 12].copy_from_slice(&(0 as u32).to_le_bytes());
+            //flat
+            config[8 + 12..8 + 16].copy_from_slice(&(0 as u32).to_le_bytes());
+            //res
+            config[8 + 16..8 + 20].copy_from_slice(&(0 as u32).to_le_bytes());
+        }
+    }
 }
 
 impl Mouse for VirtIOMouseDevice {
     fn send_mouse_event(&self, x: i32, y: i32, z: i32, buttons: u32) {
-        let ret = self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_REL as u16, REL_X as u16, x as u32);
-        if !ret {
-            return;
-        }
-        let ret = self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_REL as u16, REL_X as u16, y as u32);
-        if !ret {
-            return;
-        }
+        let mut mouse_buttons = buttons;
+
         if z != 0 {
+            if z > 0 {
+                mouse_buttons |= 1 << 3;
+            } else {
+                mouse_buttons |= 1 << 4;
+            }
             let ret = self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_REL as u16, REL_WHEEL as u16, z as u32);
+            if !ret {
+                return;
+            }
+        } else {
+            let ret = self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_ABS as u16, ABS_X as u16, x as u32);
+            if !ret {
+                return;
+            }
+            let ret = self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_ABS as u16, ABS_Y as u16, y as u32);
             if !ret {
                 return;
             }
         }
 
         let mut cur_buttons = self.buttons.borrow_mut();
-        if buttons != *cur_buttons {
+        if mouse_buttons != *cur_buttons {
             //left, right, middle
             for (i, b) in self.valid_buttons.iter().enumerate() {
-                let button = (buttons >> i as u32) & 1;
+                let button = (mouse_buttons >> i as u32) & 1;
                 let cur_button = (*cur_buttons >> i as u32) & 1;
                 if button != cur_button {
                     let ret = self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_KEY as u16, *b, button);
@@ -371,11 +380,11 @@ impl Mouse for VirtIOMouseDevice {
                     }
                 }
             }
-            *cur_buttons = buttons
+            *cur_buttons = mouse_buttons
         }
         self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_SYN as u16, 0, 0);
     }
-    fn mouse_absolute(&self) -> bool { false }
+    fn mouse_absolute(&self) -> bool { true }
 }
 
 #[derive_io(Bytes, U32, U8)]

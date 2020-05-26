@@ -1,5 +1,5 @@
 use std::cell::{RefCell, RefMut};
-use terminus_spaceport::devices::{FrameBuffer, Mouse, PixelFormat};
+use terminus_spaceport::devices::{FrameBuffer, PixelFormat};
 use std::cmp::min;
 use terminus_spaceport::memory::prelude::*;
 use std::rc::Rc;
@@ -135,12 +135,4 @@ impl U8Access for SimpleFb {
     fn read(&self, addr: &u64) -> u8 {
         (*self.0.fb.borrow())[*addr as usize]
     }
-}
-
-//fixme:should be remove
-pub struct DummyMouse {}
-
-impl Mouse for DummyMouse {
-    fn send_mouse_event(&self, x: i32, y: i32, z: i32, buttons: u32) {}
-    fn mouse_absolute(&self) -> bool { false }
 }

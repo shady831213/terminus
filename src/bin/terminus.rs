@@ -18,7 +18,7 @@ use terminus::devices::virtio_net::{VirtIONetDevice, VirtIONet};
 #[cfg(feature = "sdl")]
 use terminus_spaceport::devices::{PixelFormat, FrameBuffer};
 #[cfg(feature = "sdl")]
-use terminus::devices::display::{Fb, SimpleFb, DummyMouse};
+use terminus::devices::display::{Fb, SimpleFb};
 #[cfg(feature = "sdl")]
 use std::ops::Deref;
 #[cfg(feature = "sdl")]
