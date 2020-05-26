@@ -112,7 +112,7 @@ Terminus with display supported need "sdl" feature and related dependencise.
 - [x] VirtIO network
 - [x] framebuffer
 - [x] VirtIO keyboard
-- [ ] VirtIO mouse
+- [x] VirtIO mouse
 - [ ] co-sim with RTL simulator
 - [ ] debug mode
 - [ ] other extensions(b, v ...)
