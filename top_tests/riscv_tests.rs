@@ -17,7 +17,11 @@ fn riscv_test(xlen: XLen, name: &str, debug: bool, num_cores: usize) -> bool {
         extensions: vec!['m', 'f', 'd', 's', 'u', 'c', 'a'].into_boxed_slice(),
         freq:1000000000,
     }; num_cores];
-    let mut sys = System::new(name, Path::new("top_tests/elf").join(Path::new(name)).to_str().expect(&format!("{} not existed!", name)), configs, false, 10000000, 32);
+    let mut sys = System::new(name, Path::new("top_tests/elf").join(Path::new(name)).to_str().expect(&format!("{} not existed!", name)), 10000000, 32);
+    sys.register_htif(false);
+    for cfg in configs {
+        sys.new_processor(cfg)
+    }
     sys.register_memory("main_memory", 0x80000000, &GHEAP.alloc(0x10000000, 1).expect("main_memory alloc fail!")).unwrap();
     sys.register_device("clint", 0x20000, 0x10000, Clint::new(sys.timer())).unwrap();
     sys.load_elf().unwrap();

@@ -55,10 +55,10 @@ pub struct System {
 }
 
 impl System {
-    pub fn new(name: &str, elf_file: &str, processor_cfgs: Vec<ProcessorCfg>, htif_input_en: bool, timer_freq: usize, max_int_src: usize) -> System {
+    pub fn new(name: &str, elf_file: &str, timer_freq: usize, max_int_src: usize) -> System {
         let bus = Rc::new(Bus::new());
         let elf = ElfLoader::new(elf_file).expect(&format!("Invalid Elf {}", elf_file));
-        let mut sys = System {
+        let sys = System {
             name: name.to_string(),
             bus,
             timer: Rc::new(Timer::new(timer_freq)),
@@ -68,14 +68,10 @@ impl System {
             virtio_infos: vec![],
             ext_fdt_prop: HashMap::new(),
         };
-        sys.try_register_htif(htif_input_en);
-        for cfg in processor_cfgs {
-            sys.new_processor(cfg)
-        }
         sys
     }
 
-    fn new_processor(&mut self, config: ProcessorCfg) {
+    pub fn new_processor(&mut self, config: ProcessorCfg) {
         let p = Processor::new(self.processors.len(), config, &self.bus, self.timer.alloc_irq(), self.intc.alloc_irq());
         self.processors.push(p)
     }
@@ -85,7 +81,7 @@ impl System {
         Ok(())
     }
 
-    fn try_register_htif(&self, input_en: bool) {
+    pub fn register_htif(&self, input_en: bool) {
         if let Some((base, tohost, fromhost)) = self.elf.htif_section().expect("Invalid ELF!") {
             self.register_region("htif", base, &Region::io(0, 0x1000, Box::new(HTIF::new(tohost, fromhost, input_en)))).unwrap();
         }
@@ -316,12 +312,12 @@ impl System {
             }
             soc.add_node(fb)
         }
+        if self.bus.space().get_region("htif").is_some() {
+            let mut htif = FdtNode::new("htif");
+            htif.add_prop(FdtProp::str_prop("compatible", vec!["ucb,htif0"]));
 
-        let mut htif = FdtNode::new("htif");
-        htif.add_prop(FdtProp::str_prop("compatible", vec!["ucb,htif0"]));
-
-        soc.add_node(htif);
-
+            soc.add_node(htif);
+        }
         root.add_node(soc);
 
         let mut chosen = FdtNode::new("chosen");

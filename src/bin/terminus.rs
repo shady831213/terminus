@@ -228,7 +228,11 @@ fn main() {
         extensions,
         freq: 100000000,
     }; core_num];
-    let mut sys = System::new("sys", elf, configs, !virtio_input_en, 10000000, 32);
+    let mut sys = System::new("sys", elf, 10000000, 32);
+    sys.register_htif(!virtio_input_en);
+    for cfg in configs {
+        sys.new_processor(cfg)
+    }
     let main_memory = GHEAP.alloc(memory_size, 1).expect("main_memory alloc fail!");
     sys.register_memory("main_memory", 0x80000000, &main_memory).unwrap();
     sys.register_device("clint", 0x02000000, 0x000c0000, Clint::new(sys.timer())).unwrap();

@@ -277,12 +277,13 @@ use std::rc::Rc;
 
 #[test]
 fn pmp_basic_test() {
-    let mut sys = System::new("test", "top_tests/elf/rv64ui-p-add", vec![ProcessorCfg {
+    let mut sys = System::new("test", "top_tests/elf/rv64ui-p-add", 100, 1);
+    sys.new_processor(ProcessorCfg {
         xlen: XLen::X32,
         enable_dirty: true,
         extensions: vec![].into_boxed_slice(),
         freq: 1000000000,
-    }], false, 100, 1);
+    });
     sys.reset(vec![-1i64 as u64]).unwrap();
 
     let p = sys.processor(0).unwrap();
