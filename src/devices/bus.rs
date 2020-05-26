@@ -103,11 +103,12 @@ impl Bus {
     }
 
     pub fn write_u8(&self, addr: &u64, data: &u8) -> Result<(), u64> {
-        self.space.borrow().write_u8(addr, *data)
+        self.space.borrow().write_bytes(addr, unsafe { std::slice::from_raw_parts(data as *const u8, 1) })?;
+        Ok(())
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
     pub fn read_u8(&self, addr: &u64, data: &mut u8) -> Result<(), u64> {
-        *data = self.space.borrow().read_u8(addr)?;
+        self.space.borrow().read_bytes(addr, unsafe { std::slice::from_raw_parts_mut(data as *mut u8, 1) })?;
         Ok(())
     }
 
