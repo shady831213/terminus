@@ -159,7 +159,7 @@ impl<T: BytesAccess> QueueClient for VirtIOBlkQueue<T> {
     }
 }
 
-#[derive_io(Bytes, U32)]
+#[derive_io(Bytes)]
 pub struct VirtIOBlk {
     virtio_device: Device,
     num_sectors: u64,
@@ -232,16 +232,6 @@ impl BytesAccess for VirtIOBlk {
     fn read(&self, addr: &u64, data: &mut [u8]) -> std::result::Result<usize, String> {
         self.read_bytes(addr, data);
         Ok(0)
-    }
-}
-
-impl U32Access for VirtIOBlk {
-    fn write(&self, addr: &u64, data: u32) {
-        MMIODevice::write(self, addr, &data)
-    }
-
-    fn read(&self, addr: &u64) -> u32 {
-        MMIODevice::read(self, addr)
     }
 }
 

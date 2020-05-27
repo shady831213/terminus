@@ -286,7 +286,7 @@ fn main() {
     } else {
         None
     };
-    //use virtio console
+
     sys.make_boot_rom(0x20000000, -1i64 as u64, boot_args).unwrap();
     sys.load_elf().unwrap();
     sys.reset(vec![-1i64 as u64; core_num]).unwrap();

@@ -173,7 +173,7 @@ impl KeyBoard for VirtIOKbDevice {
     }
 }
 
-#[derive_io(Bytes, U32, U8)]
+#[derive_io(Bytes)]
 pub struct VirtIOKb(Rc<VirtIOKbDevice>);
 
 impl VirtIOKb {
@@ -216,28 +216,6 @@ impl BytesAccess for VirtIOKb {
     fn read(&self, addr: &u64, data: &mut [u8]) -> std::result::Result<usize, String> {
         self.read_bytes(addr, data);
         Ok(0)
-    }
-}
-
-impl U8Access for VirtIOKb {
-    fn write(&self, addr: &u64, data: u8) {
-        self.write_bytes(addr, &[data])
-    }
-
-    fn read(&self, addr: &u64) -> u8 {
-        let mut bytes = [0 as u8; 1];
-        self.read_bytes(addr, &mut bytes);
-        bytes[0]
-    }
-}
-
-impl U32Access for VirtIOKb {
-    fn write(&self, addr: &u64, data: u32) {
-        MMIODevice::write(self, addr, &data)
-    }
-
-    fn read(&self, addr: &u64) -> u32 {
-        MMIODevice::read(self, addr)
     }
 }
 
@@ -387,7 +365,7 @@ impl Mouse for VirtIOMouseDevice {
     fn mouse_absolute(&self) -> bool { true }
 }
 
-#[derive_io(Bytes, U32, U8)]
+#[derive_io(Bytes)]
 pub struct VirtIOMouse(Rc<VirtIOMouseDevice>);
 
 impl VirtIOMouse {
@@ -430,27 +408,5 @@ impl BytesAccess for VirtIOMouse {
     fn read(&self, addr: &u64, data: &mut [u8]) -> std::result::Result<usize, String> {
         self.read_bytes(addr, data);
         Ok(0)
-    }
-}
-
-impl U8Access for VirtIOMouse {
-    fn write(&self, addr: &u64, data: u8) {
-        self.write_bytes(addr, &[data])
-    }
-
-    fn read(&self, addr: &u64) -> u8 {
-        let mut bytes = [0 as u8; 1];
-        self.read_bytes(addr, &mut bytes);
-        bytes[0]
-    }
-}
-
-impl U32Access for VirtIOMouse {
-    fn write(&self, addr: &u64, data: u32) {
-        MMIODevice::write(self, addr, &data)
-    }
-
-    fn read(&self, addr: &u64) -> u32 {
-        MMIODevice::read(self, addr)
     }
 }
