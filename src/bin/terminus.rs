@@ -29,6 +29,7 @@ use terminus_spaceport::devices::SDL;
 use terminus::system::fdt::FdtProp;
 #[cfg(feature = "sdl")]
 use terminus::devices::virtio_input::{VirtIOKbDevice, VirtIOKb};
+#[cfg(feature = "sdl")]
 use terminus::devices::virtio_input::{VirtIOMouseDevice, VirtIOMouse};
 
 

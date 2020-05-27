@@ -5,6 +5,9 @@ authors = ["shady831213 <shady831213@126.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "terminus"
+crate-type = ["rlib","staticlib", "dylib"]
 
 [dependencies]
 terminus-spaceport={git = "https://github.com/shady831213/terminus_spaceport"}
