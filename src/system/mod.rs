@@ -36,6 +36,17 @@ pub enum Error {
     ResetErr(String),
 }
 
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Error::SpaceErr(e) => e.fmt(f),
+            Error::ElfErr(s) => write!(f, "ElfErr!{}", s),
+            Error::FdtErr(s) => write!(f, "FdtErr!{}", s),
+            Error::ResetErr(s) => write!(f, "ResetErr!{}", s),
+        }
+    }
+}
+
 impl From<space::Error> for Error {
     fn from(v: space::Error) -> Error {
         Error::SpaceErr(v)
