@@ -14,5 +14,5 @@ pub mod system;
 
 pub mod prelude;
 
-#[cfg(cosim)]
+#[cfg(feature = "cosim")]
 pub mod cosim;

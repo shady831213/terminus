@@ -2,6 +2,7 @@ use terminus_spaceport::memory::MemInfo;
 use terminus_spaceport::space::Space;
 use terminus_spaceport::space;
 use terminus_spaceport::memory::region::{Region, IOAccess, BytesAccess, GHEAP};
+use terminus_spaceport::irq::IrqVec;
 use std::fmt;
 use crate::devices::htif::HTIF;
 use crate::devices::bus::Bus;
@@ -73,6 +74,11 @@ impl System {
 
     pub fn new_processor(&mut self, config: ProcessorCfg) {
         let p = Processor::new(self.processors.len(), config, &self.bus, self.timer.alloc_irq(), self.intc.alloc_irq());
+        self.processors.push(p)
+    }
+
+    pub fn new_processor_with_int(&mut self, config: ProcessorCfg, clint: IrqVec, plic: IrqVec) {
+        let p = Processor::new(self.processors.len(), config, &self.bus, clint, plic);
         self.processors.push(p)
     }
 
