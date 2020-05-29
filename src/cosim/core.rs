@@ -137,34 +137,34 @@ impl CosimServer {
         self.sys = None;
         self.state = ServerState::Initing;
     }
-    fn run(&mut self) -> Option<CosimResp> {
+    fn run(&mut self) -> Result<Option<CosimResp>, String> {
         let result = match self.cmd.recv() {
             Ok(cmd) => {
                 match cmd {
                     CosimCmd::Reset => {
                         self.reset();
-                        return Some(CosimResp::ResetOk);
+                        return Ok(Some(CosimResp::ResetOk));
                     }
                     CosimCmd::SysInit(cmd) => cmd.execute(self),
                     CosimCmd::InitDone(cmd) => {
                         let res = cmd.execute(self);
                         if res.is_ok() {
-                            return Some(CosimResp::InitOk);
+                            return Ok(Some(CosimResp::InitOk));
                         }
                         res
                     }
-                    _ => Err("Illegal cmd!".to_string())
+                    _ => return Err("Illegal cmd!".to_string())
                 }
             }
-            Err(_) => return None
+            Err(e) => return Err(e.to_string())
         };
-        self.result_to_resp(result)
+        Ok(self.result_to_resp(result))
     }
 
-    fn serve(&mut self) -> !{
+    fn serve(&mut self) -> Result<(), String>{
         loop {
-            if let Some(resp) = self.run() {
-                self.resp.send(resp).unwrap();
+            if let Some(resp) = self.run()? {
+                self.resp.send(resp).map_err(|e|{e.to_string()})?;
             }
         }
     }
