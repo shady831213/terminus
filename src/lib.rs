@@ -13,3 +13,6 @@ pub mod devices;
 pub mod system;
 
 pub mod prelude;
+
+#[cfg(cosim)]
+pub mod cosim;
