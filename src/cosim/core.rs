@@ -13,8 +13,8 @@ enum CosimResp {
 
 
 struct CosimClient {
-    resp: Receiver<CosimResp>,
-    cmd: Sender<CosimCmd>,
+    resp: Mutex<Receiver<CosimResp>>,
+    cmd: Mutex<Sender<CosimCmd>>,
 }
 
 struct CosimServer {
@@ -25,7 +25,7 @@ struct CosimServer {
 impl CosimServer {}
 
 
-fn cosim() -> Mutex<CosimClient> {
+fn cosim() -> CosimClient {
     let (cmd_sender, cmd_receiver) = channel();
     let (resp_sender, resp_receiver) = channel();
     thread::Builder::new()
@@ -36,14 +36,14 @@ fn cosim() -> Mutex<CosimClient> {
                 cmd: cmd_receiver,
             };
         })
-        .expect("failed to spawn thread");
-    Mutex::new(CosimClient {
-        resp: resp_receiver,
-        cmd: cmd_sender,
-    })
+        .expect("failed to start cosim server");
+    CosimClient {
+        resp: Mutex::new(resp_receiver),
+        cmd: Mutex::new(cmd_sender),
+    }
 }
 
 
 lazy_static! {
-    static ref CLIENT: Mutex<CosimClient> = cosim();
+    static ref CLIENT: CosimClient = cosim();
 }
