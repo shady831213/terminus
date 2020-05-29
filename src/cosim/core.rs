@@ -92,7 +92,6 @@ impl CosimServeCmd for InitDoneCmd {
 
 pub enum CosimCmd {
     Reset,
-    Finish,
     SysInit(SystemInitCmd),
     InitDone(InitDoneCmd),
 }
@@ -102,7 +101,6 @@ pub enum CosimResp {
     ResetOk,
     InitOk,
     RunOk,
-    FinishOk,
     Err(String),
 }
 
@@ -140,15 +138,12 @@ impl CosimServer {
         self.state = ServerState::Initing;
     }
     fn run(&mut self) -> Option<CosimResp> {
-        let result = match self.cmd.recv().map_err(|e| { e.to_string() }) {
+        let result = match self.cmd.recv() {
             Ok(cmd) => {
                 match cmd {
                     CosimCmd::Reset => {
                         self.reset();
                         return Some(CosimResp::ResetOk);
-                    }
-                    CosimCmd::Finish => {
-                        return Some(CosimResp::FinishOk);
                     }
                     CosimCmd::SysInit(cmd) => cmd.execute(self),
                     CosimCmd::InitDone(cmd) => {
@@ -161,19 +156,15 @@ impl CosimServer {
                     _ => Err("Illegal cmd!".to_string())
                 }
             }
-            Err(e) => Err(e)
+            Err(_) => return None
         };
         self.result_to_resp(result)
     }
 
-    fn serve(&mut self) {
+    fn serve(&mut self) -> !{
         loop {
             if let Some(resp) = self.run() {
-                if let CosimResp::FinishOk = resp {
-                    return;
-                } else {
-                    self.resp.send(resp).unwrap();
-                }
+                self.resp.send(resp).unwrap();
             }
         }
     }
@@ -248,13 +239,12 @@ mod test {
         match resp.recv() {
             Ok(resp) => {
                 match resp {
-                    CosimResp::InitOk => { println!("ok!") }
+                    CosimResp::InitOk => {println!("ok!")}
                     _ => panic!("expect initOk but get {:?}", resp)
                 }
             }
             Err(e) => panic!("{:?}", e)
         }
-        cmd.send(CosimCmd::Finish).unwrap();
     }
 
     #[test]
@@ -271,12 +261,11 @@ mod test {
         match resp.recv() {
             Ok(resp) => {
                 match resp {
-                    CosimResp::InitOk => { println!("ok!") }
+                    CosimResp::InitOk => {println!("ok!")}
                     _ => panic!("expect initOk but get {:?}", resp)
                 }
             }
             Err(e) => panic!("{:?}", e)
         }
-        cmd.send(CosimCmd::Finish).unwrap();
     }
 }
