@@ -91,13 +91,19 @@ impl CosimServeCmd for InitDoneCmd {
 }
 
 pub enum CosimCmd {
+    Reset,
+    Finish,
     SysInit(SystemInitCmd),
     InitDone(InitDoneCmd),
 }
 
+#[derive(Debug)]
 pub enum CosimResp {
+    ResetOk,
     InitOk,
-    InitErr(String),
+    RunOk,
+    FinishOk,
+    Err(String),
 }
 
 
@@ -129,18 +135,62 @@ struct CosimServer {
 }
 
 impl CosimServer {
-    fn init(&mut self) -> Result<(), String> {
-        if self.state != ServerState::Initing {
-            return Err("server has been inited!".to_string());
-        }
-        while self.state == ServerState::Initing {
-            let cmd = self.cmd.recv().map_err(|e| { e.to_string() })?;
-            match cmd {
-                CosimCmd::SysInit(cmd) => cmd.execute(self)?,
-                CosimCmd::InitDone(cmd) => cmd.execute(self)?
+    fn reset(&mut self) {
+        self.sys = None;
+        self.state = ServerState::Initing;
+    }
+    fn run(&mut self) -> Option<CosimResp> {
+        let result = match self.cmd.recv().map_err(|e| { e.to_string() }) {
+            Ok(cmd) => {
+                match cmd {
+                    CosimCmd::Reset => {
+                        self.reset();
+                        return Some(CosimResp::ResetOk);
+                    }
+                    CosimCmd::Finish => {
+                        return Some(CosimResp::FinishOk);
+                    }
+                    CosimCmd::SysInit(cmd) => cmd.execute(self),
+                    CosimCmd::InitDone(cmd) => {
+                        let res = cmd.execute(self);
+                        if res.is_ok() {
+                            return Some(CosimResp::InitOk);
+                        }
+                        res
+                    }
+                    _ => Err("Illegal cmd!".to_string())
+                }
+            }
+            Err(e) => Err(e)
+        };
+        self.result_to_resp(result)
+    }
+
+    fn serve(&mut self) {
+        loop {
+            if let Some(resp) = self.run() {
+                if let CosimResp::FinishOk = resp {
+                    return;
+                } else {
+                    self.resp.send(resp).unwrap();
+                }
             }
         }
-        Ok(())
+    }
+
+    fn result_to_resp(&self, res: Result<(), String>) -> Option<CosimResp> {
+        if let Err(e) = res {
+            Some(CosimResp::Err(e))
+        } else {
+            match self.state {
+                ServerState::Initing => {
+                    None
+                }
+                ServerState::Running => {
+                    Some(CosimResp::RunOk)
+                }
+            }
+        }
     }
 }
 
@@ -157,11 +207,7 @@ fn cosim() -> CosimClient {
                 resp: resp_sender,
                 cmd: cmd_receiver,
             };
-            if let Err(e) = server.init() {
-                server.resp.send(CosimResp::InitErr(e)).unwrap();
-                return;
-            }
-            server.resp.send(CosimResp::InitOk).unwrap();
+            server.serve()
         })
         .expect("failed to start cosim server");
     CosimClient {
@@ -185,4 +231,52 @@ pub fn try_recv_resp() -> Result<CosimResp, TryRecvError> {
 
 pub fn recv_resp() -> Result<CosimResp, RecvError> {
     CLIENT.resp().lock().unwrap().recv()
+}
+
+#[cfg(test)]
+mod test {
+    use crate::cosim::core::{cosim, CosimCmd, SystemInitCmd, InitDoneCmd, CosimResp};
+
+    #[test]
+    fn cosim_sys_init_test() {
+        let client = cosim();
+        let (cmd, resp) = (client.cmd.lock().unwrap(), client.resp.lock().unwrap());
+        cmd.send(CosimCmd::Reset).unwrap();
+        resp.recv().unwrap();
+        cmd.send(CosimCmd::SysInit(SystemInitCmd::new("top_tests/elf/rv64ui-p-add", 32))).unwrap();
+        cmd.send(CosimCmd::InitDone(InitDoneCmd::new(vec![]))).unwrap();
+        match resp.recv() {
+            Ok(resp) => {
+                match resp {
+                    CosimResp::InitOk => { println!("ok!") }
+                    _ => panic!("expect initOk but get {:?}", resp)
+                }
+            }
+            Err(e) => panic!("{:?}", e)
+        }
+        cmd.send(CosimCmd::Finish).unwrap();
+    }
+
+    #[test]
+    fn cosim_init_reset_test() {
+        let client = cosim();
+        let (cmd, resp) = (client.cmd.lock().unwrap(), client.resp.lock().unwrap());
+        cmd.send(CosimCmd::Reset).unwrap();
+        resp.recv().unwrap();
+        cmd.send(CosimCmd::SysInit(SystemInitCmd::new("top_tests/elf/rv64ui-p-add", 32))).unwrap();
+        cmd.send(CosimCmd::Reset).unwrap();
+        resp.recv().unwrap();
+        cmd.send(CosimCmd::SysInit(SystemInitCmd::new("top_tests/elf/rv64ui-p-add", 32))).unwrap();
+        cmd.send(CosimCmd::InitDone(InitDoneCmd::new(vec![]))).unwrap();
+        match resp.recv() {
+            Ok(resp) => {
+                match resp {
+                    CosimResp::InitOk => { println!("ok!") }
+                    _ => panic!("expect initOk but get {:?}", resp)
+                }
+            }
+            Err(e) => panic!("{:?}", e)
+        }
+        cmd.send(CosimCmd::Finish).unwrap();
+    }
 }
