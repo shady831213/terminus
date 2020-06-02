@@ -1,40 +1,6 @@
 use crate::system::System;
 use crate::cosim::core::{CosimServer, ServerState};
 
-trait CosimServeCmd {
-    fn execute(&self, server: &mut CosimServer) -> Result<Option<CosimResp>, String>;
-}
-
-trait InitingCmd: CosimServeCmd {
-    fn check_state(&self, server: &CosimServer) -> Result<(), String> {
-        if server.state == ServerState::Initing {
-            Ok(())
-        } else {
-            Err("init process has been done!".to_string())
-        }
-    }
-}
-
-trait NeedSysCmd: CosimServeCmd {
-    fn get_sys<'a>(&self, server: &'a mut CosimServer) -> Result<&'a mut System, String> {
-        if let Some(sys) = server.sys.as_mut() {
-            Ok(sys)
-        } else {
-            Err("system not exist!".to_string())
-        }
-    }
-}
-
-trait RunningCmd: CosimServeCmd {
-    fn check_state(&self, server: &CosimServer) -> Result<(), String> {
-        if server.state == ServerState::Running {
-            Ok(())
-        } else {
-            Err("init process not done!".to_string())
-        }
-    }
-}
-
 pub struct SystemInitCmd {
     elf: String,
     max_int_src: usize,
@@ -88,6 +54,49 @@ impl CosimServeCmd for InitDoneCmd {
     }
 }
 
+
+trait CosimServeCmd {
+    fn execute(&self, server: &mut CosimServer) -> Result<Option<CosimResp>, String>;
+}
+
+trait InitingCmd: CosimServeCmd {
+    fn check_state(&self, server: &CosimServer) -> Result<(), String> {
+        if server.state == ServerState::Initing {
+            Ok(())
+        } else {
+            Err("init process has been done!".to_string())
+        }
+    }
+}
+
+trait NeedSysCmd: CosimServeCmd {
+    fn get_sys<'a>(&self, server: &'a mut CosimServer) -> Result<&'a mut System, String> {
+        if let Some(sys) = server.sys.as_mut() {
+            Ok(sys)
+        } else {
+            Err("system not exist!".to_string())
+        }
+    }
+}
+
+trait RunningCmd: CosimServeCmd {
+    fn check_state(&self, server: &CosimServer) -> Result<(), String> {
+        if server.state == ServerState::Running {
+            Ok(())
+        } else {
+            Err("init process not done!".to_string())
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum CosimResp {
+    ResetOk,
+    InitOk,
+    RunOk,
+    Err(String),
+}
+
 pub enum CosimCmd {
     Reset,
     SysInit(SystemInitCmd),
@@ -111,10 +120,3 @@ impl CosimCmd {
     }
 }
 
-#[derive(Debug)]
-pub enum CosimResp {
-    ResetOk,
-    InitOk,
-    RunOk,
-    Err(String),
-}
