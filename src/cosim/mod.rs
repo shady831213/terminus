@@ -1,1 +1,2 @@
+mod rapi;
 mod core;

@@ -2,108 +2,7 @@ use std::sync::mpsc::{Sender, Receiver, channel, TryRecvError, RecvError, SendEr
 use std::sync::Mutex;
 use std::thread;
 use crate::system::System;
-
-trait CosimServeCmd {
-    fn execute(&self, server: &mut CosimServer) -> Result<(), String>;
-}
-
-trait InitingCmd: CosimServeCmd {
-    fn check_state(&self, server: &CosimServer) -> Result<(), String> {
-        if server.state == ServerState::Initing {
-            Ok(())
-        } else {
-            Err("init process has been done!".to_string())
-        }
-    }
-}
-
-trait NeedSysCmd: CosimServeCmd {
-    fn get_sys<'a>(&self, server: &'a mut CosimServer) -> Result<&'a mut System, String> {
-        if let Some(sys) = server.sys.as_mut() {
-            Ok(sys)
-        } else {
-            Err("system not exist!".to_string())
-        }
-    }
-}
-
-trait RunningCmd: CosimServeCmd {
-    fn check_state(&self, server: &CosimServer) -> Result<(), String> {
-        if server.state == ServerState::Running {
-            Ok(())
-        } else {
-            Err("init process not done!".to_string())
-        }
-    }
-}
-
-pub struct SystemInitCmd {
-    elf: String,
-    max_int_src: usize,
-}
-
-impl SystemInitCmd {
-    pub fn new(elf: &str, max_int_src: usize) -> SystemInitCmd {
-        SystemInitCmd {
-            elf: elf.to_string(),
-            max_int_src,
-        }
-    }
-}
-
-impl InitingCmd for SystemInitCmd {}
-
-impl CosimServeCmd for SystemInitCmd {
-    fn execute(&self, server: &mut CosimServer) -> Result<(), String> {
-        self.check_state(server)?;
-        if server.sys.is_some() {
-            return Err("system has been inited!".to_string());
-        }
-        server.sys = Some(System::new("cosim_sys", &self.elf, 10000000, self.max_int_src));
-        Ok(())
-    }
-}
-
-pub struct InitDoneCmd {
-    reset_vec: Vec<u64>
-}
-
-impl InitDoneCmd {
-    pub fn new(reset_vec: Vec<u64>) -> InitDoneCmd {
-        InitDoneCmd {
-            reset_vec
-        }
-    }
-}
-
-impl InitingCmd for InitDoneCmd {}
-
-impl NeedSysCmd for InitDoneCmd {}
-
-impl CosimServeCmd for InitDoneCmd {
-    fn execute(&self, server: &mut CosimServer) -> Result<(), String> {
-        self.check_state(server)?;
-        let sys = self.get_sys(server)?;
-        sys.reset(self.reset_vec.to_vec()).map_err(|e| { e.to_string() })?;
-        server.state = ServerState::Running;
-        Ok(())
-    }
-}
-
-pub enum CosimCmd {
-    Reset,
-    SysInit(SystemInitCmd),
-    InitDone(InitDoneCmd),
-}
-
-#[derive(Debug)]
-pub enum CosimResp {
-    ResetOk,
-    InitOk,
-    RunOk,
-    Err(String),
-}
-
+use crate::cosim::rapi::*;
 
 struct CosimClient {
     resp: Mutex<Receiver<CosimResp>>,
@@ -120,66 +19,31 @@ impl CosimClient {
 }
 
 #[derive(Eq, PartialEq)]
-enum ServerState {
+pub enum ServerState {
     Initing,
     Running,
 }
 
-struct CosimServer {
-    sys: Option<System>,
-    state: ServerState,
+pub struct CosimServer {
+    pub sys: Option<System>,
+    pub state: ServerState,
     resp: Sender<CosimResp>,
     cmd: Receiver<CosimCmd>,
 }
 
 impl CosimServer {
-    fn reset(&mut self) {
+    pub fn reset(&mut self) {
         self.sys = None;
         self.state = ServerState::Initing;
     }
     fn run(&mut self) -> Result<Option<CosimResp>, String> {
-        let result = match self.cmd.recv() {
-            Ok(cmd) => {
-                match cmd {
-                    CosimCmd::Reset => {
-                        self.reset();
-                        return Ok(Some(CosimResp::ResetOk));
-                    }
-                    CosimCmd::SysInit(cmd) => cmd.execute(self),
-                    CosimCmd::InitDone(cmd) => {
-                        let res = cmd.execute(self);
-                        if res.is_ok() {
-                            return Ok(Some(CosimResp::InitOk));
-                        }
-                        res
-                    }
-                    _ => return Err("Illegal cmd!".to_string())
-                }
-            }
-            Err(e) => return Err(e.to_string())
-        };
-        Ok(self.result_to_resp(result))
+        Ok(self.cmd.recv().map_err(|e|{e.to_string()})?.execute(self))
     }
 
     fn serve(&mut self) -> Result<(), String>{
         loop {
             if let Some(resp) = self.run()? {
                 self.resp.send(resp).map_err(|e|{e.to_string()})?;
-            }
-        }
-    }
-
-    fn result_to_resp(&self, res: Result<(), String>) -> Option<CosimResp> {
-        if let Err(e) = res {
-            Some(CosimResp::Err(e))
-        } else {
-            match self.state {
-                ServerState::Initing => {
-                    None
-                }
-                ServerState::Running => {
-                    Some(CosimResp::RunOk)
-                }
             }
         }
     }
