@@ -3,18 +3,28 @@ use std::sync::Mutex;
 use std::thread;
 use crate::system::System;
 use crate::cosim::rapi::*;
+use std::num::Wrapping;
 
 struct CosimClient {
     resp: Mutex<Receiver<CosimResp>>,
-    cmd: Mutex<Sender<CosimCmd>>,
+    cmd: Mutex<(Wrapping<u32>, Sender<CosimCmd>)>,
 }
 
 impl CosimClient {
-    fn cmd(&self) -> &Mutex<Sender<CosimCmd>> {
-        &self.cmd
+    pub fn send_cmd(&self, ty: CosimCmdTy) -> Result<(), SendError<CosimCmd>> {
+        let mut cmd_ch = self.cmd.lock().unwrap();
+        let cmd = CosimCmd::new((cmd_ch.0).0, ty);
+        cmd_ch.1.send(cmd)?;
+        cmd_ch.0 += Wrapping(1);
+        Ok(())
     }
-    fn resp(&self) -> &Mutex<Receiver<CosimResp>> {
-        &self.resp
+
+    pub fn try_recv_resp(&self) -> Result<CosimResp, TryRecvError> {
+        self.resp.lock().unwrap().try_recv()
+    }
+
+    pub fn recv_resp(&self) -> Result<CosimResp, RecvError> {
+        self.resp.lock().unwrap().recv()
     }
 }
 
@@ -36,15 +46,15 @@ impl CosimServer {
         self.sys = None;
         self.state = ServerState::Initing;
     }
-    fn run(&mut self) -> Result<Option<CosimResp>, String> {
-        Ok(self.cmd.recv().map_err(|e|{e.to_string()})?.execute(self))
+    fn run(&mut self) -> Result<CosimResp, String> {
+        let cmd = self.cmd.recv().map_err(|e| { e.to_string() })?;
+        Ok(CosimResp::new(cmd.meta().clone(), cmd.ty().execute(self)))
     }
 
-    fn serve(&mut self) -> Result<(), String>{
+    fn serve(&mut self) -> Result<(), String> {
         loop {
-            if let Some(resp) = self.run()? {
-                self.resp.send(resp).map_err(|e|{e.to_string()})?;
-            }
+            let resp = self.run()?;
+            self.resp.send(resp).map_err(|e| { e.to_string() })?;
         }
     }
 }
@@ -67,7 +77,7 @@ fn cosim() -> CosimClient {
         .expect("failed to start cosim server");
     CosimClient {
         resp: Mutex::new(resp_receiver),
-        cmd: Mutex::new(cmd_sender),
+        cmd: Mutex::new((Wrapping(0), cmd_sender)),
     }
 }
 
@@ -76,36 +86,38 @@ lazy_static! {
     static ref CLIENT: CosimClient = cosim();
 }
 
-pub fn send_cmd(cmd: CosimCmd) -> Result<(), SendError<CosimCmd>> {
-    CLIENT.cmd().lock().unwrap().send(cmd)
+pub fn send_cmd(ty: CosimCmdTy) -> Result<(), SendError<CosimCmd>> {
+    CLIENT.send_cmd(ty)
 }
 
 pub fn try_recv_resp() -> Result<CosimResp, TryRecvError> {
-    CLIENT.resp().lock().unwrap().try_recv()
+    CLIENT.try_recv_resp()
 }
 
 pub fn recv_resp() -> Result<CosimResp, RecvError> {
-    CLIENT.resp().lock().unwrap().recv()
+    CLIENT.recv_resp()
 }
 
 #[cfg(test)]
 mod test {
-    use crate::cosim::core::{cosim, CosimCmd, SystemInitCmd, InitDoneCmd, CosimResp};
+    use crate::cosim::core::cosim;
+    use crate::cosim::rapi::{CosimCmdTy, CosimRespTy, CosimCmdId, CosimResp};
 
     #[test]
     fn cosim_sys_init_test() {
         let client = cosim();
-        let (cmd, resp) = (client.cmd.lock().unwrap(), client.resp.lock().unwrap());
-        cmd.send(CosimCmd::Reset).unwrap();
-        resp.recv().unwrap();
-        cmd.send(CosimCmd::SysInit(SystemInitCmd::new("top_tests/elf/rv64ui-p-add", 32))).unwrap();
-        cmd.send(CosimCmd::InitDone(InitDoneCmd::new(vec![]))).unwrap();
-        match resp.recv() {
-            Ok(resp) => {
-                match resp {
-                    CosimResp::InitOk => {println!("ok!")}
-                    _ => panic!("expect initOk but get {:?}", resp)
-                }
+        client.send_cmd(CosimCmdTy::reset()).unwrap();
+        let resp = client.recv_resp().unwrap();
+        println!("{:#x?}",resp);
+        client.send_cmd(CosimCmdTy::sys_init("top_tests/elf/rv64ui-p-add", 32)).unwrap();
+        let resp = client.recv_resp().unwrap();
+        println!("{:#x?}",resp);
+        client.send_cmd(CosimCmdTy::init_done(vec![])).unwrap();
+        match client.recv_resp() {
+            Ok(CosimResp{meta, ty}) => {
+                assert_eq!(meta.id, CosimCmdId::InitDone as u32);
+                assert_eq!(meta.idx, 2);
+                assert_eq!(ty, CosimRespTy::Ok)
             }
             Err(e) => panic!("{:?}", e)
         }
@@ -114,20 +126,24 @@ mod test {
     #[test]
     fn cosim_init_reset_test() {
         let client = cosim();
-        let (cmd, resp) = (client.cmd.lock().unwrap(), client.resp.lock().unwrap());
-        cmd.send(CosimCmd::Reset).unwrap();
-        resp.recv().unwrap();
-        cmd.send(CosimCmd::SysInit(SystemInitCmd::new("top_tests/elf/rv64ui-p-add", 32))).unwrap();
-        cmd.send(CosimCmd::Reset).unwrap();
-        resp.recv().unwrap();
-        cmd.send(CosimCmd::SysInit(SystemInitCmd::new("top_tests/elf/rv64ui-p-add", 32))).unwrap();
-        cmd.send(CosimCmd::InitDone(InitDoneCmd::new(vec![]))).unwrap();
-        match resp.recv() {
-            Ok(resp) => {
-                match resp {
-                    CosimResp::InitOk => {println!("ok!")}
-                    _ => panic!("expect initOk but get {:?}", resp)
-                }
+        client.send_cmd(CosimCmdTy::reset()).unwrap();
+        let resp = client.recv_resp().unwrap();
+        println!("{:#x?}",resp);
+        client.send_cmd(CosimCmdTy::sys_init("top_tests/elf/rv64ui-p-add", 32)).unwrap();
+        let resp = client.recv_resp().unwrap();
+        println!("{:#x?}",resp);
+        client.send_cmd(CosimCmdTy::reset()).unwrap();
+        let resp = client.recv_resp().unwrap();
+        println!("{:#x?}",resp);
+        client.send_cmd(CosimCmdTy::sys_init("top_tests/elf/rv64ui-p-add", 32)).unwrap();
+        let resp = client.recv_resp().unwrap();
+        println!("{:#x?}",resp);
+        client.send_cmd(CosimCmdTy::init_done(vec![])).unwrap();
+        match client.recv_resp() {
+            Ok(CosimResp{meta, ty}) => {
+                assert_eq!(meta.id, CosimCmdId::InitDone as u32);
+                assert_eq!(meta.idx, 4);
+                assert_eq!(ty, CosimRespTy::Ok)
             }
             Err(e) => panic!("{:?}", e)
         }

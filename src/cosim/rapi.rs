@@ -1,65 +1,25 @@
 use crate::system::System;
 use crate::cosim::core::{CosimServer, ServerState};
-
-pub struct SystemInitCmd {
-    elf: String,
-    max_int_src: usize,
+#[repr(u32)]
+pub enum CosimCmdId {
+    Reserved = 0,
+    Reset = 1,
+    SysInit = 2,
+    InitDone = 3,
 }
 
-impl SystemInitCmd {
-    pub fn new(elf: &str, max_int_src: usize) -> SystemInitCmd {
-        SystemInitCmd {
-            elf: elf.to_string(),
-            max_int_src,
-        }
-    }
+#[derive(Debug, Copy, Clone)]
+pub struct CosimCmdMeta {
+    pub idx: u32,
+    pub id: u32,
 }
 
-impl InitingCmd for SystemInitCmd {}
-
-impl CosimServeCmd for SystemInitCmd {
-    fn execute(&self, server: &mut CosimServer) -> Result<Option<CosimResp>, String> {
-        self.check_state(server)?;
-        if server.sys.is_some() {
-            return Err("system has been inited!".to_string());
-        }
-        server.sys = Some(System::new("cosim_sys", &self.elf, 10000000, self.max_int_src));
-        Ok(None)
-    }
+trait CosimServerCmd {
+    fn id(&self) -> CosimCmdId;
+    fn execute(&self, server: &mut CosimServer) -> Result<(), String>;
 }
 
-pub struct InitDoneCmd {
-    reset_vec: Vec<u64>
-}
-
-impl InitDoneCmd {
-    pub fn new(reset_vec: Vec<u64>) -> InitDoneCmd {
-        InitDoneCmd {
-            reset_vec
-        }
-    }
-}
-
-impl InitingCmd for InitDoneCmd {}
-
-impl NeedSysCmd for InitDoneCmd {}
-
-impl CosimServeCmd for InitDoneCmd {
-    fn execute(&self, server: &mut CosimServer) -> Result<Option<CosimResp>, String> {
-        self.check_state(server)?;
-        let sys = self.get_sys(server)?;
-        sys.reset(self.reset_vec.to_vec()).map_err(|e| { e.to_string() })?;
-        server.state = ServerState::Running;
-        Ok(Some(CosimResp::InitOk))
-    }
-}
-
-
-trait CosimServeCmd {
-    fn execute(&self, server: &mut CosimServer) -> Result<Option<CosimResp>, String>;
-}
-
-trait InitingCmd: CosimServeCmd {
+trait InitingCmd: CosimServerCmd {
     fn check_state(&self, server: &CosimServer) -> Result<(), String> {
         if server.state == ServerState::Initing {
             Ok(())
@@ -69,7 +29,7 @@ trait InitingCmd: CosimServeCmd {
     }
 }
 
-trait NeedSysCmd: CosimServeCmd {
+trait NeedSysCmd: CosimServerCmd {
     fn get_sys<'a>(&self, server: &'a mut CosimServer) -> Result<&'a mut System, String> {
         if let Some(sys) = server.sys.as_mut() {
             Ok(sys)
@@ -79,7 +39,7 @@ trait NeedSysCmd: CosimServeCmd {
     }
 }
 
-trait RunningCmd: CosimServeCmd {
+trait RunningCmd: CosimServerCmd {
     fn check_state(&self, server: &CosimServer) -> Result<(), String> {
         if server.state == ServerState::Running {
             Ok(())
@@ -90,33 +50,152 @@ trait RunningCmd: CosimServeCmd {
 }
 
 #[derive(Debug)]
-pub enum CosimResp {
-    ResetOk,
-    InitOk,
-    RunOk,
+pub struct CosimResp {
+    pub meta: CosimCmdMeta,
+    pub ty: CosimRespTy,
+}
+
+impl CosimResp {
+    pub fn new(meta: CosimCmdMeta, ty: CosimRespTy) -> CosimResp {
+        CosimResp {
+            meta,
+            ty,
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum CosimRespTy {
+    Ok,
     Err(String),
 }
 
-pub enum CosimCmd {
-    Reset,
+pub struct CosimCmd {
+    meta: CosimCmdMeta,
+    ty: CosimCmdTy,
+}
+
+impl CosimCmd {
+    pub fn new(idx: u32, ty: CosimCmdTy) -> CosimCmd {
+        CosimCmd {
+            meta: CosimCmdMeta {
+                idx,
+                id: ty.id(),
+            },
+            ty,
+        }
+    }
+    pub fn meta(&self) -> &CosimCmdMeta {
+        &self.meta
+    }
+    pub fn ty(&self) -> &CosimCmdTy {
+        &self.ty
+    }
+}
+
+pub enum CosimCmdTy {
+    Reset(ResetCmd),
     SysInit(SystemInitCmd),
     InitDone(InitDoneCmd),
 }
 
-impl CosimCmd {
-    pub fn execute(&self, server: &mut CosimServer) -> Option<CosimResp> {
+impl CosimCmdTy {
+    fn id(&self) -> u32 {
+        (match self {
+            CosimCmdTy::Reset(cmd) => cmd.id(),
+            CosimCmdTy::SysInit(cmd) => cmd.id(),
+            CosimCmdTy::InitDone(cmd) => cmd.id(),
+        }) as u32
+    }
+
+    pub fn execute(&self, server: &mut CosimServer) -> CosimRespTy {
         let res = match self {
-            CosimCmd::Reset => {
-                server.reset();
-                return Some(CosimResp::ResetOk);
-            }
-            CosimCmd::SysInit(cmd) => cmd.execute(server),
-            CosimCmd::InitDone(cmd) => cmd.execute(server),
+            CosimCmdTy::Reset(cmd) => cmd.execute(server),
+            CosimCmdTy::SysInit(cmd) => cmd.execute(server),
+            CosimCmdTy::InitDone(cmd) => cmd.execute(server),
         };
         match res {
-            Ok(resp) => resp,
-            Err(e) => Some(CosimResp::Err(e))
+            Ok(_) => CosimRespTy::Ok,
+            Err(e) => CosimRespTy::Err(e)
         }
+    }
+}
+
+//commands
+pub struct ResetCmd {}
+
+impl CosimServerCmd for ResetCmd {
+    fn id(&self) -> CosimCmdId {
+        CosimCmdId::Reset
+    }
+    fn execute(&self, server: &mut CosimServer) -> Result<(), String> {
+        server.reset();
+        Ok(())
+    }
+}
+
+impl CosimCmdTy {
+    pub fn reset() -> CosimCmdTy {
+        CosimCmdTy::Reset(ResetCmd{})
+    }
+}
+
+pub struct SystemInitCmd {
+    elf: String,
+    max_int_src: usize,
+}
+
+impl CosimCmdTy {
+    pub fn sys_init(elf: &str, max_int_src: usize) -> CosimCmdTy {
+        CosimCmdTy::SysInit( SystemInitCmd {
+            elf: elf.to_string(),
+            max_int_src,
+        })
+    }
+}
+
+impl InitingCmd for SystemInitCmd {}
+
+impl CosimServerCmd for SystemInitCmd {
+    fn id(&self) -> CosimCmdId {
+        CosimCmdId::SysInit
+    }
+    fn execute(&self, server: &mut CosimServer) -> Result<(), String> {
+        self.check_state(server)?;
+        if server.sys.is_some() {
+            return Err("system has been inited!".to_string());
+        }
+        server.sys = Some(System::new("cosim_sys", &self.elf, 10000000, self.max_int_src));
+        Ok(())
+    }
+}
+
+pub struct InitDoneCmd {
+    reset_vec: Vec<u64>
+}
+
+impl CosimCmdTy {
+    pub fn init_done(reset_vec: Vec<u64>) -> CosimCmdTy {
+        CosimCmdTy::InitDone( InitDoneCmd {
+            reset_vec
+        })
+    }
+}
+
+impl InitingCmd for InitDoneCmd {}
+
+impl NeedSysCmd for InitDoneCmd {}
+
+impl CosimServerCmd for InitDoneCmd {
+    fn id(&self) -> CosimCmdId {
+        CosimCmdId::InitDone
+    }
+    fn execute(&self, server: &mut CosimServer) -> Result<(), String> {
+        self.check_state(server)?;
+        let sys = self.get_sys(server)?;
+        sys.reset(self.reset_vec.to_vec()).map_err(|e| { e.to_string() })?;
+        server.state = ServerState::Running;
+        Ok(())
     }
 }
 
