@@ -104,7 +104,6 @@ Terminus with display supported need "sdl" feature and related dependencise.
 - [x] Boot Linux
 - [x] Emu mode binary
 - [x] Boot Linux(smp)
-- [ ] DPI support
 - [ ] Publish to crate.io
 - [x] PLIC
 - [x] VirtIO console
@@ -113,7 +112,6 @@ Terminus with display supported need "sdl" feature and related dependencise.
 - [x] framebuffer
 - [x] VirtIO keyboard
 - [x] VirtIO mouse
-- [ ] co-sim with RTL simulator
 - [ ] debug mode
 - [ ] other extensions(b, v ...)
 
