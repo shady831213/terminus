@@ -13,6 +13,3 @@ pub mod devices;
 pub mod system;
 
 pub mod prelude;
-
-#[cfg(feature = "cosim")]
-pub mod cosim;
