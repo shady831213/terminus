@@ -111,7 +111,7 @@ mod test {
         client.send_cmd(CosimCmdTy::reset()).unwrap();
         let resp = client.recv_resp().unwrap();
         println!("{:#x?}",resp);
-        client.send_cmd(CosimCmdTy::sys_init("top_tests/elf/rv64ui-p-add", 32)).unwrap();
+        client.send_cmd(CosimCmdTy::sys_init("top_tests/elf/rv64ui-p-add", true,32)).unwrap();
         let resp = client.recv_resp().unwrap();
         println!("{:#x?}",resp);
         client.send_cmd(CosimCmdTy::add_processor(ProcessorCfg {
@@ -122,11 +122,17 @@ mod test {
         })).unwrap();
         let resp = client.recv_resp().unwrap();
         println!("{:#x?}",resp);
+        client.send_cmd(CosimCmdTy::add_clint(0x02000000)).unwrap();
+        let resp = client.recv_resp().unwrap();
+        println!("{:#x?}",resp);
+        client.send_cmd(CosimCmdTy::add_plic(0x0c000000)).unwrap();
+        let resp = client.recv_resp().unwrap();
+        println!("{:#x?}",resp);
         client.send_cmd(CosimCmdTy::init_done(vec![-1i64 as u64])).unwrap();
         match client.recv_resp() {
             Ok(CosimResp{meta, ty}) => {
                 assert_eq!(meta.id, CosimCmdId::InitDone as u32);
-                assert_eq!(meta.idx, 3);
+                assert_eq!(meta.idx, 5);
                 assert_eq!(ty, CosimRespTy::Ok)
             }
             Err(e) => panic!("{:?}", e)
@@ -139,13 +145,13 @@ mod test {
         client.send_cmd(CosimCmdTy::reset()).unwrap();
         let resp = client.recv_resp().unwrap();
         println!("{:#x?}",resp);
-        client.send_cmd(CosimCmdTy::sys_init("top_tests/elf/rv64ui-p-add", 32)).unwrap();
+        client.send_cmd(CosimCmdTy::sys_init("top_tests/elf/rv64ui-p-add", false,32)).unwrap();
         let resp = client.recv_resp().unwrap();
         println!("{:#x?}",resp);
         client.send_cmd(CosimCmdTy::reset()).unwrap();
         let resp = client.recv_resp().unwrap();
         println!("{:#x?}",resp);
-        client.send_cmd(CosimCmdTy::sys_init("top_tests/elf/rv64ui-p-add", 32)).unwrap();
+        client.send_cmd(CosimCmdTy::sys_init("top_tests/elf/rv64ui-p-add", true,32)).unwrap();
         let resp = client.recv_resp().unwrap();
         println!("{:#x?}",resp);
         client.send_cmd(CosimCmdTy::init_done(vec![])).unwrap();

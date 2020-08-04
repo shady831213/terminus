@@ -1,6 +1,8 @@
 use crate::system::System;
 use crate::cosim::core::{CosimServer, ServerState};
 use crate::processor::ProcessorCfg;
+use crate::devices::clint::Clint;
+use crate::devices::plic::Plic;
 
 #[repr(u32)]
 pub enum CosimCmdId {
@@ -8,6 +10,8 @@ pub enum CosimCmdId {
     Reset,
     SysInit,
     AddProcessor,
+    AddClint,
+    AddPlic,
     InitDone,
 }
 
@@ -100,6 +104,8 @@ pub enum CosimCmdTy {
     Reset(ResetCmd),
     SysInit(SystemInitCmd),
     AddProcessor(AddProcessorCmd),
+    AddClint(AddClintCmd),
+    AddPlic(AddPlicCmd),
     InitDone(InitDoneCmd),
 }
 
@@ -108,8 +114,10 @@ impl CosimCmdTy {
         (match self {
             CosimCmdTy::Reset(cmd) => cmd.id(),
             CosimCmdTy::SysInit(cmd) => cmd.id(),
-            CosimCmdTy::InitDone(cmd) => cmd.id(),
             CosimCmdTy::AddProcessor(cmd) => cmd.id(),
+            CosimCmdTy::AddClint(cmd) => cmd.id(),
+            CosimCmdTy::AddPlic(cmd) => cmd.id(),
+            CosimCmdTy::InitDone(cmd) => cmd.id(),
         }) as u32
     }
 
@@ -117,8 +125,10 @@ impl CosimCmdTy {
         let res = match self {
             CosimCmdTy::Reset(cmd) => cmd.execute(server),
             CosimCmdTy::SysInit(cmd) => cmd.execute(server),
-            CosimCmdTy::InitDone(cmd) => cmd.execute(server),
             CosimCmdTy::AddProcessor(cmd) => cmd.execute(server),
+            CosimCmdTy::AddClint(cmd) => cmd.execute(server),
+            CosimCmdTy::AddPlic(cmd) => cmd.execute(server),
+            CosimCmdTy::InitDone(cmd) => cmd.execute(server),
         };
         match res {
             Ok(_) => CosimRespTy::Ok,
@@ -148,13 +158,15 @@ impl CosimCmdTy {
 
 pub struct SystemInitCmd {
     elf: String,
+    htif_en:bool,
     max_int_src: usize,
 }
 
 impl CosimCmdTy {
-    pub fn sys_init(elf: &str, max_int_src: usize) -> CosimCmdTy {
+    pub fn sys_init(elf: &str, htif_en:bool, max_int_src: usize) -> CosimCmdTy {
         CosimCmdTy::SysInit( SystemInitCmd {
             elf: elf.to_string(),
+            htif_en,
             max_int_src,
         })
     }
@@ -171,7 +183,13 @@ impl CosimServerCmd for SystemInitCmd {
         if server.sys.is_some() {
             return Err("system has been inited!".to_string());
         }
-        server.sys = Some(System::new("cosim_sys", &self.elf, 10000000, self.max_int_src));
+        server.sys = Some({
+            let sys = System::new("cosim_sys", &self.elf, 10000000, self.max_int_src);
+            if self.htif_en {
+                sys.register_htif(true);
+            }
+            sys
+        });
         Ok(())
     }
 }
@@ -200,6 +218,62 @@ impl CosimServerCmd for AddProcessorCmd {
         self.check_state(server)?;
         let sys = self.get_sys(server)?;
         sys.new_processor(self.cfg.clone());
+        Ok(())
+    }
+}
+
+pub struct AddClintCmd {
+    base: u64,
+}
+
+impl CosimCmdTy {
+    pub fn add_clint(base:u64) -> CosimCmdTy {
+        CosimCmdTy::AddClint( AddClintCmd {
+            base,
+        })
+    }
+}
+
+impl InitingCmd for AddClintCmd {}
+
+impl NeedSysCmd for AddClintCmd {}
+
+impl CosimServerCmd for AddClintCmd {
+    fn id(&self) -> CosimCmdId {
+        CosimCmdId::AddClint
+    }
+    fn execute(&self, server: &mut CosimServer) -> Result<(), String> {
+        self.check_state(server)?;
+        let sys = self.get_sys(server)?;
+        sys.register_device("clint", self.base, 0x000c0000, Clint::new(sys.timer())).map_err(|e| { e.to_string() })?;
+        Ok(())
+    }
+}
+
+pub struct AddPlicCmd {
+    base: u64,
+}
+
+impl CosimCmdTy {
+    pub fn add_plic(base:u64) -> CosimCmdTy {
+        CosimCmdTy::AddPlic( AddPlicCmd {
+            base,
+        })
+    }
+}
+
+impl InitingCmd for AddPlicCmd {}
+
+impl NeedSysCmd for AddPlicCmd {}
+
+impl CosimServerCmd for AddPlicCmd {
+    fn id(&self) -> CosimCmdId {
+        CosimCmdId::AddPlic
+    }
+    fn execute(&self, server: &mut CosimServer) -> Result<(), String> {
+        self.check_state(server)?;
+        let sys = self.get_sys(server)?;
+        sys.register_device("plic", self.base, 0x000c0000, Plic::new(sys.intc())).map_err(|e| { e.to_string() })?;
         Ok(())
     }
 }
