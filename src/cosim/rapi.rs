@@ -5,10 +5,10 @@ use crate::processor::ProcessorCfg;
 #[repr(u32)]
 pub enum CosimCmdId {
     Reserved = 0,
-    Reset = 1,
-    SysInit = 2,
-    AddProcessor = 3,
-    InitDone = 4,
+    Reset,
+    SysInit,
+    AddProcessor,
+    InitDone,
 }
 
 #[derive(Debug, Copy, Clone)]
