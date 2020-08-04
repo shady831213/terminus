@@ -102,6 +102,8 @@ pub fn recv_resp() -> Result<CosimResp, RecvError> {
 mod test {
     use crate::cosim::core::cosim;
     use crate::cosim::rapi::{CosimCmdTy, CosimRespTy, CosimCmdId, CosimResp};
+    use crate::processor::ProcessorCfg;
+    use terminus_global::XLen;
 
     #[test]
     fn cosim_sys_init_test() {
@@ -112,11 +114,19 @@ mod test {
         client.send_cmd(CosimCmdTy::sys_init("top_tests/elf/rv64ui-p-add", 32)).unwrap();
         let resp = client.recv_resp().unwrap();
         println!("{:#x?}",resp);
-        client.send_cmd(CosimCmdTy::init_done(vec![])).unwrap();
+        client.send_cmd(CosimCmdTy::add_processor(ProcessorCfg {
+            xlen:XLen::X64,
+            enable_dirty: true,
+            extensions: vec!['a', 'c', 'd', 'f', 'i', 'm', 's', 'u'].into_boxed_slice(),
+            freq: 100000000,
+        })).unwrap();
+        let resp = client.recv_resp().unwrap();
+        println!("{:#x?}",resp);
+        client.send_cmd(CosimCmdTy::init_done(vec![-1i64 as u64])).unwrap();
         match client.recv_resp() {
             Ok(CosimResp{meta, ty}) => {
                 assert_eq!(meta.id, CosimCmdId::InitDone as u32);
-                assert_eq!(meta.idx, 2);
+                assert_eq!(meta.idx, 3);
                 assert_eq!(ty, CosimRespTy::Ok)
             }
             Err(e) => panic!("{:?}", e)

@@ -1,11 +1,14 @@
 use crate::system::System;
 use crate::cosim::core::{CosimServer, ServerState};
+use crate::processor::ProcessorCfg;
+
 #[repr(u32)]
 pub enum CosimCmdId {
     Reserved = 0,
     Reset = 1,
     SysInit = 2,
-    InitDone = 3,
+    AddProcessor = 3,
+    InitDone = 4,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -96,6 +99,7 @@ impl CosimCmd {
 pub enum CosimCmdTy {
     Reset(ResetCmd),
     SysInit(SystemInitCmd),
+    AddProcessor(AddProcessorCmd),
     InitDone(InitDoneCmd),
 }
 
@@ -105,6 +109,7 @@ impl CosimCmdTy {
             CosimCmdTy::Reset(cmd) => cmd.id(),
             CosimCmdTy::SysInit(cmd) => cmd.id(),
             CosimCmdTy::InitDone(cmd) => cmd.id(),
+            CosimCmdTy::AddProcessor(cmd) => cmd.id(),
         }) as u32
     }
 
@@ -113,6 +118,7 @@ impl CosimCmdTy {
             CosimCmdTy::Reset(cmd) => cmd.execute(server),
             CosimCmdTy::SysInit(cmd) => cmd.execute(server),
             CosimCmdTy::InitDone(cmd) => cmd.execute(server),
+            CosimCmdTy::AddProcessor(cmd) => cmd.execute(server),
         };
         match res {
             Ok(_) => CosimRespTy::Ok,
@@ -166,6 +172,34 @@ impl CosimServerCmd for SystemInitCmd {
             return Err("system has been inited!".to_string());
         }
         server.sys = Some(System::new("cosim_sys", &self.elf, 10000000, self.max_int_src));
+        Ok(())
+    }
+}
+
+pub struct AddProcessorCmd {
+    cfg: ProcessorCfg,
+}
+
+impl CosimCmdTy {
+    pub fn add_processor(cfg:ProcessorCfg) -> CosimCmdTy {
+        CosimCmdTy::AddProcessor( AddProcessorCmd {
+            cfg,
+        })
+    }
+}
+
+impl InitingCmd for AddProcessorCmd {}
+
+impl NeedSysCmd for AddProcessorCmd {}
+
+impl CosimServerCmd for AddProcessorCmd {
+    fn id(&self) -> CosimCmdId {
+        CosimCmdId::AddProcessor
+    }
+    fn execute(&self, server: &mut CosimServer) -> Result<(), String> {
+        self.check_state(server)?;
+        let sys = self.get_sys(server)?;
+        sys.new_processor(self.cfg.clone());
         Ok(())
     }
 }
