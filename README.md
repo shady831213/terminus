@@ -1,5 +1,5 @@
 # terminus
-A verification-friendly riscv isa simulator in rust.
+A riscv isa simulator in rust.
 
 
 ## Boot Linux in 30s
