@@ -4,6 +4,7 @@ use clap::{Arg, App};
 use std::str::FromStr;
 use terminus_global::XLen;
 use std::path::Path;
+use std::fs::OpenOptions;
 use terminus::processor::ProcessorCfg;
 use terminus::system::System;
 use terminus::devices::clint::Clint;
@@ -31,6 +32,7 @@ use terminus::system::fdt::FdtProp;
 use terminus::devices::virtio_input::{VirtIOKbDevice, VirtIOKb};
 #[cfg(feature = "sdl")]
 use terminus::devices::virtio_input::{VirtIOMouseDevice, VirtIOMouse};
+use std::io::Write;
 
 
 fn main() {
@@ -195,6 +197,16 @@ fn main() {
                 })
                 .default_value("rgb565")
         )
+        .arg(
+            Arg::with_name("trace")
+                .long("trace")
+                .help("trace states all processors every tick interval(about 500 instructions), results is in terminus.trace")
+        )
+        .arg(
+            Arg::with_name("trace_all")
+                .long("trace_all")
+                .help("trace states of all processors every instruction, results is in terminus.trace")
+        )
         .get_matches();
 
     let core_num = usize::from_str(matches.value_of("core_num").unwrap_or_default()).expect("-p expect a decimal int");
@@ -222,6 +234,13 @@ fn main() {
         "rgb888" => PixelFormat::RGB888,
         _ => unreachable!()
     };
+    let trace_all =  matches.is_present("trace_all");
+    let mut trace_file = if matches.is_present("trace") || trace_all {
+        Some(OpenOptions::new().create(true).write(true).open("terminus.trace").expect("Can not open terminus.trace!"))
+    } else {
+        None
+    };
+
 
     let configs = vec![ProcessorCfg {
         xlen,
@@ -301,7 +320,11 @@ fn main() {
             break;
         }
         for p in sys.processors() {
-            p.step(500);
+            if let Some(ref mut f) = trace_file {
+                p.step_with_debug(500, f, trace_all).unwrap()
+            } else {
+                p.step(500);
+            }
         }
         if virtio_input_en {
             virtio_console_device.console_read();
@@ -320,6 +343,11 @@ fn main() {
                 }
             }
         sys.timer().tick(50)
+    }
+    if let Some(ref mut f) = trace_file {
+        for p in sys.processors() {
+            f.write_all(p.state().to_string().as_bytes()).unwrap()
+        }
     }
     term_exit();
 }

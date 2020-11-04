@@ -4,6 +4,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
+use std::io::Write;
 use terminus_spaceport::irq::IrqVec;
 use crate::devices::bus::Bus;
 use std::mem::MaybeUninit;
@@ -33,6 +34,7 @@ use fetcher::*;
 mod load_store;
 
 use load_store::*;
+
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
@@ -608,31 +610,54 @@ impl Processor {
             set_privilege(privilege);
     }
 
-    fn one_step(&mut self) -> Result<(), Trap> {
+    fn execute_one(&mut self) -> Result<(), Trap> {
         self.take_interrupt()?;
         self.one_insn()?;
         Ok(())
+    }
+
+    fn one_step(&mut self) {
+        if self.state().wfi() {
+            let csrs = self.state().icsrs();
+            if csrs.mip().get() & csrs.mie().get() == 0 {
+                return
+            } else {
+                self.state_mut().set_wfi(false)
+            }
+        }
+        if let Err(trap) = self.execute_one() {
+            self.handle_trap(trap)
+        }
     }
 
     pub fn step(&mut self, n: usize) {
         assert!(n > 0);
 
         for _ in 0..n {
-            if self.state().wfi() {
-                let csrs = self.state().icsrs();
-                if csrs.mip().get() & csrs.mie().get() == 0 {
-                    continue;
-                } else {
-                    self.state_mut().set_wfi(false)
-                }
-            }
-            if let Err(trap) = self.one_step() {
-                self.handle_trap(trap)
+            self.one_step()
+        }
+
+        for ext in self.state().extensions().iter() {
+            ext.step_cb(self)
+        }
+    }
+
+    pub fn step_with_debug<O: Write>(&mut self, n: usize, log: &mut O, trace_all:bool) -> Result<(), String>{
+        assert!(n > 0);
+
+        for _ in 0..n {
+            self.one_step();
+            if trace_all {
+                log.write_all((self.state.trace() + "\n").as_bytes()).map_err(|e| { e.to_string() })?;
             }
         }
 
         for ext in self.state().extensions().iter() {
             ext.step_cb(self)
         }
+        if !trace_all {
+            log.write_all((self.state.trace() + "\n").as_bytes()).map_err(|e| { e.to_string() })?;
+        }
+        log.write_all(self.state.to_string().as_bytes()).map_err(|e|{e.to_string()})
     }
 }
