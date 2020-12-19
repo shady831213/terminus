@@ -9,10 +9,6 @@ use terminus_spaceport::irq::IrqVec;
 use crate::devices::bus::Bus;
 use std::mem::MaybeUninit;
 
-pub mod decode;
-
-pub mod insn;
-
 pub mod trap;
 
 use trap::{Exception, Trap, Interrupt};

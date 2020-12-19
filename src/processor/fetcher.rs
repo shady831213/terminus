@@ -1,14 +1,12 @@
 use crate::processor::ProcessorState;
-use crate::processor::insn::Instruction;
 use terminus_global::InsnT;
 use crate::processor::mmu::Mmu;
 use crate::processor::trap::Exception;
-use crate::processor::decode::*;
 use crate::devices::bus::Bus;
 use std::cell::RefCell;
 use std::mem::MaybeUninit;
 use std::rc::Rc;
-
+use crate::prelude::*;
 struct ICacheEntry {
     accessed: bool,
     tag: u64,

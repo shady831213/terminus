@@ -1,5 +1,5 @@
 use terminus_global::{InsnT, RegT};
-use crate::processor::decode;
+use crate::prelude::insn;
 #[derive(Debug, Copy, Clone)]
 pub enum Trap {
     Exception(Exception),
@@ -35,8 +35,8 @@ pub enum Exception {
     SCall,
     MCall,
 }
-impl From<decode::Error> for Exception {
-    fn from(e: decode::Error) -> Self {
+impl From<insn::Error> for Exception {
+    fn from(e: insn::Error) -> Self {
         Exception::IllegalInsn(e.ir())
     }
 }

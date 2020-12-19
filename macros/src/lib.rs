@@ -7,3 +7,4 @@ pub use bitfield::*;
 pub use lazy_static::*;
 
 pub mod insn;
+pub mod terminus_insn;
