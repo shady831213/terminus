@@ -213,7 +213,7 @@ fn main() {
         .arg(
             Arg::with_name("trace")
                 .long("trace")
-                .help("trace states all processors every tick interval(about 500 instructions), results is in terminus.trace")
+                .help("trace states all processors every tick interval(based on step), results is in terminus.trace")
         )
         .arg(
             Arg::with_name("trace_all")
