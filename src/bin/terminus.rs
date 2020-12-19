@@ -36,6 +36,11 @@ use std::io::Write;
 
 
 fn main() {
+    const CORE_FREQ:usize = 100000000;
+    const TIMER_FREQ:usize = 10000000;
+    const TIMER_STEP:u64 = 50;
+    const CORE_STEP_TH:usize = 500;
+
     let matches = App::new("terminus")
         .version("0.1")
         .author("Yang Li <shady831213@126.com>")
@@ -198,6 +203,14 @@ fn main() {
                 .default_value("rgb565")
         )
         .arg(
+            Arg::with_name("step")
+                .long("step")
+                .value_name("STEP")
+                .takes_value(true)
+                .help("CPU execution num in one step.")
+                .default_value("500")
+        )
+        .arg(
             Arg::with_name("trace")
                 .long("trace")
                 .help("trace states all processors every tick interval(about 500 instructions), results is in terminus.trace")
@@ -234,6 +247,10 @@ fn main() {
         "rgb888" => PixelFormat::RGB888,
         _ => unreachable!()
     };
+    let step = match usize::from_str(matches.value_of("step").unwrap_or_default()).expect("step expect a decimal") {
+        0 => panic!("step can not be 0!"),
+        s => s
+    };
     let trace_all =  matches.is_present("trace_all");
     let mut trace_file = if matches.is_present("trace") || trace_all {
         Some(OpenOptions::new().create(true).write(true).open("terminus.trace").expect("Can not open terminus.trace!"))
@@ -246,9 +263,9 @@ fn main() {
         xlen,
         enable_dirty: true,
         extensions,
-        freq: 100000000,
+        freq: CORE_FREQ,
     }; core_num];
-    let mut sys = System::new("sys", elf, 10000000, 32);
+    let mut sys = System::new("sys", elf, TIMER_FREQ, 32);
     sys.register_htif(!virtio_input_en);
     for cfg in configs {
         sys.new_processor(cfg)
@@ -314,6 +331,7 @@ fn main() {
         let mut real_timer = if display_en { Some(std::time::Instant::now()) } else { None };
     #[cfg(feature = "sdl")]
         let interval = if display_en { Some(Duration::new(0, 1_000_000_000u32 / 30)) } else { None };
+    let mut step_cnt:usize = 0;
     loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
             eprintln!("{}", msg);
@@ -321,28 +339,32 @@ fn main() {
         }
         for p in sys.processors() {
             if let Some(ref mut f) = trace_file {
-                p.step_with_debug(500, f, trace_all).unwrap()
+                p.step_with_debug(step, f, trace_all).unwrap()
             } else {
-                p.step(500);
+                p.step(step);
             }
         }
-        if virtio_input_en {
-            virtio_console_device.console_read();
-        }
-        if let Some(ref net_d) = virtio_net_device {
-            net_d.net_read();
-        }
-        #[cfg(feature = "sdl")]
-            {
-                if let Some(ref display) = sdl {
-                    let rt = real_timer.as_mut().unwrap();
-                    if rt.elapsed() >= interval.unwrap() {
-                        display.refresh(fb.as_ref().unwrap().deref(), kb.as_ref().unwrap().deref(), mouse.as_ref().unwrap().deref()).unwrap();
-                        *rt += interval.unwrap()
+        step_cnt += step;
+        if step_cnt >= CORE_STEP_TH {
+            if virtio_input_en {
+                virtio_console_device.console_read();
+            }
+            if let Some(ref net_d) = virtio_net_device {
+                net_d.net_read();
+            }
+            #[cfg(feature = "sdl")]
+                {
+                    if let Some(ref display) = sdl {
+                        let rt = real_timer.as_mut().unwrap();
+                        if rt.elapsed() >= interval.unwrap() {
+                            display.refresh(fb.as_ref().unwrap().deref(), kb.as_ref().unwrap().deref(), mouse.as_ref().unwrap().deref()).unwrap();
+                            *rt += interval.unwrap()
+                        }
                     }
                 }
-            }
-        sys.timer().tick(50)
+            sys.timer().tick(TIMER_STEP);
+            step_cnt -= CORE_STEP_TH
+        }
     }
     if let Some(ref mut f) = trace_file {
         for p in sys.processors() {
