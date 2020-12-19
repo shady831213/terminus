@@ -1,6 +1,5 @@
-use super::{InsnMap, Decoder};
+use super::{InsnMap, Decoder, Error};
 use terminus_global::{InsnT, insn_len};
-use crate::processor::trap::Exception;
 use crate::processor::insn::Instruction;
 
 struct TreeNode {
@@ -129,11 +128,11 @@ impl InsnMap for TreeInsnMap {
         }
     }
 
-    fn decode(&self, ir: &InsnT) -> Result<&Instruction, Exception> {
+    fn decode(&self, ir: &InsnT) -> Result<&Instruction, Error> {
         if let Some(decoder) = self.0.get(ir) {
             Ok(decoder.decode())
         } else {
-            Err(Exception::IllegalInsn(*ir))
+            Err(Error::Illegal(*ir))
         }
     }
     fn lock(&mut self) {

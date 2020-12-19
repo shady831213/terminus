@@ -3,15 +3,24 @@
 mod simple_insn_map;
 mod tree_insn_map;
 
-use std::sync::Arc;
-
 use terminus_global::InsnT;
 use crate::linkme::*;
 
 use simple_insn_map::*;
 use tree_insn_map::*;
 use crate::processor::insn::Instruction;
-use crate::processor::trap::Exception;
+#[derive(Debug)]
+pub enum Error {
+    Illegal(InsnT),
+}
+
+impl Error {
+    pub fn ir(&self) -> InsnT {
+        match self {
+            Error::Illegal(ir) => *ir,
+        }
+    }
+}
 
 pub trait Decoder:Send+Sync {
     fn code(&self) -> InsnT;
@@ -23,7 +32,7 @@ pub trait Decoder:Send+Sync {
 
 pub trait InsnMap {
     fn registery<T: 'static + Decoder>(&mut self, decoder: T);
-    fn decode(&self, ir: &InsnT) -> Result<&Instruction, Exception>;
+    fn decode(&self, ir: &InsnT) -> Result<&Instruction, Error>;
     fn lock(&mut self) {}
 }
 
