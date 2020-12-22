@@ -1,6 +1,6 @@
-#[macro_export]
+#[macro_export(local_inner_macros)]
 macro_rules! init_treemap {
-    () => {
+    ($inst:ty) => {
         pub type GlobalInsnMap = TreeInsnMap;
 
         struct TreeNode {
@@ -20,8 +20,10 @@ macro_rules! init_treemap {
                 }
             }
 
+            fn max_level() -> usize { std::mem::size_of::<$inst>() << 3 }
+
             fn insert(&mut self, value: Box<dyn Decoder>) -> Option<&Box<dyn Decoder>> {
-                if self.level == terminus_global::insn_len() {
+                if self.level == Self::max_level() {
                     if let Some(ref v) = self.value {
                         Some(v)
                     } else {
@@ -29,7 +31,7 @@ macro_rules! init_treemap {
                         None
                     }
                 } else {
-                    let node = if value.code() & ((1 as terminus_global::InsnT) << self.level as terminus_global::InsnT) == 0 {
+                    let node = if value.code() & ((1 as $inst) << self.level as $inst) == 0 {
                         self.left.get_or_insert(Box::into_raw(Box::new(Self::new(self.level + 1))))
                     } else {
                         self.right.get_or_insert(Box::into_raw(Box::new(Self::new(self.level + 1))))
@@ -62,7 +64,7 @@ macro_rules! init_treemap {
                         }
                     }
                 };
-                if self.level == terminus_global::insn_len() {
+                if self.level == Self::max_level() {
                     return;
                 } else {
                     path_compress(&mut self.left);
@@ -72,8 +74,8 @@ macro_rules! init_treemap {
                 }
             }
 
-            fn get(&self, key: &terminus_global::InsnT) -> Option<&Box<dyn Decoder>> {
-                if self.level == terminus_global::insn_len() {
+            fn get(&self, key: &$inst) -> Option<&Box<dyn Decoder>> {
+                if self.level ==  Self::max_level() {
                     if let Some(ref v) = self.value {
                         if v.mask() & *key == v.code() {
                             return Some(v)
@@ -81,9 +83,9 @@ macro_rules! init_treemap {
                             return None
                         }
                     }
-                    unreachable!()
+                    __terminus_insn_unreachable!()
                 } else {
-                    if *key & ((1 as terminus_global::InsnT) << self.level as terminus_global::InsnT) == 0 {
+                    if *key & ((1 as $inst) << self.level as $inst) == 0 {
                         if let Some(n) = self.left {
                             if let Some(v) = unsafe { n.as_ref().unwrap().get(key) } {
                                 return Some(v);
@@ -125,11 +127,11 @@ macro_rules! init_treemap {
                 let code = decoder.code();
                 let mask = decoder.mask();
                 if let Some(v) = self.0.insert(Box::new(decoder)) {
-                    panic!(format!("inst {}(code = {:#x}; mask = {:#x}) is duplicated with inst {}(code = {:#x}; mask = {:#x})!", name, code, mask,v.name(), v.code(), v.mask()))
+                    __terminus_insn_panic!(__terminus_insn_format!("inst {}(code = {:#x}; mask = {:#x}) is duplicated with inst {}(code = {:#x}; mask = {:#x})!", name, code, mask,v.name(), v.code(), v.mask()))
                 }
             }
 
-            fn decode(&self, ir: &terminus_global::InsnT) -> Result<&Instruction, Error> {
+            fn decode(&self, ir: &$inst) -> Result<&Instruction, Error> {
                 if let Some(decoder) = self.0.get(ir) {
                     Ok(decoder.decode())
                 } else {

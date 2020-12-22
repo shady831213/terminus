@@ -1,20 +1,20 @@
-#[macro_export]
+#[macro_export(local_inner_macros)]
 macro_rules! init_instruction {
-    ($processor:ident, $exception:ident) => {
+    ($processor:ident, $exception:ident, $inst:ty) => {
         pub trait Format {
-            fn rs1(&self, _: &terminus_global::InsnT) -> terminus_global::InsnT {
+            fn rs1(&self, _: &$inst) -> $inst {
                 0
             }
-            fn rs2(&self, _: &terminus_global::InsnT) -> terminus_global::InsnT {
+            fn rs2(&self, _: &$inst) -> $inst {
                 0
             }
-            fn rd(&self, _: &terminus_global::InsnT) -> terminus_global::InsnT {
+            fn rd(&self, _: &$inst) -> $inst {
                 0
             }
-            fn imm(&self, _: &terminus_global::InsnT) -> terminus_global::InsnT {
+            fn imm(&self, _: &$inst) -> $inst {
                 0
             }
-            fn op(&self, _: &terminus_global::InsnT) -> terminus_global::InsnT {
+            fn op(&self, _: &$inst) -> $inst {
                 0
             }
             fn imm_len(&self) -> usize {

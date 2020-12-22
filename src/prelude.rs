@@ -8,8 +8,7 @@ pub mod insn {
     use terminus_macros::*;
     use crate::processor::Processor;
     use crate::processor::trap::Exception;
-    init_instruction!(Processor, Exception);
-    init_decoder!();
-    init_treemap!();
+    use terminus_global::*;
+    terminus_insn!(InsnT, Processor, Exception);
 }
 pub use insn::*;

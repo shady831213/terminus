@@ -1,14 +1,14 @@
-#[macro_export]
+#[macro_export(local_inner_macros)]
 macro_rules! init_decoder {
-    () => {
+    ($inst:ty) => {
         use crate::linkme::*;
         #[derive(Debug)]
         pub enum Error {
-            Illegal(terminus_global::InsnT),
+            Illegal($inst),
         }
 
         impl Error {
-            pub fn ir(&self) -> terminus_global::InsnT {
+            pub fn ir(&self) -> $inst {
                 match self {
                     Error::Illegal(ir) => *ir,
                 }
@@ -16,16 +16,16 @@ macro_rules! init_decoder {
         }
 
         pub trait Decoder:Send+Sync {
-            fn code(&self) -> terminus_global::InsnT;
-            fn mask(&self) -> terminus_global::InsnT;
-            fn matched(&self, ir: &terminus_global::InsnT) -> bool;
+            fn code(&self) -> $inst;
+            fn mask(&self) -> $inst;
+            fn matched(&self, ir: &$inst) -> bool;
             fn decode(&self) -> &Instruction;
             fn name(&self) -> String;
         }
 
         pub trait InsnMap {
             fn registery<T: 'static + Decoder>(&mut self, decoder: T);
-            fn decode(&self, ir: &terminus_global::InsnT) -> Result<&Instruction, Error>;
+            fn decode(&self, ir: &$inst) -> Result<&Instruction, Error>;
             fn lock(&mut self) {}
         }
 
