@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 
 #[derive(Instruction)]
 #[format(I)]
-#[code("0b00010000001000000000000001110011")]
+#[code("32b00010000001000000000000001110011")]
 #[derive(Debug)]
 struct SRET();
 
@@ -39,7 +39,7 @@ impl Execution for SRET {
 
 #[derive(Instruction)]
 #[format(I)]
-#[code("0b0001001??????????000000001110011")]
+#[code("32b0001001??????????000000001110011")]
 #[derive(Debug)]
 struct SFENCEVMA();
 

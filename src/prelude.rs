@@ -1,4 +1,3 @@
-pub use linkme::*;
 pub use terminus_global::*;
 pub use terminus_macros::*;
 pub use terminus_proc_macros::*;

@@ -14,12 +14,11 @@ proc-macro = true
 quote = "1.0"
 proc-macro2 = "1.0"
 regex = "1"
-linkme = "0.1"
 terminus-global = { path = "../global" }
 terminus-macros = { path = "../macros" }
 
 [dev-dependencies]
-terminus = { path = ".." }
+linkme = "0.1"
 
 [dependencies.syn]
 features = ["extra-traits", "full"]

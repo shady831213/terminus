@@ -1,8 +1,7 @@
 #[macro_export(local_inner_macros)]
 macro_rules! init_decoder {
     ($inst:ty) => {
-        use crate::linkme::*;
-        #[derive(Debug)]
+        #[derive(Debug, Eq, PartialEq)]
         pub enum Error {
             Illegal($inst),
         }

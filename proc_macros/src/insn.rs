@@ -2,7 +2,6 @@ use syn::{DeriveInput, DataStruct, Ident, Result, NestedMeta, LitStr};
 use syn::parse::Error;
 use proc_macro2::Span;
 use regex::Regex;
-use terminus_global::{InsnT, insn_len};
 
 lazy_static! {
 static ref VALID_FORMAT_TYPE:Vec<&'static str> = vec![
@@ -46,15 +45,15 @@ pub fn expand(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2::TokenStrea
             }
             impl InstructionImp for #name{}
 
-            struct #decoder_ident(Instruction);
+            struct #decoder_ident(Instruction, TerminusInsnT, TerminusInsnT);
             impl Decoder for #decoder_ident {
-                fn code(&self) ->  InsnT {
-                    #code
+                fn code(&self) ->  TerminusInsnT {
+                    self.1
                 }
-                fn mask(&self) ->  InsnT {
-                    #mask
+                fn mask(&self) ->  TerminusInsnT {
+                    self.2
                 }
-                fn matched(&self, ir:&InsnT) -> bool {
+                fn matched(&self, ir:&TerminusInsnT) -> bool {
                     *ir & self.mask() == self.code()
                 }
                 fn decode(&self) -> &Instruction {
@@ -66,7 +65,10 @@ pub fn expand(ast: &DeriveInput, name: &Ident) -> Result<proc_macro2::TokenStrea
             }
 
             #[distributed_slice(REGISTERY_INSN)]
-            static #registery_ident: fn(&mut GlobalInsnMap) = |map| {map.registery(#decoder_ident(#name::new()))};
+            static #registery_ident: fn(&mut GlobalInsnMap) = |map| {map.registery(#decoder_ident(#name::new(),
+                TerminusInsnT::from_str_radix(#code, 2).unwrap(),
+                TerminusInsnT::from_str_radix(#mask, 2).unwrap()
+                ))};
         ))
     } else {
         Err(Error::new(name.span(), "Only Struct can derive"))
@@ -98,21 +100,26 @@ fn parse_code_attr(ast: &DeriveInput, name: &str) -> Result<String> {
 fn parse_raw_bits(lit: &LitStr) -> Result<String> {
     let code = lit.value();
     lazy_static! {
-        static ref VALID_CODE: Regex = Regex::new("^0b[10?_]+$").unwrap();
-        static ref VALID_BITS: Regex = Regex::new(&("^[10?]{1,".to_string() + &format!("{}", insn_len()) + "}$")).unwrap();
-        static ref BITS_REP: Regex = Regex::new("_|(?:0b)").unwrap();
+        static ref VALID_CODE: Regex = Regex::new("^([0-9]+)b([10?_]+)$").unwrap();
+        static ref BITS_REP: Regex = Regex::new("_").unwrap();
     }
-    if !VALID_CODE.is_match(&code) {
-        return Err(Error::new(lit.span(), "code contains invalid char, valid format is ^0b[1|0|?|_]+!"));
-    }
-    let bits = BITS_REP.replace_all(&code, "");
-    if !VALID_BITS.is_match(&bits) {
-        return Err(Error::new(lit.span(), format!("code defined num of bits more than {}!", insn_len())));
-    }
-    if bits.len() < insn_len() {
-        Ok(ext_bits(&bits, insn_len()))
+    if let Some(caps) = VALID_CODE.captures(&code) {
+        let len = usize::from_str_radix(&caps[1], 10).map_err(|e|{Error::new(lit.span(),e.to_string())})?;
+        if len == 0 {
+            return Err(Error::new(lit.span(), "length of code can not be zero!"));
+        }
+        let bits = BITS_REP.replace_all(&caps[2], "");
+        let valid_bits = Regex::new(&("^[10?]{1,".to_string() + &format!("{}", len) + "}$")).unwrap();
+        if !valid_bits.is_match(&bits) {
+            return Err(Error::new(lit.span(), format!("code defined num of bits more than {}!", len)));
+        }
+        if bits.len() < len {
+            Ok(ext_bits(&bits, len))
+        } else {
+            Ok(bits.to_string())
+        }
     } else {
-        Ok(bits.to_string())
+        return Err(Error::new(lit.span(), "code contains invalid char, valid format is ^[0-9]+b[1|0|?|_]+!"));
     }
 }
 
@@ -124,14 +131,14 @@ fn ext_bits(bits: &str, cap: usize) -> String {
     }
 }
 
-fn parse_code_value(bits: &str) -> InsnT {
+fn parse_code_value(bits: &str) -> String {
     lazy_static! {
         static ref QUE: Regex = Regex::new("[?]").unwrap();
     }
-    InsnT::from_str_radix(&QUE.replace_all(bits, "0"), 2).unwrap()
+    QUE.replace_all(bits, "0").to_string()
 }
 
-fn parse_mask_value(bits: &str) -> InsnT {
+fn parse_mask_value(bits: &str) -> String {
     lazy_static! {
         static ref ZERO: Regex = Regex::new("0").unwrap();
     }

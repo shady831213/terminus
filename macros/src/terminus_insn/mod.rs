@@ -12,15 +12,16 @@ macro_rules! terminus_insn {
     };
     ($inst:ty, $processor:ident, $exception:ident, Tree) => {
         terminus_insn!(@common $inst, $processor, $exception);
-        init_treemap!($inst);
+        init_treemap!(TerminusInsnT);
     };
     ($inst:ty, $processor:ident, $exception:ident, Simple) => {
         terminus_insn!(@common $inst, $processor, $exception);
-        init_simplemap!($inst);
+        init_simplemap!(TerminusInsnT);
     };
     (@common $inst:ty, $processor:ident, $exception:ident) => {
-        init_instruction!($processor, $exception, $inst);
-        init_decoder!($inst);
+        pub type TerminusInsnT = $inst;
+        init_instruction!($processor, $exception, TerminusInsnT);
+        init_decoder!(TerminusInsnT);
     };
 }
 
