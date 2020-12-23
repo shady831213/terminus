@@ -3,7 +3,6 @@ use syn::parse::{Parse, ParseStream, Result, Error, ParseBuffer};
 use syn::punctuated::Punctuated;
 use proc_macro2::TokenStream;
 use super::*;
-use terminus_global::RegT;
 
 #[derive(Debug)]
 struct CsrMaps {
@@ -24,7 +23,7 @@ impl Parse for CsrMaps {
         let low: LitInt = range.parse()?;
         range.parse::<Token![,]>()?;
         let high: LitInt = range.parse()?;
-        if low.base10_parse::<RegT>()? > high.base10_parse::<RegT>()? {
+        if low.base10_parse::<usize>()? > high.base10_parse::<usize>()? {
             return Err(Error::new(range.span(), format!("low {} is bigger than high {} !", low.to_string(), high.to_string())));
         }
         let csrs: ParseBuffer;
@@ -52,7 +51,7 @@ impl CsrMap {
         self.name.to_string() == rhs.name.to_string()
     }
 
-    fn addr_value(&self) -> RegT {
+    fn addr_value(&self) -> u64 {
         self.addr.base10_parse().unwrap()
     }
 
@@ -73,7 +72,7 @@ impl Parse for CsrMap {
         input.parse::<Token![,]>()?;
 
         let addr: LitInt = input.parse()?;
-        addr.base10_parse::<RegT>()?;
+        addr.base10_parse::<u64>()?;
 
         Ok(CsrMap {
             name,
@@ -85,13 +84,13 @@ impl Parse for CsrMap {
 }
 
 struct Maps<'a> {
-    low: RegT,
-    high: RegT,
+    low: u64,
+    high: u64,
     maps: Vec<&'a CsrMap>,
 }
 
 impl<'a> Maps<'a> {
-    fn new(low: RegT, high: RegT) -> Self {
+    fn new(low: u64, high: u64) -> Self {
         Maps {
             low,
             high,
@@ -203,27 +202,30 @@ impl<'a> Maps<'a> {
         };
         quote! {
             #vis struct #struct_name {
-                pub xlen:XLen,
+                pub xlen:usize,
                 #fields
             }
 
             impl #struct_name {
                 #fields_access
-                pub fn new(xlen:XLen)->#struct_name {
+                pub fn new(xlen:usize)->#struct_name {
+                    if xlen != 32 && xlen !=64 {
+                        panic!(format!("xlen only support 32 or 64, but get {}", xlen));
+                    }
                     #struct_name{
                     xlen,
                     #new_fn
                     }
                 }
 
-                pub fn write(&self, addr:InsnT, value:RegT)->Option<()> {
+                pub fn write(&self, addr:u64, value:u64)->Option<()> {
                     match addr {
                         #write_matchs
                         _ => None
                     }
                 }
 
-                pub fn read(&self, addr:InsnT) -> Option<RegT> {
+                pub fn read(&self, addr:u64) -> Option<u64> {
                     match addr {
                         #read_matchs
                         _ => None

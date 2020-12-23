@@ -1,4 +1,4 @@
-use terminus_global::{XLen, RegT};
+use terminus_global::RegT;
 use crate::processor::extensions::s::csrs::*;
 use crate::devices::bus::Bus;
 
@@ -20,13 +20,13 @@ impl PteInfo {
     #[cfg_attr(feature = "no-inline", inline(never))]
     pub fn new(satp: &Satp) -> PteInfo {
         match satp.xlen {
-            XLen::X32 => PteInfo {
+            32 => PteInfo {
                 mode: satp.mode() as u8,
                 level: 2,
                 size_shift: 2,
                 page_size_shift: 12,
             },
-            XLen::X64 => {
+            64 => {
                 let mode = satp.mode() as u8;
                 let level = match mode {
                     PTE_SV39 => 3,
@@ -40,7 +40,8 @@ impl PteInfo {
                     size_shift: 3,
                     page_size_shift: 12,
                 }
-            }
+            },
+            _ => unreachable!()
         }
     }
 }

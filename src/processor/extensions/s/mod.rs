@@ -20,7 +20,7 @@ pub struct ExtensionS {
 impl ExtensionS {
     pub fn new(state: &ProcessorState) -> ExtensionS {
         let e = ExtensionS {
-            csrs: Rc::new(SCsrs::new(state.config().xlen)),
+            csrs: Rc::new(SCsrs::new(state.config().xlen.len())),
             tvm: Rc::new(RefCell::new(false)),
             tsr: Rc::new(RefCell::new(false)),
         };
@@ -170,14 +170,14 @@ impl HasCsr for ExtensionS {
         if addr == 0x180 && *state.privilege() == Privilege::S && *self.tvm.borrow() {
             return None;
         }
-        self.csrs.write(addr, value)
+        self.csrs.write(addr as u64, value)
     }
     fn csr_read(&self, state:&ProcessorState, addr: InsnT) -> Option<RegT> {
         //stap
         if addr == 0x180 && *state.privilege() == Privilege::S && *self.tvm.borrow() {
             return None;
         }
-        self.csrs.read(addr)
+        self.csrs.read(addr as u64)
     }
 }
 

@@ -73,20 +73,6 @@ impl Extension {
             _ => Err(format!("unsupported extension \'{}\', supported extension is a, c, d, f, i, m, s, u!", id))
         }
     }
-    // pub fn name(&self) -> Option<char> {
-    //     match self {
-    //         Extension::A(a) => Some('a'),
-    //         Extension::C(c) => Some('c'),
-    //         Extension::D(d) => Some('d'),
-    //         Extension::F(f) => Some('f'),
-    //         Extension::I(i) => Some('i'),
-    //         Extension::M(m) => Some('m'),
-    //         Extension::S(s) => Some('s'),
-    //         Extension::U(u) => Some('u'),
-    //         Extension::V(v) => Some('v'),
-    //         _ => None
-    //     }
-    // }
     pub fn csr_write(&self, state: &ProcessorState, addr: InsnT, value: RegT) -> Option<()> {
         match self {
             Extension::A(a) => a.csr_write(state, addr, value),

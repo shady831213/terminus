@@ -16,7 +16,7 @@ impl ExtensionI {
     pub fn new(state: &ProcessorState) -> ExtensionI {
         let cfg = state.config();
         let e = ExtensionI {
-            csrs: Rc::new(ICsrs::new(cfg.xlen))
+            csrs: Rc::new(ICsrs::new(cfg.xlen.len()))
         };
         //no debug
         e.csrs.tselect_mut().set(0xffff_ffff_ffff_ffff);
@@ -102,7 +102,7 @@ impl HasCsr for ExtensionI {
         if value & ((1 as RegT) << (('c' as u8 - 'a' as u8) as RegT)) == 0 && addr == 0x301 && state.pc().trailing_zeros() == 1 {
             return Some(())
         }
-        self.csrs.write(addr, value)
+        self.csrs.write(addr as u64, value)
     }
     fn csr_read(&self, state: &ProcessorState, addr: InsnT) -> Option<RegT> {
         let addr_high = addr & 0xff0;
@@ -129,7 +129,7 @@ impl HasCsr for ExtensionI {
                 }
             }
         }
-        self.csrs.read(addr)
+        self.csrs.read(addr as u64)
     }
 }
 

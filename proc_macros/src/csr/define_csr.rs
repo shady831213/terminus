@@ -205,7 +205,7 @@ impl<'a> Fields<'a> {
             let (setter_with_trans, getter_with_trans) = (format_ident!("{}_with_trans", field.setter_name()), format_ident!("{}_with_trans",field.getter_name()));
             let (setter_transform, getter_transform) = (format_ident!("{}_transform", field.setter_name()), format_ident!("{}_transform",field.getter_name()));
             quote! {
-                fn #getter_with_trans(&self, t:&#transforms_name) -> RegT {
+                fn #getter_with_trans(&self, t:&#transforms_name) -> u64 {
                     let value = self.#getter();
                     if let Some(ref f) = t.#getter_transform {
                         (*f)(value)
@@ -213,7 +213,7 @@ impl<'a> Fields<'a> {
                         value
                     }
                 }
-                fn #setter_with_trans(&mut self, value:RegT, t:&#transforms_name) {
+                fn #setter_with_trans(&mut self, value:u64, t:&#transforms_name) {
                     let v = if let Some(ref f) = t.#setter_transform {
                         (*f)(value)
                     } else {
@@ -228,7 +228,7 @@ impl<'a> Fields<'a> {
             let lsb = &field.lsb;
             let setter_with_trans = format_ident!("{}_with_trans", field.setter_name());
             quote! {
-                self.#setter_with_trans(value >> (#lsb as RegT), t);
+                self.#setter_with_trans(value >> (#lsb as u64), t);
             }
         });
         let get = self.fields.iter()
@@ -237,10 +237,10 @@ impl<'a> Fields<'a> {
                 let lsb = &field.lsb;
                 let getter_with_trans = format_ident!("{}_with_trans", field.getter_name());
                 quote! {
-                    (self.#getter_with_trans(t) << (#lsb as RegT))
+                    (self.#getter_with_trans(t) << (#lsb as u64))
                 }
             })
-            .fold(quote! {(0 as RegT)}, |acc, q| {
+            .fold(quote! {(0 as u64)}, |acc, q| {
                 quote! {
                     #acc | #q
                 }
@@ -249,18 +249,18 @@ impl<'a> Fields<'a> {
         quote! {
             #[derive(Copy, Clone)]
             struct #struct_name(#size);
-            impl BitRange<RegT> for #struct_name {
-                fn bit_range(&self, msb: usize, lsb: usize) -> RegT {
+            impl BitRange<u64> for #struct_name {
+                fn bit_range(&self, msb: usize, lsb: usize) -> u64 {
                     let width = msb - lsb + 1;
                     if width == (std::mem::size_of::<#size>() << 3) {
-                        self.0 as RegT
+                        self.0 as u64
                     } else {
                         let mask:#size = ((1 as #size) << (width as #size)) - 1;
-                        ((self.0 >> (lsb as #size)) & mask) as RegT
+                        ((self.0 >> (lsb as #size)) & mask) as u64
                     }
                 }
 
-                fn set_bit_range(&mut self, msb: usize, lsb: usize, value: RegT) {
+                fn set_bit_range(&mut self, msb: usize, lsb: usize, value: u64) {
                     let width = msb - lsb + 1;
                     let bitlen = (std::mem::size_of::<#size>() << 3);
                     if width == bitlen {
@@ -274,14 +274,14 @@ impl<'a> Fields<'a> {
                 }
             }
             impl #struct_name {
-                fn get(&self, t:&#transforms_name) -> RegT {
+                fn get(&self, t:&#transforms_name) -> u64 {
                    #get
                 }
-                fn set(&mut self, value:RegT, t:&#transforms_name) {
+                fn set(&mut self, value:u64, t:&#transforms_name) {
                     #set
                 }
                 bitfield_fields! {
-                    RegT;
+                    u64;
                     #fields
                 }
             }
@@ -323,8 +323,8 @@ impl<'a> FieldSet<'a> {
             let getter_msg = format!("{} not implement {} in current xlen setting!", self.name.to_string(), getter.to_string());
             let setter_msg = format!("{} not implement {} in current xlen setting!", self.name.to_string(), setter.to_string());
             quote! {
-                fn #getter_with_trans(&self, t:&#transforms_name) -> RegT { panic!(#getter_msg)}
-                fn #setter_with_trans(&mut self, value:RegT, t:&#transforms_name) { panic!(#setter_msg)}
+                fn #getter_with_trans(&self, t:&#transforms_name) -> u64 { panic!(#getter_msg)}
+                fn #setter_with_trans(&mut self, value:u64, t:&#transforms_name) { panic!(#setter_msg)}
             }
         });
         let trait_name = self.trait_name();
@@ -340,8 +340,8 @@ impl<'a> FieldSet<'a> {
         let transforms = quote_map_fold(self.field_names.values(), |field| {
             let (setter_transform, getter_transform) = (format_ident!("{}_transform", field.setter_name()), format_ident!("{}_transform",field.getter_name()));
             quote! {
-                #getter_transform:Option<Box<dyn Fn(RegT)->RegT>>,
-                #setter_transform:Option<Box<dyn Fn(RegT)->RegT>>,
+                #getter_transform:Option<Box<dyn Fn(u64)->u64>>,
+                #setter_transform:Option<Box<dyn Fn(u64)->u64>>,
             }
         });
 
@@ -356,10 +356,10 @@ impl<'a> FieldSet<'a> {
         let transform_fns = quote_map_fold(self.field_names.values(), |field| {
             let (setter_transform, getter_transform) = (format_ident!("{}_transform", field.setter_name()), format_ident!("{}_transform",field.getter_name()));
             quote! {
-                pub fn #setter_transform<F:Fn(RegT)->RegT +'static>(&mut self, f:F) {
+                pub fn #setter_transform<F:Fn(u64)->u64 +'static>(&mut self, f:F) {
                     self.#setter_transform = Some(Box::new(f))
                 }
-                pub fn #getter_transform<F:Fn(RegT)->RegT +'static>(&mut self, f:F) {
+                pub fn #getter_transform<F:Fn(u64)->u64 +'static>(&mut self, f:F) {
                     self.#getter_transform = Some(Box::new(f))
                 }
             }
@@ -394,10 +394,10 @@ impl<'a> FieldSet<'a> {
         let transform_fns = quote_map_fold(self.field_names.values(), |field| {
             let (setter_transform, getter_transform) = (format_ident!("{}_transform", field.setter_name()), format_ident!("{}_transform",field.getter_name()));
             quote! {
-                pub fn #setter_transform<F:Fn(RegT)->RegT +'static>(&mut self, f:F) {
+                pub fn #setter_transform<F:Fn(u64)->u64 +'static>(&mut self, f:F) {
                     self.transforms.#setter_transform(f)
                 }
-                pub fn #getter_transform<F:Fn(RegT)->RegT +'static>(&mut self, f:F) {
+                pub fn #getter_transform<F:Fn(u64)->u64 +'static>(&mut self, f:F) {
                     self.transforms.#getter_transform(f)
                 }
             }
@@ -407,16 +407,18 @@ impl<'a> FieldSet<'a> {
             let (setter, getter) = (field.setter_name(), field.getter_name());
             let (setter_with_trans, getter_with_trans) = (format_ident!("{}_with_trans", field.setter_name()), format_ident!("{}_with_trans",field.getter_name()));
             quote! {
-                pub fn #getter(&self) -> RegT {
+                pub fn #getter(&self) -> u64 {
                     match self.xlen {
-                        XLen::X64 => unsafe { self.csr.x64.#getter_with_trans(&self.transforms) },
-                        XLen::X32 => unsafe { self.csr.x32.#getter_with_trans(&self.transforms) }
+                        64 => unsafe { self.csr.x64.#getter_with_trans(&self.transforms) },
+                        32 => unsafe { self.csr.x32.#getter_with_trans(&self.transforms) },
+                        _ => unreachable!()
                     }
                 }
-                pub fn #setter(&mut self, value:RegT) {
+                pub fn #setter(&mut self, value:u64) {
                     match self.xlen {
-                        XLen::X64 => unsafe { self.csr.x64.#setter_with_trans(value, &self.transforms) },
-                        XLen::X32 => unsafe { self.csr.x32.#setter_with_trans(value, &self.transforms) }
+                        64 => unsafe { self.csr.x64.#setter_with_trans(value, &self.transforms) },
+                        32 => unsafe { self.csr.x32.#setter_with_trans(value, &self.transforms) },
+                        _ => unreachable!()
                     }
                 }
             }
@@ -424,13 +426,13 @@ impl<'a> FieldSet<'a> {
         quote! {
             #union_target
             pub struct #top_name {
-                pub xlen:XLen,
+                pub xlen:usize,
                 csr:#union_name,
                 transforms:#transforms_name
             }
 
             impl #top_name {
-                pub fn new(xlen:XLen, init:RegT) -> #top_name {
+                pub fn new(xlen:usize, init:u64) -> #top_name {
                     #top_name{
                         xlen,
                         csr:#union_name{x64:{#struct64_name(init)}},
@@ -438,16 +440,18 @@ impl<'a> FieldSet<'a> {
                     }
                 }
                 #transform_fns
-                pub fn get(&self) -> RegT {
+                pub fn get(&self) -> u64 {
                     match self.xlen {
-                        XLen::X64 => unsafe { self.csr.x64.get(&self.transforms) },
-                        XLen::X32 => unsafe { self.csr.x32.get(&self.transforms) }
+                        64 => unsafe { self.csr.x64.get(&self.transforms) },
+                        32 => unsafe { self.csr.x32.get(&self.transforms) },
+                        _ => unreachable!()
                     }
                 }
-                pub fn set(&mut self, value:RegT) {
+                pub fn set(&mut self, value:u64) {
                     match self.xlen {
-                        XLen::X64 => unsafe { self.csr.x64.set(value, &self.transforms) },
-                        XLen::X32 => unsafe { self.csr.x32.set(value, &self.transforms) }
+                        64 => unsafe { self.csr.x64.set(value, &self.transforms) },
+                        32 => unsafe { self.csr.x32.set(value, &self.transforms) },
+                        _ => unreachable!()
                     }
                 }
                 #fns

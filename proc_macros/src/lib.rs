@@ -18,8 +18,6 @@ use syn::DeriveInput;
 /// #
 /// extern crate terminus_macros;
 /// extern crate terminus_proc_macros;
-/// extern crate terminus_global;
-/// use terminus_global::*;
 /// use terminus_macros::*;
 /// use terminus_proc_macros::Instruction;
 /// pub struct Processor;
@@ -76,8 +74,6 @@ use syn::parse_macro_input;
 /// #
 /// extern crate terminus_macros;
 /// extern crate terminus_proc_macros;
-/// extern crate terminus_global;
-/// use terminus_global::*;
 /// use terminus_macros::*;
 /// use terminus_proc_macros::define_csr;
 /// define_csr! {
@@ -95,7 +91,7 @@ use syn::parse_macro_input;
 /// }
 /// }
 /// fn main() {
-///     let mut test = Test::new(XLen::X64, 0);
+///     let mut test = Test::new(64, 0);
 ///     test.set_field1_transform(|value|{
 ///         if value == 1 {
 ///             3
@@ -115,7 +111,7 @@ use syn::parse_macro_input;
 ///     assert_eq!(test.get(), 0x1_0000_0070);
 ///     assert_eq!(test.field2(), 0x1);
 ///
-///     let mut test2 = Test::new(XLen::X32, 0);
+///     let mut test2 = Test::new(32, 0);
 ///     test2.set_field1(0xffff_ffff_ffff);
 ///     assert_eq!(test2.field1(), 0x7);
 ///     test2.set_field2(0xffff_ffff_ffff);
@@ -135,22 +131,20 @@ use syn::parse_macro_input;
 /// #
 /// extern crate terminus_macros;
 /// extern crate terminus_proc_macros;
-/// extern crate terminus_global;
-/// use terminus_global::*;
 /// use terminus_macros::*;
 /// use terminus_proc_macros::define_csr;
 /// #[derive(Copy, Clone)]
 /// struct Test32(u32);
 /// bitfield_bitrange! {struct Test32(u32)}
 /// impl TestTrait for Test32 {
-///     fn get(&self) -> RegT{
-///         (0 as RegT) | (self.field1() << (4 as RegT)) | (self.field2() << (7 as RegT))
+///     fn get(&self) -> u64{
+///         (0 as u64) | (self.field1() << (4 as u64)) | (self.field2() << (7 as u64))
 ///     }
-///     fn set(&mut self, value:RegT) {
-///         self.set_field1(value >> (4 as RegT));
+///     fn set(&mut self, value:u64) {
+///         self.set_field1(value >> (4 as u64));
 ///     }
 ///     bitfield_fields! {
-///     RegT;
+///     u64;
 ///     field1, set_field1: 6,4;
 ///     field2, set_field2: 8,7;
 ///     }
@@ -160,16 +154,16 @@ use syn::parse_macro_input;
 /// struct Test64(u64);
 /// bitfield_bitrange! {struct Test64(u64)}
 /// impl TestTrait for Test64 {
-///     fn get(&self) -> RegT{
-///         (0 as RegT) | (self.field1() << (4 as RegT)) | (self.field3() << (32 as RegT))
+///     fn get(&self) -> u64{
+///         (0 as u64) | (self.field1() << (4 as u64)) | (self.field3() << (32 as u64))
 ///     }
-///     fn set(&mut self, value:RegT) {
-///         self.set_field1(value >> (4 as RegT));
-///         self.set_field2(value >> (31 as RegT));
-///         self.set_field3(value >> (32 as RegT));
+///     fn set(&mut self, value:u64) {
+///         self.set_field1(value >> (4 as u64));
+///         self.set_field2(value >> (31 as u64));
+///         self.set_field3(value >> (32 as u64));
 ///     }
 ///     bitfield_fields! {
-///     RegT;
+///     u64;
 ///     field1, set_field1: 6,4;
 ///     field2, set_field2: 31,31;
 ///     field3, set_field3: 32,32;
@@ -177,14 +171,14 @@ use syn::parse_macro_input;
 /// }
 ///
 /// pub trait TestTrait {
-///     fn get(&self) -> RegT;
-///     fn field1(&self) -> RegT { panic!("not implemnt") }
-///     fn field2(&self) -> RegT { panic!("not implemnt") }
-///     fn field3(&self) -> RegT { panic!("not implemnt") }
-///     fn set(&mut self, value:RegT);
-///     fn set_field1(&mut self, value: RegT) { panic!("not implemnt") }
-///     fn set_field2(&mut self, value: RegT) { panic!("not implemnt") }
-///     fn set_field3(&mut self, value: RegT) { panic!("not implemnt") }
+///     fn get(&self) -> u64;
+///     fn field1(&self) -> u64 { panic!("not implemnt") }
+///     fn field2(&self) -> u64 { panic!("not implemnt") }
+///     fn field3(&self) -> u64 { panic!("not implemnt") }
+///     fn set(&mut self, value:u64);
+///     fn set_field1(&mut self, value: u64) { panic!("not implemnt") }
+///     fn set_field2(&mut self, value: u64) { panic!("not implemnt") }
+///     fn set_field3(&mut self, value: u64) { panic!("not implemnt") }
 /// }
 ///
 /// union TestU {
@@ -193,12 +187,12 @@ use syn::parse_macro_input;
 /// }
 ///
 /// struct Test {
-///     pub xlen: XLen,
+///     pub xlen: usize,
 ///     csr: TestU,
 /// }
 ///
 /// impl Test {
-///     pub fn new(xlen:XLen, init:RegT) -> Test {
+///     pub fn new(xlen:usize, init:u64) -> Test {
 ///         Test {
 ///             xlen,
 ///             csr:TestU{x64:Test64(init)}
@@ -206,57 +200,65 @@ use syn::parse_macro_input;
 ///     }
 /// }
 /// impl TestTrait for Test {
-///     fn get(&self) -> RegT {
+///     fn get(&self) -> u64 {
 ///         match self.xlen {
-///             XLen::X64 => unsafe { self.csr.x64.get() },
-///             XLen::X32 => unsafe { self.csr.x32.get() }
+///             64 => unsafe { self.csr.x64.get() },
+///             32 => unsafe { self.csr.x32.get() },
+///             _ => unreachable!()
 ///         }
 ///     }
-///     fn set(&mut self, value:RegT) {
+///     fn set(&mut self, value:u64) {
 ///         match self.xlen {
-///             XLen::X64 => unsafe { self.csr.x64.set(value) },
-///             XLen::X32 => unsafe { self.csr.x32.set(value) }
+///             64 => unsafe { self.csr.x64.set(value) },
+///             32 => unsafe { self.csr.x32.set(value) },
+///             _ => unreachable!()
 ///         }
 ///     }
-///     fn field1(&self) -> RegT {
+///     fn field1(&self) -> u64 {
 ///         match self.xlen {
-///             XLen::X64 => unsafe { self.csr.x64.field1() },
-///             XLen::X32 => unsafe { self.csr.x32.field1() }
+///             64 => unsafe { self.csr.x64.field1() },
+///             32 => unsafe { self.csr.x32.field1() },
+///             _ => unreachable!()
 ///         }
 ///     }
-///     fn field2(&self) -> RegT {
+///     fn field2(&self) -> u64 {
 ///         match self.xlen {
-///             XLen::X64 => unsafe { self.csr.x64.field2() },
-///             XLen::X32 => unsafe { self.csr.x32.field2() }
+///             64 => unsafe { self.csr.x64.field2() },
+///             32 => unsafe { self.csr.x32.field2() },
+///             _ => unreachable!()
 ///         }
 ///     }
-///     fn field3(&self) -> RegT {
+///     fn field3(&self) -> u64 {
 ///         match self.xlen {
-///             XLen::X64 => unsafe { self.csr.x64.field3() },
-///             XLen::X32 => unsafe { self.csr.x32.field3() }
+///             64 => unsafe { self.csr.x64.field3() },
+///             32 => unsafe { self.csr.x32.field3() },
+///             _ => unreachable!()
 ///         }
 ///     }
-///     fn set_field1(&mut self, value: RegT) {
+///     fn set_field1(&mut self, value: u64) {
 ///         match self.xlen {
-///             XLen::X64 => unsafe { self.csr.x64.set_field1(value) },
-///             XLen::X32 => unsafe { self.csr.x32.set_field1(value) }
+///             64 => unsafe { self.csr.x64.set_field1(value) },
+///             32 => unsafe { self.csr.x32.set_field1(value) },
+///             _ => unreachable!()
 ///         }
 ///     }
-///     fn set_field2(&mut self, value: RegT) {
+///     fn set_field2(&mut self, value: u64) {
 ///         match self.xlen {
-///             XLen::X64 => unsafe { self.csr.x64.set_field2(value) },
-///             XLen::X32 => unsafe { self.csr.x32.set_field2(value) }
+///             64 => unsafe { self.csr.x64.set_field2(value) },
+///             32 => unsafe { self.csr.x32.set_field2(value) },
+///             _ => unreachable!()
 ///         }
 ///     }
-///     fn set_field3(&mut self, value: RegT) {
+///     fn set_field3(&mut self, value: u64) {
 ///         match self.xlen {
-///             XLen::X64 => unsafe { self.csr.x64.set_field3(value.into()) },
-///             XLen::X32 => unsafe { self.csr.x32.set_field3(value.into()) }
+///             64 => unsafe { self.csr.x64.set_field3(value.into()) },
+///             32 => unsafe { self.csr.x32.set_field3(value.into()) },
+///             _ => unreachable!()
 ///         }
 ///     }
 /// }
 /// fn main() {
-///     let mut test = Test::new(XLen::X64, 0);
+///     let mut test = Test::new(64, 0);
 ///     test.set_field3(0xff);
 ///     assert_eq!(test.field3(), 0x1);
 ///     test.set_field2(3);
@@ -267,7 +269,7 @@ use syn::parse_macro_input;
 ///     assert_eq!(test.get(), 0x1_0000_0070);
 ///     assert_eq!(test.field2(), 0x1);
 ///
-///     let mut test2 = Test::new(XLen::X32, 0);
+///     let mut test2 = Test::new(32, 0);
 ///     test2.set_field1(0xffff_ffff_ffff);
 ///     assert_eq!(test2.field1(), 0x7);
 ///     test2.set_field2(0xffff_ffff_ffff);
@@ -292,8 +294,6 @@ pub fn define_csr(input: TokenStream) -> TokenStream {
 /// #
 /// extern crate terminus_macros;
 /// extern crate terminus_proc_macros;
-/// extern crate terminus_global;
-/// use terminus_global::*;
 /// use terminus_macros::*;
 /// use terminus_proc_macros::{define_csr, csr_map};
 /// define_csr! {
@@ -324,13 +324,13 @@ pub fn define_csr(input: TokenStream) -> TokenStream {
 /// }
 /// }
 /// fn main(){
-///     let csr = CSR::new(XLen::X64);
+///     let csr = CSR::new(64);
 ///     csr.write(1, 0xffffffff_ffffffff);
 ///     assert_eq!(csr.test1().get(), 0x1_0000_0070);
 ///     assert_eq!(csr.test1().field2(), 0x1);
 ///     assert_eq!(csr.read(1).unwrap(), 0x1_0000_0070);
 ///     assert_eq!(csr.read(0xb), None);
-///     let csr_p = CSR_p::new(XLen::X32);
+///     let csr_p = CSR_p::new(32);
 ///
 ///     csr_p.write(7, 0xffffffff_ffffffff);
 ///     csr_p.write(1, 0xffffffff_ffffffff);

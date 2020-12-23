@@ -78,7 +78,7 @@ impl ExtensionF {
         let mut e = ExtensionF {
             flen: FLen::F32,
             freg: [0 as FRegT; 32],
-            csrs: Rc::new(FCsrs::new(state.config().xlen)),
+            csrs: Rc::new(FCsrs::new(state.config().xlen.len())),
             dirty: Rc::new(RefCell::new(0)),
         };
 
@@ -169,13 +169,13 @@ impl ExtensionF {
 impl HasCsr for ExtensionF {
     fn csr_write(&self, _: &ProcessorState, addr: InsnT, value: RegT) -> Option<()> {
         *self.dirty.borrow_mut() = 0x3;
-        self.csrs.write(addr, value)
+        self.csrs.write(addr as u64, value)
     }
     fn csr_read(&self, _: &ProcessorState, addr: InsnT) -> Option<RegT> {
         if self.dirty() == 0 {
             None
         } else {
-            self.csrs.read(addr)
+            self.csrs.read(addr as u64)
         }
     }
 }
