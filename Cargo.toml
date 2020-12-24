@@ -10,10 +10,10 @@ name = "terminus"
 crate-type = ["rlib","staticlib", "cdylib"]
 
 [dependencies]
-terminus-spaceport={git = "https://github.com/shady831213/terminus_spaceport"}
 terminus-global = { path = "global" }
-terminus-macros={ path = "macros" }
-terminus-proc-macros={ path = "proc_macros" }
+terminus-spaceport={git = "https://github.com/shady831213/terminus_spaceport"}
+terminus-vault={git = "https://github.com/shady831213/terminus_vault"}
+
 linkme = "0.1"
 xmas-elf = "0.7.0"
 num_enum = "0.4.3"
@@ -25,7 +25,7 @@ clap = "2"
 device_tree = "1.1.0"
 
 [workspace]
-members = ["global","macros","proc_macros"]
+members = ["global"]
 
 [[example]]
 name = "riscv_tests"

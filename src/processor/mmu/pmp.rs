@@ -2,7 +2,7 @@ use terminus_global::RegT;
 use crate::processor::mmu::Mmu;
 use std::marker::PhantomData;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use terminus_macros::*;
+use terminus_vault::*;
 use crate::processor::extensions::i::csrs::*;
 use std::rc::Rc;
 

@@ -2,7 +2,7 @@ use terminus_spaceport::memory::prelude::*;
 use terminus_spaceport::EXIT_CTRL;
 use terminus_spaceport::devices::TERM;
 use std::io::{Write, ErrorKind, Read};
-use terminus_macros::*;
+use terminus_vault::*;
 use std::borrow::{BorrowMut, Borrow};
 use std::cell::RefCell;
 

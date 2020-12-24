@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 use crate::processor::trap::Exception;
 use terminus_global::RegT;
 use crate::processor::ProcessorState;
-use terminus_macros::*;
+use terminus_vault::*;
 use crate::devices::bus::Bus;
 
 mod pmp;

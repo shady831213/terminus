@@ -1,4 +1,4 @@
-use terminus_macros::*;
+use terminus_vault::*;
 use terminus_global::*;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::rc::Rc;

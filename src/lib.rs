@@ -1,7 +1,6 @@
 extern crate terminus_spaceport;
-pub extern crate terminus_macros;
-pub extern crate terminus_proc_macros;
-pub extern crate terminus_global;
+extern crate terminus_vault;
+extern crate terminus_global;
 extern crate num_enum;
 
 pub mod processor;

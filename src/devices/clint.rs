@@ -1,7 +1,7 @@
 use std::num::Wrapping;
 use terminus_spaceport::memory::prelude::*;
 use terminus_spaceport::irq::{IrqVec, IrqVecSender, IrqVecListener};
-use terminus_macros::*;
+use terminus_vault::*;
 use std::rc::Rc;
 use std::cell::{Ref, RefMut, RefCell};
 
