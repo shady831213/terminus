@@ -1,5 +1,5 @@
 pub mod insn {
-    pub use terminus_global::*;
+    pub use crate::global::*;
     pub use terminus_vault::*;
     pub use crate::processor::{Processor, Privilege, PrivilegeLevel};
     pub use crate::processor::trap::Exception;

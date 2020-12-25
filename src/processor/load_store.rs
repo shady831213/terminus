@@ -1,5 +1,5 @@
 use crate::processor::ProcessorState;
-use terminus_global::RegT;
+use crate::prelude::RegT;
 use crate::processor::mmu::{Mmu, MmuOpt};
 use crate::processor::trap::Exception;
 use crate::devices::bus::Bus;

@@ -10,7 +10,6 @@ name = "terminus"
 crate-type = ["rlib","staticlib", "cdylib"]
 
 [dependencies]
-terminus-global = { path = "global" }
 terminus-spaceport={git = "https://github.com/shady831213/terminus_spaceport"}
 terminus-vault={git = "https://github.com/shady831213/terminus_vault"}
 
@@ -23,9 +22,6 @@ clap = "2"
 
 [dev-dependencies]
 device_tree = "1.1.0"
-
-[workspace]
-members = ["global"]
 
 [[example]]
 name = "riscv_tests"

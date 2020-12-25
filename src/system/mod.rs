@@ -12,7 +12,7 @@ use std::cmp::min;
 use crate::devices::clint::Timer;
 use std::ops::Deref;
 use std::rc::Rc;
-use terminus_global::XLen;
+use crate::prelude::XLen;
 use crate::devices::plic::Intc;
 
 pub mod fdt;

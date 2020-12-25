@@ -1,4 +1,4 @@
-use terminus_global::RegT;
+use crate::prelude::RegT;
 use crate::processor::extensions::s::csrs::*;
 use crate::devices::bus::Bus;
 

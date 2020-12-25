@@ -1,6 +1,6 @@
 use terminus::processor::ProcessorCfg;
 use terminus::system::System;
-use terminus_global::XLen;
+use terminus::global::XLen;
 use terminus_spaceport::memory::region::{GHEAP, U64Access};
 use terminus_spaceport::devices::term_exit;
 use std::ops::Deref;

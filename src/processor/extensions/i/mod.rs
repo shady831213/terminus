@@ -1,4 +1,4 @@
-use terminus_global::*;
+use crate::prelude::*;
 use std::rc::Rc;
 use crate::processor::extensions::{HasCsr, NoStepCb};
 

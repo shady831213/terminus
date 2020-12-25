@@ -1,5 +1,4 @@
-use terminus_global::{InsnT, RegT};
-use crate::prelude::insn;
+use crate::prelude::{InsnT, RegT, insn};
 #[derive(Debug, Copy, Clone)]
 pub enum Trap {
     Exception(Exception),

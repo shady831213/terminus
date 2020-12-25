@@ -2,7 +2,7 @@ extern crate clap;
 
 use clap::{Arg, App};
 use std::str::FromStr;
-use terminus_global::XLen;
+use terminus::global::XLen;
 use std::path::Path;
 use std::fs::OpenOptions;
 use terminus::processor::ProcessorCfg;

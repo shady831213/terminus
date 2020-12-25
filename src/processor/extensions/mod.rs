@@ -1,5 +1,5 @@
 use crate::processor::{ProcessorState, Processor};
-use terminus_global::*;
+use crate::prelude::*;
 
 pub mod a;
 pub mod c;

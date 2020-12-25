@@ -5,7 +5,7 @@ use terminus::devices::clint::Clint;
 use terminus_spaceport::devices::term_exit;
 use terminus_spaceport::EXIT_CTRL;
 use terminus_spaceport::memory::region::GHEAP;
-use terminus_global::XLen;
+use terminus::global::XLen;
 use std::ops::Deref;
 
 fn main() {

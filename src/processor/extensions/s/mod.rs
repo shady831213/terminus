@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use crate::processor::{ProcessorState, Privilege};
 use crate::processor::extensions::{HasCsr, NoStepCb};
-use terminus_global::{RegT, InsnT};
+use crate::prelude::{RegT, InsnT};
 use std::cell::RefCell;
 
 mod insns;

@@ -2,7 +2,7 @@ use crate::processor::ProcessorState;
 use std::cell::RefCell;
 use std::rc::Rc;
 use crate::processor::extensions::{HasCsr, NoStepCb};
-use terminus_global::{RegT, InsnT};
+use crate::prelude::{RegT, InsnT};
 
 pub mod float;
 mod insns;

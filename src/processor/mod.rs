@@ -1,5 +1,5 @@
 use terminus_vault::*;
-use terminus_global::*;
+use crate::global::*;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::rc::Rc;
 use std::cell::RefCell;

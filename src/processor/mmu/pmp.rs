@@ -1,4 +1,4 @@
-use terminus_global::RegT;
+use crate::prelude::RegT;
 use crate::processor::mmu::Mmu;
 use std::marker::PhantomData;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
