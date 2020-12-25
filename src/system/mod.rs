@@ -84,12 +84,17 @@ impl System {
     }
 
     pub fn new_processor(&mut self, config: ProcessorCfg) {
-        let p = Processor::new(self.processors.len(), config, &self.bus, self.timer.alloc_irq(), self.intc.alloc_irq());
+        let p = Processor::new(self.processors.len(), config, &self.bus, Some(self.timer.alloc_irq()), Some(self.intc.alloc_irq()));
+        self.processors.push(p)
+    }
+
+    pub fn new_processor_no_int(&mut self, config: ProcessorCfg) {
+        let p = Processor::new(self.processors.len(), config, &self.bus, None, None);
         self.processors.push(p)
     }
 
     pub fn new_processor_with_int(&mut self, config: ProcessorCfg, clint: IrqVec, plic: IrqVec) {
-        let p = Processor::new(self.processors.len(), config, &self.bus, clint, plic);
+        let p = Processor::new(self.processors.len(), config, &self.bus, Some(clint), Some(plic));
         self.processors.push(p)
     }
 

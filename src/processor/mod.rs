@@ -81,8 +81,8 @@ pub struct ProcessorState {
     next_pc: RegT,
     ir: InsnT,
     insns_cnt: Rc<RefCell<u64>>,
-    clint: IrqVec,
-    plic: IrqVec,
+    clint: Option<IrqVec>,
+    plic: Option<IrqVec>,
     wfi: bool,
 }
 
@@ -117,7 +117,7 @@ impl Display for ProcessorState {
 
 
 impl ProcessorState {
-    fn new(hartid: usize, config: ProcessorCfg, clint: IrqVec, plic: IrqVec) -> ProcessorState {
+    fn new(hartid: usize, config: ProcessorCfg, clint: Option<IrqVec>, plic: Option<IrqVec>) -> ProcessorState {
         let mut state = ProcessorState {
             hartid,
             config,
@@ -152,32 +152,36 @@ impl ProcessorState {
         self.ir = 0;
         self.wfi = false;
         let csrs = self.icsrs();
-        //register clint:0:msip, 1:mtip
-        csrs.mip_mut().msip_transform({
-            let l = self.clint.listener(0).unwrap();
-            move |_| {
-                l.pending_uncheck() as RegT
-            }
-        });
-        csrs.mip_mut().mtip_transform({
-            let l = self.clint.listener(1).unwrap();
-            move |_| {
-                l.pending_uncheck() as RegT
-            }
-        });
-        //register plic
-        csrs.mip_mut().meip_transform({
-            let l = self.plic.listener(0).unwrap();
-            move |_| {
-                l.pending_uncheck() as RegT
-            }
-        });
-        csrs.mip_mut().seip_transform({
-            let l = self.plic.listener(0).unwrap();
-            move |_| {
-                l.pending_uncheck() as RegT
-            }
-        });
+        if let Some(ref clint) = self.clint {
+            //register clint:0:msip, 1:mtip
+            csrs.mip_mut().msip_transform({
+                let l = clint.listener(0).unwrap();
+                move |_| {
+                    l.pending_uncheck() as RegT
+                }
+            });
+            csrs.mip_mut().mtip_transform({
+                let l = clint.listener(1).unwrap();
+                move |_| {
+                    l.pending_uncheck() as RegT
+                }
+            });
+        }
+        if let Some(ref pilc) = self.plic {
+            //register plic
+            csrs.mip_mut().meip_transform({
+                let l = pilc.listener(0).unwrap();
+                move |_| {
+                    l.pending_uncheck() as RegT
+                }
+            });
+            csrs.mip_mut().seip_transform({
+                let l = pilc.listener(0).unwrap();
+                move |_| {
+                    l.pending_uncheck() as RegT
+                }
+            });
+        }
         //hartid
         csrs.mhartid_mut().set(self.hartid as RegT);
         //extensions config, only f, d can disable
@@ -422,7 +426,7 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn new(hartid: usize, config: ProcessorCfg, bus: &Rc<Bus>, clint: IrqVec, plic: IrqVec) -> Processor {
+    pub fn new(hartid: usize, config: ProcessorCfg, bus: &Rc<Bus>, clint: Option<IrqVec>, plic: Option<IrqVec>) -> Processor {
         let state = ProcessorState::new(hartid, config, clint, plic);
         let mmu = Mmu::new(bus);
         let fetcher = Fetcher::new(bus);

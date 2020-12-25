@@ -6,7 +6,6 @@ use terminus_spaceport::devices::term_exit;
 use std::ops::Deref;
 use std::path::Path;
 use terminus_spaceport::EXIT_CTRL;
-use terminus::devices::clint::Clint;
 
 struct RsicvTestRunner{
     debug: bool,
@@ -79,15 +78,12 @@ fn riscv_test(xlen: XLen, name: &str, debug: bool, num_cores: usize) -> bool {
     let mut sys = System::new(name, Path::new("top_tests/elf").join(Path::new(name)).to_str().expect(&format!("{} not existed!", name)), 10000000, 32);
     sys.register_htif(false);
     for cfg in configs {
-        sys.new_processor(cfg)
+        sys.new_processor_no_int(cfg)
     }
     sys.register_memory("main_memory", 0x80000000, &GHEAP.alloc(0x10000000, 1).expect("main_memory alloc fail!")).unwrap();
-    sys.register_device("clint", 0x20000, 0x10000, Clint::new(sys.timer())).unwrap();
     sys.load_elf().unwrap();
     sys.reset(vec![-1i64 as u64;num_cores]).unwrap();
 
-    let interval: u64 = 100;
-    let mut interval_cnt: u64 = 0;
     loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
             if debug {
@@ -100,10 +96,6 @@ fn riscv_test(xlen: XLen, name: &str, debug: bool, num_cores: usize) -> bool {
             if debug {
                 println!("{}", p.state().trace())
             }
-        }
-        interval_cnt += 1;
-        if interval_cnt % interval == interval - 1 {
-            sys.timer().tick(interval)
         }
     }
     if debug {
