@@ -3,6 +3,8 @@ use std::num::Wrapping;
 use crate::processor::extensions::f::{FRegT, FLen};
 use crate::processor::extensions::f::float::*;
 use std::cmp::Ordering;
+use crate::processor::Processor;
+use crate::processor::trap::Exception;
 
 #[derive(Instruction)]
 #[format(I)]

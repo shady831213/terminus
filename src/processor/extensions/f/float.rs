@@ -6,6 +6,8 @@ use crate::processor::extensions::Extension;
 use simple_soft_float::{RoundingMode, StatusFlags, FloatClass, FloatTraits, Float, FloatBitsType};
 use std::cmp::Ordering;
 use std::num::Wrapping;
+use crate::processor::Processor;
+use crate::processor::trap::Exception;
 
 pub use simple_soft_float::{F64, F32, Sign, F64Traits, F32Traits, FPState};
 

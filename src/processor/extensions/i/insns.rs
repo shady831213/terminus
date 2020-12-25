@@ -2,6 +2,8 @@ use crate::prelude::*;
 use std::num::Wrapping;
 use std::convert::TryFrom;
 use crate::processor::ProcessorState;
+use crate::processor::{Processor, Privilege, PrivilegeLevel};
+use crate::processor::trap::Exception;
 
 
 trait Branch: InstructionImp {

@@ -265,7 +265,7 @@ impl Mmu {
 }
 
 #[cfg(test)]
-use terminus_global::XLen;
+use crate::prelude::XLen;
 #[cfg(test)]
 use crate::processor::ProcessorCfg;
 #[cfg(test)]

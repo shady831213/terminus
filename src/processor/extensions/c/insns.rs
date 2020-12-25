@@ -2,6 +2,8 @@ use crate::prelude::*;
 use std::num::Wrapping;
 use crate::processor::extensions::f::float::FloatInsn;
 use crate::processor::extensions::f::{FRegT, FLen};
+use crate::processor::Processor;
+use crate::processor::trap::Exception;
 
 #[derive(Instruction)]
 #[format(CI)]

@@ -3,6 +3,9 @@ use crate::processor::extensions::a::ExtensionA;
 use crate::processor::extensions::Extension;
 use std::num::Wrapping;
 use std::cmp::{min, max};
+use crate::processor::Processor;
+use crate::processor::trap::Exception;
+
 
 pub trait LRSCInsn: InstructionImp {
     fn get_a_ext<'p>(&self, p: &'p Processor) -> Result<&'p ExtensionA, Exception> {

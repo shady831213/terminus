@@ -5,6 +5,8 @@ use std::num::Wrapping;
 use num::BigInt;
 use num::bigint::Sign;
 use std::cmp::min;
+use crate::processor::Processor;
+use crate::processor::trap::Exception;
 
 fn bigint_to_reg(b: BigInt, size: usize) -> RegT {
     let v = b.to_signed_bytes_le();

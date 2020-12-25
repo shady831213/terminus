@@ -1,4 +1,4 @@
-use crate::prelude::{InsnT, RegT, insn};
+use crate::prelude::{InsnT, RegT, Error};
 #[derive(Debug, Copy, Clone)]
 pub enum Trap {
     Exception(Exception),
@@ -34,8 +34,8 @@ pub enum Exception {
     SCall,
     MCall,
 }
-impl From<insn::Error> for Exception {
-    fn from(e: insn::Error) -> Self {
+impl From<Error> for Exception {
+    fn from(e: Error) -> Self {
         Exception::IllegalInsn(e.ir())
     }
 }

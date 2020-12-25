@@ -1,5 +1,7 @@
 use crate::prelude::*;
 use std::convert::TryFrom;
+use crate::processor::{Processor, Privilege};
+use crate::processor::trap::Exception;
 
 #[derive(Instruction)]
 #[format(I)]
