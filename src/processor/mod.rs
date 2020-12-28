@@ -32,14 +32,6 @@ use load_store::*;
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
-pub enum PrivilegeLevel {
-    M = 1,
-    MU = 2,
-    MSU = 3,
-}
-
-#[derive(IntoPrimitive, TryFromPrimitive, Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u8)]
 pub enum Privilege {
     U = 0,
     S = 1,
@@ -51,33 +43,66 @@ trait PrivilegeCode {
     fn code(&self) -> Privilege;
 }
 
-pub struct PrivilegeState {
-    m: Option<PrivM>,
-    s: Option<PrivS>,
-    u: Option<PrivU>,
+trait PrivilegeMode:PrivilegeCode{}
+
+pub struct PrivilegeStates {
+    m: Option<PrivilegeState>,
+    s: Option<PrivilegeState>,
+    u: Option<PrivilegeState>,
     cur:Privilege,
 }
 
-impl PrivilegeState {
-    fn new(cfg:&ProcessorCfg)->PrivilegeState {
-        let m = Some(PrivM{});
+impl PrivilegeStates {
+    fn new(cfg:&ProcessorCfg)-> PrivilegeStates {
+        let m = Some(PrivilegeState::M(PrivM{}));
         let u = if cfg.extensions.contains(&'u') {
-            Some(PrivU{})
+            Some(PrivilegeState::U(PrivU{}))
         } else {
             None
         };
         let s = if u.is_some() && cfg.extensions.contains(&'s') {
-            Some(PrivS{})
+            Some(PrivilegeState::S(PrivS{}))
         } else {
             None
         };
-        PrivilegeState {
+        PrivilegeStates {
             m,
             s,
             u,
             cur:Privilege::M
         }
     }
+
+    fn get_priv(&self, p:Privilege) -> &Option<PrivilegeState> {
+        match p {
+            Privilege::M => &self.m,
+            Privilege::S => &self.s,
+            Privilege::U => &self.u,
+        }
+    }
+
+    fn get_priv_mut(&mut self, p:Privilege) -> &mut Option<PrivilegeState> {
+        match p {
+            Privilege::M => &mut self.m,
+            Privilege::S => &mut self.s,
+            Privilege::U => &mut self.u,
+        }
+    }
+
+    fn set_priv(&mut self, p:Privilege) -> Privilege {
+        match p {
+            Privilege::S if self.s.is_none() =>  {self.cur = Privilege::M}
+            Privilege::U if self.u.is_none() =>  {self.cur = Privilege::M},
+            _ => self.cur = p,
+        }
+        self.cur
+    }
+}
+
+pub enum PrivilegeState{
+    M(PrivM),
+    S(PrivS),
+    U(PrivU),
 }
 
 pub struct PrivM {}
@@ -87,6 +112,7 @@ impl PrivilegeCode for PrivM{
         Privilege::M
     }
 }
+impl PrivilegeMode for PrivM{}
 
 pub struct PrivS {}
 
@@ -95,6 +121,7 @@ impl PrivilegeCode for PrivS{
         Privilege::S
     }
 }
+impl PrivilegeMode for PrivS{}
 
 pub struct PrivU {}
 
@@ -103,7 +130,7 @@ impl PrivilegeCode for PrivU{
         Privilege::U
     }
 }
-
+impl PrivilegeMode for PrivU{}
 #[derive(Debug, Clone)]
 pub struct ProcessorCfg {
     pub xlen: XLen,
@@ -112,25 +139,10 @@ pub struct ProcessorCfg {
     pub freq: usize,
 }
 
-impl ProcessorCfg {
-    fn privilege_level(&self) -> PrivilegeLevel {
-        if self.extensions.contains(&'u') {
-            if self.extensions.contains(&'s') {
-                PrivilegeLevel::MSU
-            } else {
-                PrivilegeLevel::MU
-            }
-        } else {
-            PrivilegeLevel::M
-        }
-    }
-}
-
-
 pub struct ProcessorState {
     hartid: usize,
     config: ProcessorCfg,
-    privilege: PrivilegeState,
+    privilege: PrivilegeStates,
     xreg: [RegT; 32],
     extensions: [Extension; 26],
     pc: RegT,
@@ -174,7 +186,7 @@ impl Display for ProcessorState {
 
 impl ProcessorState {
     fn new(hartid: usize, config: ProcessorCfg, clint: Option<IrqVec>, plic: Option<IrqVec>) -> ProcessorState {
-        let privilege = PrivilegeState::new(&config);
+        let privilege = PrivilegeStates::new(&config);
         let mut state = ProcessorState {
             hartid,
             config,
@@ -398,14 +410,8 @@ impl ProcessorState {
     }
 
     pub fn check_privilege_level(&self, privilege: Privilege) -> Result<(), Exception> {
-        match self.config().privilege_level() {
-            PrivilegeLevel::M => if privilege != Privilege::M {
-                return Err(Exception::IllegalInsn(*self.ir()));
-            },
-            PrivilegeLevel::MU => if privilege == Privilege::S {
-                return Err(Exception::IllegalInsn(*self.ir()));
-            }
-            PrivilegeLevel::MSU => {}
+        if self.privilege.get_priv(privilege).is_none() {
+            return Err(Exception::IllegalInsn(*self.ir()));
         }
         Ok(())
     }
@@ -415,20 +421,7 @@ impl ProcessorState {
     }
 
     pub fn set_privilege(&mut self, privilege: Privilege) -> Privilege {
-        match self.config().privilege_level() {
-            PrivilegeLevel::M => Privilege::M,
-            PrivilegeLevel::MU => if privilege != Privilege::M {
-                self.privilege.cur = Privilege::U;
-                Privilege::U
-            } else {
-                self.privilege.cur = Privilege::M;
-                Privilege::M
-            }
-            PrivilegeLevel::MSU => {
-                self.privilege.cur = privilege;
-                privilege
-            }
-        }
+        self.privilege.set_priv(privilege)
     }
 
 

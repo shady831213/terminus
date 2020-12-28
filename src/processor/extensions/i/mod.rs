@@ -6,7 +6,7 @@ mod insns;
 pub mod csrs;
 
 use csrs::ICsrs;
-use crate::processor::{PrivilegeLevel, Privilege, ProcessorState};
+use crate::processor::{Privilege, ProcessorState};
 
 pub struct ExtensionI {
     csrs: Rc<ICsrs>,
@@ -38,26 +38,22 @@ impl ExtensionI {
         e.csrs.mstatus_mut().set_tsr_transform(|_| { 0 });
 
         //privilege_level config
-        match cfg.privilege_level() {
-            PrivilegeLevel::MSU => {}
-            PrivilegeLevel::MU => {
-                e.csrs.mstatus_mut().set_mpp_transform(|mpp| {
-                    if mpp != 0 {
-                        let m: u8 = Privilege::M.into();
-                        m as RegT
-                    } else {
-                        0
-                    }
-                });
-            }
-            PrivilegeLevel::M => {
-                let m: u8 = Privilege::M.into();
-                e.csrs.mstatus_mut().set_mpp(m as RegT);
-                e.csrs.mstatus_mut().set_mpp_transform(move |_| {
+        if state.privilege.get_priv(Privilege::U).is_none() {
+            let m: u8 = Privilege::M.into();
+            e.csrs.mstatus_mut().set_mpp(m as RegT);
+            e.csrs.mstatus_mut().set_mpp_transform(move |_| {
+                m as RegT
+            });
+            e.csrs.mstatus_mut().set_tw_transform(|_| { 0 });
+        } else if state.privilege.get_priv(Privilege::S).is_none() {
+            e.csrs.mstatus_mut().set_mpp_transform(|mpp| {
+                if mpp != 0 {
+                    let m: u8 = Privilege::M.into();
                     m as RegT
-                });
-                e.csrs.mstatus_mut().set_tw_transform(|_| { 0 });
-            }
+                } else {
+                    0
+                }
+            });
         }
 
         //deleg counter

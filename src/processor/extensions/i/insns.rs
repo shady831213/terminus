@@ -2,7 +2,7 @@ use crate::prelude::*;
 use std::num::Wrapping;
 use std::convert::TryFrom;
 use crate::processor::ProcessorState;
-use crate::processor::{Processor, Privilege, PrivilegeLevel};
+use crate::processor::{Processor, Privilege};
 use crate::processor::trap::Exception;
 
 
@@ -1205,7 +1205,8 @@ struct WFI();
 impl Execution for WFI {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let csrs = p.state().icsrs();
-        if csrs.mstatus().tw() != 0 && p.state().config().privilege_level() != PrivilegeLevel::M {
+        let privilege = &p.state().privilege;
+        if csrs.mstatus().tw() != 0 && (privilege.get_priv(Privilege::S).is_some() ||  privilege.get_priv(Privilege::U).is_some()) {
             return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         if csrs.mip().get() & csrs.mie().get() != 0 {
