@@ -55,7 +55,7 @@ pub enum Extension {
     S(ExtensionS),
     U(ExtensionU),
     V(ExtensionV),
-    None
+    InvalidExtension
 }
 
 impl Extension {

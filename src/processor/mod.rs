@@ -30,7 +30,6 @@ mod load_store;
 
 use load_store::*;
 
-
 #[derive(IntoPrimitive, TryFromPrimitive, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
 pub enum PrivilegeLevel {
@@ -45,6 +44,64 @@ pub enum Privilege {
     U = 0,
     S = 1,
     M = 3,
+}
+
+
+trait PrivilegeCode {
+    fn code(&self) -> Privilege;
+}
+
+pub struct PrivilegeState {
+    m: Option<PrivM>,
+    s: Option<PrivS>,
+    u: Option<PrivU>,
+    cur:Privilege,
+}
+
+impl PrivilegeState {
+    fn new(cfg:&ProcessorCfg)->PrivilegeState {
+        let m = Some(PrivM{});
+        let u = if cfg.extensions.contains(&'u') {
+            Some(PrivU{})
+        } else {
+            None
+        };
+        let s = if u.is_some() && cfg.extensions.contains(&'s') {
+            Some(PrivS{})
+        } else {
+            None
+        };
+        PrivilegeState {
+            m,
+            s,
+            u,
+            cur:Privilege::M
+        }
+    }
+}
+
+pub struct PrivM {}
+
+impl PrivilegeCode for PrivM{
+    fn code(&self) -> Privilege {
+        Privilege::M
+    }
+}
+
+pub struct PrivS {}
+
+impl PrivilegeCode for PrivS{
+    fn code(&self) -> Privilege {
+        Privilege::S
+    }
+}
+
+pub struct PrivU {}
+
+impl PrivilegeCode for PrivU{
+    fn code(&self) -> Privilege {
+        Privilege::U
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -73,7 +130,7 @@ impl ProcessorCfg {
 pub struct ProcessorState {
     hartid: usize,
     config: ProcessorCfg,
-    privilege: Privilege,
+    privilege: PrivilegeState,
     xreg: [RegT; 32],
     extensions: [Extension; 26],
     pc: RegT,
@@ -117,15 +174,16 @@ impl Display for ProcessorState {
 
 impl ProcessorState {
     fn new(hartid: usize, config: ProcessorCfg, clint: Option<IrqVec>, plic: Option<IrqVec>) -> ProcessorState {
+        let privilege = PrivilegeState::new(&config);
         let mut state = ProcessorState {
             hartid,
             config,
-            privilege: Privilege::M,
+            privilege,
             xreg: [0 as RegT; 32],
             extensions: unsafe {
                 let mut arr: MaybeUninit<[Extension; 26]> = MaybeUninit::uninit();
                 for i in 0..26 {
-                    (arr.as_mut_ptr() as *mut Extension).add(i).write(Extension::None);
+                    (arr.as_mut_ptr() as *mut Extension).add(i).write(Extension::InvalidExtension);
                 }
                 arr.assume_init()
             },
@@ -293,7 +351,7 @@ impl ProcessorState {
     }
 
     fn csr_privilege_check(&self, id: InsnT) -> Result<(), Exception> {
-        let cur_priv: u8 = self.privilege.into();
+        let cur_priv: u8 = self.privilege.cur.into();
         let csr_priv: u8 = ((id >> 8) & 0x3) as u8;
         if cur_priv < csr_priv {
             return Err(Exception::IllegalInsn(*self.ir()));
@@ -353,21 +411,21 @@ impl ProcessorState {
     }
 
     pub fn privilege(&self) -> &Privilege {
-        &self.privilege
+        &self.privilege.cur
     }
 
     pub fn set_privilege(&mut self, privilege: Privilege) -> Privilege {
         match self.config().privilege_level() {
             PrivilegeLevel::M => Privilege::M,
             PrivilegeLevel::MU => if privilege != Privilege::M {
-                self.privilege = Privilege::U;
+                self.privilege.cur = Privilege::U;
                 Privilege::U
             } else {
-                self.privilege = Privilege::M;
+                self.privilege.cur = Privilege::M;
                 Privilege::M
             }
             PrivilegeLevel::MSU => {
-                self.privilege = privilege;
+                self.privilege.cur = privilege;
                 privilege
             }
         }
@@ -619,7 +677,7 @@ impl Processor {
         if self.state().wfi() {
             let csrs = self.state().icsrs();
             if csrs.mip().get() & csrs.mie().get() == 0 {
-                return
+                return;
             } else {
                 self.state_mut().set_wfi(false)
             }
@@ -641,7 +699,7 @@ impl Processor {
         }
     }
 
-    pub fn step_with_debug<O: Write>(&mut self, n: usize, log: &mut O, trace_all:bool) -> Result<(), String>{
+    pub fn step_with_debug<O: Write>(&mut self, n: usize, log: &mut O, trace_all: bool) -> Result<(), String> {
         assert!(n > 0);
 
         for _ in 0..n {
@@ -657,6 +715,6 @@ impl Processor {
         if !trace_all {
             log.write_all((self.state.trace() + "\n").as_bytes()).map_err(|e| { e.to_string() })?;
         }
-        log.write_all(self.state.to_string().as_bytes()).map_err(|e|{e.to_string()})
+        log.write_all(self.state.to_string().as_bytes()).map_err(|e| { e.to_string() })
     }
 }
