@@ -317,7 +317,7 @@ fn main() {
     }
     let virtio_net_device = if let Some(tap) = net {
         let irq_num = sys.intc().num_src();
-        let virtio_net_device = Rc::new(VirtIONetDevice::new(&virtio_mem, sys.intc().alloc_src(irq_num), tap, 0x0100_00000002));
+        let virtio_net_device = Rc::new(VirtIONetDevice::new(&virtio_mem, sys.intc().alloc_src(irq_num), tap, 0x0100_00000002, 1));
         sys.register_virtio("virtio_net", VirtIONet::new(&virtio_net_device)).unwrap();
         Some(virtio_net_device)
     } else {
