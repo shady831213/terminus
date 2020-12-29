@@ -1,6 +1,5 @@
-use crate::processor::{ProcessorState, Processor};
+use crate::processor::{ProcessorState, Processor, HasCsr, NoCsr};
 use crate::prelude::*;
-
 pub mod a;
 pub mod c;
 pub mod d;
@@ -20,21 +19,6 @@ use m::*;
 use s::*;
 use u::*;
 use v::*;
-
-trait HasCsr {
-    fn csr_write(&self, state: &ProcessorState, addr: InsnT, value: RegT) -> Option<()>;
-    fn csr_read(&self, state: &ProcessorState, addr: InsnT) -> Option<RegT>;
-}
-
-
-trait NoCsr {
-    fn csr_write(&self, _: &ProcessorState, _: InsnT, _: RegT) -> Option<()> {
-        None
-    }
-    fn csr_read(&self, _: &ProcessorState, _: InsnT) -> Option<RegT> {
-        None
-    }
-}
 
 trait HasStepCb {
     fn step_cb(&self, p: &Processor);

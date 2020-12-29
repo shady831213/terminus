@@ -1,5 +1,5 @@
 use crate::prelude::RegT;
-use crate::processor::extensions::s::csrs::*;
+use crate::processor::privilege::s::csrs::*;
 use crate::devices::bus::Bus;
 
 pub const PTE_BARE: u8 = 0;

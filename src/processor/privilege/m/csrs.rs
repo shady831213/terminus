@@ -1,11 +1,7 @@
 use crate::prelude::*;
 
 csr_map! {
-pub ICsrs(0x0, 0xfff) {
-    cycle(RO):Cycle, 0xC00;
-    instret(RO):Instret, 0xC02;
-    cycleh(RO):Cycle, 0xC80;
-    instreth(RO):Instret, 0xC82;
+pub MCsrs(0x0, 0xfff) {
     mstatus(RW):MStatus, 0x300;
     misa(RW):Misa, 0x301;
     medeleg(RW):Medeleg, 0x302;
@@ -42,8 +38,8 @@ pub ICsrs(0x0, 0xfff) {
     tselect(RO):Tselect, 0x7A0;
     mcycle(RO):Cycle, 0xB00;
     minstret(RO):Instret, 0xB02;
-    mcycleh(RO):Cycle, 0xB80;
-    minstreth(RO):Instret, 0xB82;
+    mcycleh(RO):Cycleh, 0xB80;
+    minstreth(RO):Instreth, 0xB82;
     mvendorid(RO):Mvendorid, 0xF11;
     marchid(RO):Marchid, 0xF12;
     mimpid(RO):Mimpid, 0xF13;
@@ -299,12 +295,28 @@ Cycle {
 }
 
 define_csr! {
+Cycleh {
+    fields32 {
+       cycle(RO):31, 0;
+    },
+}
+}
+
+define_csr! {
 Instret {
     fields32 {
        instret(RO):31, 0;
     },
     fields64 {
        instret(RO):63, 0;
+    },
+}
+}
+
+define_csr! {
+Instreth {
+    fields32 {
+       instret(RO):31, 0;
     },
 }
 }

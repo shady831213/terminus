@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::processor::extensions::i::csrs::{Tvec, Scratch, Epc, Cause, Tval, Counteren};
+use crate::processor::privilege::m::csrs::{Tvec, Scratch, Epc, Cause, Tval, Counteren};
 csr_map! {
 pub SCsrs(0x0, 0xfff) {
     sstatus(RW):SStatus,0x100;

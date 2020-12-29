@@ -9,6 +9,8 @@ use std::mem::MaybeUninit;
 
 pub mod privilege;
 use privilege::{Privilege, PrivilegeStates};
+use privilege::m::csrs::*;
+use privilege::s::csrs::*;
 
 pub mod trap;
 
@@ -17,8 +19,7 @@ use trap::{Exception, Trap, Interrupt};
 pub mod extensions;
 
 use extensions::*;
-use extensions::i::csrs::*;
-use extensions::s::csrs::*;
+
 
 mod mmu;
 
@@ -31,6 +32,21 @@ use fetcher::*;
 mod load_store;
 
 use load_store::*;
+use crate::processor::privilege::PrivilegeState;
+
+trait HasCsr {
+    fn csr_write(&self, state: &ProcessorState, addr: InsnT, value: RegT) -> Option<()>;
+    fn csr_read(&self, state: &ProcessorState, addr: InsnT) -> Option<RegT>;
+}
+
+trait NoCsr {
+    fn csr_write(&self, _: &ProcessorState, _: InsnT, _: RegT) -> Option<()> {
+        None
+    }
+    fn csr_read(&self, _: &ProcessorState, _: InsnT) -> Option<RegT> {
+        None
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ProcessorCfg {
@@ -103,12 +119,13 @@ impl ProcessorState {
             pc: 0,
             next_pc: 0,
             ir: 0,
-            insns_cnt: Rc::new(RefCell::new(0)),
+            insns_cnt:Rc::new(RefCell::new(0)),
             clint,
             plic,
             wfi: false,
         };
         state.add_extension().expect("add extension error!");
+        state.privilege.delegate_insns_cnt(state.insns_cnt());
         state
     }
 
@@ -243,17 +260,17 @@ impl ProcessorState {
         format!("rv{}{}", self.config().xlen.len(), exts)
     }
 
-    pub fn icsrs(&self) -> &Rc<ICsrs> {
-        if let Extension::I(ref i) = self.get_extension('i') {
-            i.get_csrs()
+    pub fn icsrs(&self) -> &Rc<MCsrs> {
+        if let Some(PrivilegeState::M(m_state)) = self.privilege.get_priv(Privilege::M) {
+            m_state.get_csrs()
         } else {
             unreachable!()
         }
     }
 
     pub fn scsrs(&self) -> &Rc<SCsrs> {
-        if let Extension::S(ref s) = self.get_extension('s') {
-            s.get_csrs()
+        if let Some(PrivilegeState::S(s_state)) = self.privilege.get_priv(Privilege::S) {
+            s_state.get_csrs()
         } else {
             unreachable!()
         }
@@ -264,12 +281,13 @@ impl ProcessorState {
     }
 
     fn csr_privilege_check(&self, id: InsnT) -> Result<(), Exception> {
-        let cur_priv: u8 = (*self.privilege.cur_privilege()).into();
-        let csr_priv: u8 = ((id >> 8) & 0x3) as u8;
-        if cur_priv < csr_priv {
-            return Err(Exception::IllegalInsn(*self.ir()));
-        }
-        Ok(())
+        // let cur_priv: u8 = (*self.privilege.cur_privilege()).into();
+        // let csr_priv: u8 = ((id >> 8) & 0x3) as u8;
+        // if cur_priv < csr_priv {
+        //     return Err(Exception::IllegalInsn(*self.ir()));
+        // }
+        // Ok(())
+        self.privilege.csr_privilege_check(id).map_err(|_|{Exception::IllegalInsn(*self.ir())})
     }
 
     pub fn hartid(&self) -> usize {
@@ -279,6 +297,9 @@ impl ProcessorState {
     pub fn csr(&self, id: InsnT) -> Result<RegT, Exception> {
         let trip_id = id & 0xfff;
         self.csr_privilege_check(trip_id)?;
+        if let Some(v) = self.privilege.csr_read(self,trip_id) {
+            return Ok(v)
+        }
         match self.extensions().iter().find_map(|e| { e.csr_read(self, trip_id) }) {
             Some(v) => Ok(v),
             None => Err(Exception::IllegalInsn(*self.ir()))
@@ -288,6 +309,9 @@ impl ProcessorState {
     pub fn set_csr(&self, id: InsnT, value: RegT) -> Result<(), Exception> {
         let trip_id = id & 0xfff;
         self.csr_privilege_check(trip_id)?;
+        if self.privilege.csr_write(self,trip_id, value).is_some() {
+            return Ok(())
+        }
         match self.extensions().iter().find_map(|e| { e.csr_write(self, trip_id, value) }) {
             Some(_) => Ok(()),
             None => Err(Exception::IllegalInsn(*self.ir()))
