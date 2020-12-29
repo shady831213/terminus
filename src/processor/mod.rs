@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
@@ -7,6 +6,9 @@ use std::io::Write;
 use terminus_spaceport::irq::IrqVec;
 use crate::devices::bus::Bus;
 use std::mem::MaybeUninit;
+
+pub mod privilege;
+use privilege::{Privilege, PrivilegeStates};
 
 pub mod trap;
 
@@ -30,107 +32,6 @@ mod load_store;
 
 use load_store::*;
 
-#[derive(IntoPrimitive, TryFromPrimitive, Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u8)]
-pub enum Privilege {
-    U = 0,
-    S = 1,
-    M = 3,
-}
-
-
-trait PrivilegeCode {
-    fn code(&self) -> Privilege;
-}
-
-trait PrivilegeMode:PrivilegeCode{}
-
-pub struct PrivilegeStates {
-    m: Option<PrivilegeState>,
-    s: Option<PrivilegeState>,
-    u: Option<PrivilegeState>,
-    cur:Privilege,
-}
-
-impl PrivilegeStates {
-    fn new(cfg:&ProcessorCfg)-> PrivilegeStates {
-        let m = Some(PrivilegeState::M(PrivM{}));
-        let u = if cfg.extensions.contains(&'u') {
-            Some(PrivilegeState::U(PrivU{}))
-        } else {
-            None
-        };
-        let s = if u.is_some() && cfg.extensions.contains(&'s') {
-            Some(PrivilegeState::S(PrivS{}))
-        } else {
-            None
-        };
-        PrivilegeStates {
-            m,
-            s,
-            u,
-            cur:Privilege::M
-        }
-    }
-
-    fn get_priv(&self, p:Privilege) -> &Option<PrivilegeState> {
-        match p {
-            Privilege::M => &self.m,
-            Privilege::S => &self.s,
-            Privilege::U => &self.u,
-        }
-    }
-
-    fn get_priv_mut(&mut self, p:Privilege) -> &mut Option<PrivilegeState> {
-        match p {
-            Privilege::M => &mut self.m,
-            Privilege::S => &mut self.s,
-            Privilege::U => &mut self.u,
-        }
-    }
-
-    fn set_priv(&mut self, p:Privilege) -> Privilege {
-        match p {
-            Privilege::S if self.s.is_none() =>  {self.cur = Privilege::M}
-            Privilege::U if self.u.is_none() =>  {self.cur = Privilege::M},
-            _ => self.cur = p,
-        }
-        self.cur
-    }
-}
-
-pub enum PrivilegeState{
-    M(PrivM),
-    S(PrivS),
-    U(PrivU),
-}
-
-pub struct PrivM {}
-
-impl PrivilegeCode for PrivM{
-    fn code(&self) -> Privilege {
-        Privilege::M
-    }
-}
-impl PrivilegeMode for PrivM{}
-
-pub struct PrivS {}
-
-impl PrivilegeCode for PrivS{
-    fn code(&self) -> Privilege {
-        Privilege::S
-    }
-}
-impl PrivilegeMode for PrivS{}
-
-pub struct PrivU {}
-
-impl PrivilegeCode for PrivU{
-    fn code(&self) -> Privilege {
-        Privilege::U
-    }
-}
-impl PrivilegeMode for PrivU{}
 #[derive(Debug, Clone)]
 pub struct ProcessorCfg {
     pub xlen: XLen,
@@ -363,7 +264,7 @@ impl ProcessorState {
     }
 
     fn csr_privilege_check(&self, id: InsnT) -> Result<(), Exception> {
-        let cur_priv: u8 = self.privilege.cur.into();
+        let cur_priv: u8 = (*self.privilege.cur_privilege()).into();
         let csr_priv: u8 = ((id >> 8) & 0x3) as u8;
         if cur_priv < csr_priv {
             return Err(Exception::IllegalInsn(*self.ir()));
@@ -417,13 +318,12 @@ impl ProcessorState {
     }
 
     pub fn privilege(&self) -> &Privilege {
-        &self.privilege.cur
+        self.privilege.cur_privilege()
     }
 
-    pub fn set_privilege(&mut self, privilege: Privilege) -> Privilege {
+    pub fn set_privilege(&mut self, privilege: Privilege) {
         self.privilege.set_priv(privilege)
     }
-
 
     pub fn pc(&self) -> &RegT {
         &self.pc
