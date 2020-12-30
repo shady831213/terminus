@@ -3,7 +3,7 @@ use crate::processor::mmu::Mmu;
 use std::marker::PhantomData;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use terminus_vault::*;
-use crate::processor::privilege::m::csrs::*;
+use crate::processor::privilege::*;
 use std::rc::Rc;
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug)]
