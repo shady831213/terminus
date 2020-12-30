@@ -1,5 +1,6 @@
 use crate::prelude::*;
-
+use crate::processor::privilege::Privilege;
+use std::convert::TryFrom;
 csr_map! {
 pub MCsrs(0x0, 0xfff) {
     mstatus(RW):Status, 0x300;
@@ -144,6 +145,56 @@ impl Status {
         self.tsr_transform(|_|{0});
         self.sxl_transform(|_|{0});
     }
+
+    pub fn push_privilege(&mut self, tgt_p:&Privilege, cur_p:&Privilege) {
+        let priv_value: u8 = (*cur_p).into();
+        match tgt_p {
+            Privilege::M => self.push_m_privilege(priv_value),
+            Privilege::S => self.push_s_privilege(priv_value),
+            _ => unreachable!()
+        }
+    }
+
+    fn push_m_privilege(&mut self, p:u8) {
+        let mie = self.mie();
+        self.set_mpie(mie);
+        self.set_mpp(p as RegT);
+        self.set_mie(0);
+    }
+
+    fn push_s_privilege(&mut self, p:u8) {
+        let sie = self.sie();
+        self.set_spie(sie);
+        self.set_spp(p as RegT);
+        self.set_sie(0);
+    }
+
+    pub fn pop_privilege(&mut self, cur_p:&Privilege) -> Privilege {
+        let priv_value = match cur_p {
+            Privilege::M => self.pop_m_privilege(),
+            Privilege::S => self.pop_s_privilege(),
+            _ => unreachable!()
+        };
+        Privilege::try_from(priv_value).unwrap()
+    }
+
+    fn pop_m_privilege(&mut self) -> u8 {
+        let mpp = self.mpp();
+        let mpie = self.mpie();
+        self.set_mie(mpie);
+        self.set_mpie(1);
+        self.set_mpp(0);
+        mpp as u8
+    }
+
+    fn pop_s_privilege(&mut self) -> u8 {
+        let spp = self.spp();
+        let spie = self.spie();
+        self.set_sie(spie);
+        self.set_spie(1);
+        self.set_spp(0);
+        spp as u8
+    }
 }
 
 define_csr! {
@@ -284,6 +335,13 @@ Cause {
         int(RW):63,63;
     }
 }
+}
+
+impl Cause {
+    pub fn set_cause(&mut self, code:RegT, int_flag:bool) {
+        self.set_code(code);
+        self.set_int(int_flag as RegT);
+    }
 }
 
 define_csr! {

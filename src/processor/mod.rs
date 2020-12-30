@@ -472,8 +472,8 @@ impl Processor {
         let (pc, privilege) = if degeged {
             let scsrs = self.state().scsrs().unwrap();
             let pc = scsrs.stvec().get_trap_pc(code, int_flag);
-            scsrs.scause_mut().set_code(code);
-            scsrs.scause_mut().set_int(int_flag as RegT);
+            let tgt_privilege = Privilege::S;
+            scsrs.scause_mut().set_cause(code, int_flag);
             if int_flag {
                 scsrs.sepc_mut().set(*self.state().next_pc());
             } else {
@@ -481,18 +481,13 @@ impl Processor {
             }
             scsrs.stval_mut().set(tval);
 
-            let sie = scsrs.sstatus().sie();
-            scsrs.sstatus_mut().set_spie(sie);
-            let priv_value: u8 = (*self.state().privilege()).into();
-            scsrs.sstatus_mut().set_spp(priv_value as RegT);
-            scsrs.sstatus_mut().set_sie(0);
-            self.mmu().flush_tlb();
-            self.fetcher().flush_icache();
-            (pc, Privilege::S)
+            scsrs.sstatus_mut().push_privilege(&tgt_privilege, self.state().privilege());
+
+            (pc, tgt_privilege)
         } else {
             let pc =  mcsrs.mtvec().get_trap_pc(code, int_flag);
-            mcsrs.mcause_mut().set_code(code);
-            mcsrs.mcause_mut().set_int(int_flag as RegT);
+            let tgt_privilege = Privilege::M;
+            mcsrs.mcause_mut().set_cause(code, int_flag);
             if int_flag {
                 mcsrs.mepc_mut().set(*self.state().next_pc());
             } else {
@@ -500,15 +495,12 @@ impl Processor {
             }
             mcsrs.mtval_mut().set(tval);
 
-            let mie = mcsrs.mstatus().mie();
-            mcsrs.mstatus_mut().set_mpie(mie);
-            let priv_value: u8 = (*self.state().privilege()).into();
-            mcsrs.mstatus_mut().set_mpp(priv_value as RegT);
-            mcsrs.mstatus_mut().set_mie(0);
-            self.mmu().flush_tlb();
-            self.fetcher().flush_icache();
-            (pc, Privilege::M)
+            mcsrs.mstatus_mut().push_privilege(&tgt_privilege, self.state().privilege());
+
+            (pc, tgt_privilege)
         };
+        self.mmu().flush_tlb();
+        self.fetcher().flush_icache();
         self.state_mut().set_pc(pc);
         self.state_mut().set_privilege(privilege);
     }

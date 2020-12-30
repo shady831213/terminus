@@ -1,10 +1,8 @@
 use crate::prelude::*;
 use std::num::Wrapping;
-use std::convert::TryFrom;
 use crate::processor::ProcessorState;
 use crate::processor::{Processor, Privilege};
 use crate::processor::trap::Exception;
-
 
 trait Branch: InstructionImp {
     fn branch<F: Fn(&ProcessorState, RegT, RegT) -> bool>(&self, p: &mut Processor, condition: F) -> Result<(), Exception> {
@@ -1176,12 +1174,7 @@ struct MRET();
 impl Execution for MRET {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let csrs = p.state().mcsrs();
-        let mpp = csrs.mstatus().mpp();
-        let mpie = csrs.mstatus().mpie();
-        csrs.mstatus_mut().set_mie(mpie);
-        csrs.mstatus_mut().set_mpie(1);
-        let u_value: u8 = Privilege::U.into();
-        csrs.mstatus_mut().set_mpp(u_value as RegT);
+        let mpp = csrs.mstatus_mut().pop_privilege(&Privilege::M);
         if p.state().check_extension('c').is_err() {
             let pc = (csrs.mepc().get() >> 2) << 2;
             p.state_mut().set_pc(pc);
@@ -1189,7 +1182,7 @@ impl Execution for MRET {
             let pc = csrs.mepc().get();
             p.state_mut().set_pc(pc);
         }
-        p.state_mut().set_privilege(Privilege::try_from(mpp as u8).unwrap());
+        p.state_mut().set_privilege(mpp);
         p.mmu().flush_tlb();
         p.fetcher().flush_icache();
         Ok(())

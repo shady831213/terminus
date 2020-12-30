@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use std::convert::TryFrom;
 use crate::processor::{Processor, Privilege};
 use crate::processor::trap::Exception;
 
@@ -11,17 +10,12 @@ struct SRET();
 
 impl Execution for SRET {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let scsrs = p.state().scsrs()?;
         let tsr = p.state().mcsrs().mstatus().tsr();
         if tsr == 1 && *p.state().privilege() == Privilege::S {
             return Err(Exception::IllegalInsn(*p.state().ir()));
         }
-        let spp = scsrs.sstatus().spp();
-        let spie = scsrs.sstatus().spie();
-        scsrs.sstatus_mut().set_sie(spie);
-        scsrs.sstatus_mut().set_spie(1);
-        let u_value: u8 = Privilege::U.into();
-        scsrs.sstatus_mut().set_spp(u_value as RegT);
+        let scsrs = p.state().scsrs()?;
+        let spp = scsrs.sstatus_mut().pop_privilege(&Privilege::S);
         if p.state().check_extension('c').is_err() {
             let pc = (scsrs.sepc().get() >> 2) << 2;
             p.state_mut().set_pc(pc);
@@ -29,7 +23,7 @@ impl Execution for SRET {
             let pc = scsrs.sepc().get();
             p.state_mut().set_pc(pc);
         }
-        p.state_mut().set_privilege(Privilege::try_from(spp as u8).unwrap());
+        p.state_mut().set_privilege(spp);
         p.mmu().flush_tlb();
         p.fetcher().flush_icache();
         Ok(())
