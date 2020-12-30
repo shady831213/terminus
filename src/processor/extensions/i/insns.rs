@@ -1175,7 +1175,7 @@ struct MRET();
 
 impl Execution for MRET {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let csrs = p.state().privilege.mcsrs();
+        let csrs = p.state().mcsrs();
         let mpp = csrs.mstatus().mpp();
         let mpie = csrs.mstatus().mpie();
         csrs.mstatus_mut().set_mie(mpie);
@@ -1204,7 +1204,7 @@ struct WFI();
 
 impl Execution for WFI {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let csrs = p.state().privilege.mcsrs();
+        let csrs = p.state().mcsrs();
         if csrs.mstatus().tw() != 0 && (p.state().check_extension('s').is_ok() || p.state().check_extension('u').is_ok()) {
             return Err(Exception::IllegalInsn(*p.state().ir()));
         }

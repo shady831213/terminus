@@ -265,13 +265,13 @@ impl PrivilegeStates {
         }
     }
 
-    fn get_priv_by_csr_idx(&self, id: InsnT) -> Result<&Option<PrivilegeState>, InsnT> {
+    fn get_priv_by_csr_idx(&self, id: InsnT) -> Result<&Option<PrivilegeState>, ()> {
         let csr_priv: u8 = ((id >> 8) & 0x3) as u8;
         match csr_priv {
             0 => Ok(&self.u),
             1 => Ok(&self.s),
             3 => Ok(&self.m),
-            _ => Err(id)
+            _ => Err(())
         }
     }
 }

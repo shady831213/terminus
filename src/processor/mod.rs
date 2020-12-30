@@ -135,7 +135,7 @@ impl ProcessorState {
         self.next_pc = start_address;
         self.ir = 0;
         self.wfi = false;
-        let csrs = self.privilege.mcsrs();
+        let csrs = self.mcsrs();
         if let Some(ref clint) = self.clint {
             //register clint:0:msip, 1:mtip
             csrs.mip_mut().msip_transform({
@@ -261,17 +261,13 @@ impl ProcessorState {
         &self.config
     }
 
-    fn csr_privilege_check(&self, id: InsnT) -> Result<(), Exception> {
-        self.privilege.csr_privilege_check(id).map_err(|_|{Exception::IllegalInsn(*self.ir())})
-    }
-
     pub fn hartid(&self) -> usize {
         self.hartid
     }
 
     pub fn csr(&self, id: InsnT) -> Result<RegT, Exception> {
         let trip_id = id & 0xfff;
-        self.csr_privilege_check(trip_id)?;
+        self.privilege.csr_privilege_check(trip_id).map_err(|_|{Exception::IllegalInsn(*self.ir())})?;
         if let Some(v) = self.privilege.csr_read(self,trip_id) {
             return Ok(v)
         }
@@ -283,7 +279,7 @@ impl ProcessorState {
 
     pub fn set_csr(&self, id: InsnT, value: RegT) -> Result<(), Exception> {
         let trip_id = id & 0xfff;
-        self.csr_privilege_check(trip_id)?;
+        self.privilege.csr_privilege_check(trip_id).map_err(|_|{Exception::IllegalInsn(*self.ir())})?;
         if self.privilege.csr_write(self,trip_id, value).is_some() {
             return Ok(())
         }
@@ -296,7 +292,13 @@ impl ProcessorState {
     pub fn check_extension(&self, ext: char) -> Result<(), Exception> {
         self.privilege.check_extension(ext).map_err(|_|{Exception::IllegalInsn(*self.ir())})
     }
+    pub fn mcsrs(&self) -> &Rc<MCsrs> {
+        self.privilege.mcsrs()
+    }
 
+    pub fn scsrs(&self) -> Result<&Rc<SCsrs>, Exception> {
+        self.privilege.scsrs().map_err(|_|{Exception::IllegalInsn(*self.ir())})
+    }
     pub fn check_xlen(&self, xlen: XLen) -> Result<(), Exception> {
         if xlen == self.config().xlen {
             Ok(())
@@ -431,7 +433,7 @@ impl Processor {
         const SSIP: RegT = 1 << 1;
         const STIP: RegT = 1 << 5;
 
-        let csrs = self.state().privilege.mcsrs();
+        let csrs = self.state().mcsrs();
         let pendings = csrs.mip().get() & csrs.mie().get();
         if pendings == 0 {
             return Ok(());
@@ -474,7 +476,7 @@ impl Processor {
     }
 
     fn handle_trap(&mut self, trap: Trap) {
-        let mcsrs = self.state().privilege.mcsrs();
+        let mcsrs = self.state().mcsrs();
         let (int_flag, deleg, code, tval) = match trap {
             Trap::Exception(e) => (false, mcsrs.medeleg().get(), e.code(), e.tval()),
             Trap::Interrupt(i) => (true, mcsrs.mideleg().get(), i.code(), i.tval()),
@@ -489,7 +491,7 @@ impl Processor {
         let
             (pc, privilege) = if
         degeged {
-            let scsrs = self.state().privilege.scsrs().unwrap();
+            let scsrs = self.state().scsrs().unwrap();
             let tvec = scsrs.stvec();
             let offset = if tvec.mode() == 1 && int_flag {
                 code << 2
@@ -556,7 +558,7 @@ impl Processor {
 
     fn one_step(&mut self) {
         if self.state().wfi() {
-            let csrs = self.state().privilege.mcsrs();
+            let csrs = self.state().mcsrs();
             if csrs.mip().get() & csrs.mie().get() == 0 {
                 return;
             } else {
