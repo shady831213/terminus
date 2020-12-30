@@ -205,6 +205,17 @@ Tvec {
 }
 }
 
+impl Tvec {
+    pub fn get_trap_pc(&self, code:RegT, int_flag:bool) -> RegT {
+        let offset = if self.mode() == 1 && int_flag {
+            code << 2
+        } else {
+            0
+        };
+        (self.base() << 2) + offset
+    }
+}
+
 define_csr! {
 Medeleg{}
 }

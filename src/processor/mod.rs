@@ -471,13 +471,7 @@ impl Processor {
         let degeged = *self.state().privilege() != Privilege::M && (deleg >> code) & 1 == 1;
         let (pc, privilege) = if degeged {
             let scsrs = self.state().scsrs().unwrap();
-            let tvec = scsrs.stvec();
-            let offset = if tvec.mode() == 1 && int_flag {
-                code << 2
-            } else {
-                0
-            };
-            let pc = (tvec.base() << 2) + offset;
+            let pc = scsrs.stvec().get_trap_pc(code, int_flag);
             scsrs.scause_mut().set_code(code);
             scsrs.scause_mut().set_int(int_flag as RegT);
             if int_flag {
@@ -496,13 +490,7 @@ impl Processor {
             self.fetcher().flush_icache();
             (pc, Privilege::S)
         } else {
-            let tvec = mcsrs.mtvec();
-            let offset = if tvec.mode() == 1 && int_flag {
-                code << 2
-            } else {
-                0
-            };
-            let pc = (tvec.base() << 2) + offset;
+            let pc =  mcsrs.mtvec().get_trap_pc(code, int_flag);
             mcsrs.mcause_mut().set_code(code);
             mcsrs.mcause_mut().set_int(int_flag as RegT);
             if int_flag {
