@@ -1205,8 +1205,7 @@ struct WFI();
 impl Execution for WFI {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let csrs = p.state().privilege.mcsrs();
-        let privilege = &p.state().privilege;
-        if csrs.mstatus().tw() != 0 && (privilege.get_priv(Privilege::S).is_some() ||  privilege.get_priv(Privilege::U).is_some()) {
+        if csrs.mstatus().tw() != 0 && (p.state().check_extension('s').is_ok() || p.state().check_extension('u').is_ok()) {
             return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         if csrs.mip().get() & csrs.mie().get() != 0 {

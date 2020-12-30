@@ -200,22 +200,6 @@ impl PrivilegeStates {
         }
     }
 
-    pub fn get_priv(&self, p: Privilege) -> &Option<PrivilegeState> {
-        match p {
-            Privilege::M => &self.m,
-            Privilege::S => &self.s,
-            Privilege::U => &self.u,
-        }
-    }
-
-    pub fn get_priv_mut(&mut self, p: Privilege) -> &mut Option<PrivilegeState> {
-        match p {
-            Privilege::M => &mut self.m,
-            Privilege::S => &mut self.s,
-            Privilege::U => &mut self.u,
-        }
-    }
-
     pub fn set_priv(&mut self, p: Privilege) {
         match p {
             Privilege::S if self.s.is_none() => { self.cur = Privilege::M }
