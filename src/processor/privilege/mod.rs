@@ -1,5 +1,5 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use crate::prelude::{RegT, InsnT};
+use crate::prelude::{RegT, InsnT, XLen};
 use crate::processor::{HasCsr, ProcessorState, ProcessorCfg};
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -274,20 +274,15 @@ impl PrivilegeStates {
 
 impl HasCsr for PrivilegeStates {
     fn csr_write(&self, state: &ProcessorState, addr: InsnT, value: RegT) -> Option<()> {
-        let m_csrs = if let Some(PrivilegeState::M(m_state)) = &self.m {m_state.get_csrs()} else {unreachable!()};
+        let m_csrs = if let Some(PrivilegeState::M(m_state)) = &self.m { m_state.get_csrs() } else { unreachable!() };
         if let Ok(Some(p)) = self.get_priv_by_csr_idx(addr) {
             match p {
                 PrivilegeState::M(m) => {
-                    if value & ((1 as RegT) << (('c' as u8 - 'a' as u8) as RegT)) == 0 && addr == 0x301 && state.pc().trailing_zeros() == 1 {
-                        return Some(());
-                    }
+                    m.get_csrs().misa_mut().set_ignore(value & ((1 as RegT) << (('c' as u8 - 'a' as u8) as RegT)) == 0 && state.pc().trailing_zeros() == 1);
                     m.get_csrs().write(addr as u64, value)
                 }
                 PrivilegeState::S(s) => {
-                    //stap
-                    if addr == 0x180 && self.cur == Privilege::S && m_csrs.mstatus().tvm() != 0 {
-                        return None;
-                    }
+                    s.get_csrs().satp_mut().set_forbidden(self.cur == Privilege::S && m_csrs.mstatus().tvm() != 0);
                     s.get_csrs().write(addr as u64, value)
                 }
                 PrivilegeState::U(u) => {
@@ -298,45 +293,45 @@ impl HasCsr for PrivilegeStates {
             None
         }
     }
-    fn csr_read(&self, _: &ProcessorState, addr: InsnT) -> Option<RegT> {
-        let m_csrs = if let Some(PrivilegeState::M(m_state)) = &self.m {m_state.get_csrs()} else {unreachable!()};
-        let addr_high = addr & 0xf0;
-        if let Ok(Some(p)) = self.get_priv_by_csr_idx(addr) {
-            match p {
-                PrivilegeState::M(m) => {
-                    m.get_csrs().read(addr as u64)
-                }
-                PrivilegeState::S(s) => {
-                    //stap
-                    if addr == 0x180 && self.cur == Privilege::S && m_csrs.mstatus().tvm() != 0 {
-                        return None;
+    fn csr_read(&self, state: &ProcessorState, addr: InsnT) -> Option<RegT> {
+        let m_csrs = if let Some(PrivilegeState::M(m_state)) = &self.m { m_state.get_csrs() } else { unreachable!() };
+        match self.get_priv_by_csr_idx(addr) {
+            Ok(Some(p)) => {
+                match p {
+                    PrivilegeState::M(m) => {
+                        m.get_csrs().read(addr as u64)
                     }
-                    s.get_csrs().read(addr as u64)
-                }
-                PrivilegeState::U(u) => {
-                    if addr_high == 0x80 || addr_high == 0x90 || addr_high == 0x00 || addr_high == 0x10 {
-                        match self.cur {
-                            Privilege::S if m_csrs.mcounteren().get() & ((1 as RegT) << (addr as RegT & 0x1f)) == 0 => {
-                                return None;
+                    PrivilegeState::S(s) => {
+                        //stap
+                        s.get_csrs().satp_mut().get_forbidden(self.cur == Privilege::S && m_csrs.mstatus().tvm() != 0);
+                        s.get_csrs().read(addr as u64)
+                    }
+                    PrivilegeState::U(u) => {
+                        let mcounter_dis = m_csrs.mcounteren().get() & ((1 as RegT) << (addr as RegT & 0x1f)) == 0;
+                        let counter_dis = match self.cur {
+                            Privilege::S => {
+                                mcounter_dis
                             }
                             Privilege::U => {
-                                if m_csrs.mcounteren().get() & ((1 as RegT) << (addr as RegT & 0x1f)) == 0 {
-                                    return None;
-                                }
                                 if let Some(PrivilegeState::S(s_state)) = &self.s {
-                                    if s_state.get_csrs().scounteren().get() & ((1 as RegT) << (addr as RegT & 0x1f)) == 0 {
-                                        return None;
-                                    }
+                                    mcounter_dis || (s_state.get_csrs().scounteren().get() & ((1 as RegT) << (addr as RegT & 0x1f)) == 0)
+                                } else {
+                                    mcounter_dis
                                 }
                             }
-                            _ => {}
-                        }
+                            _ => false
+                        };
+                        u.get_csrs().cycle_mut().get_forbidden(counter_dis);
+                        u.get_csrs().cycleh_mut().get_forbidden(counter_dis || state.config().xlen != XLen::X32);
+                        u.get_csrs().instret_mut().get_forbidden(counter_dis);
+                        u.get_csrs().instreth_mut().get_forbidden(counter_dis || state.config().xlen != XLen::X32);
+                        u.get_csrs().read(addr as u64)
                     }
-                    u.get_csrs().read(addr as u64)
                 }
             }
-        } else {
-            None
+            _ => {
+                None
+            }
         }
     }
 }

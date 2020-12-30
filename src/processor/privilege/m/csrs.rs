@@ -38,8 +38,8 @@ pub MCsrs(0x0, 0xfff) {
     tselect(RO):Tselect, 0x7A0;
     mcycle(RO):Cycle, 0xB00;
     minstret(RO):Instret, 0xB02;
-    mcycleh(RO):Cycleh, 0xB80;
-    minstreth(RO):Instreth, 0xB82;
+    mcycleh(RO):Cycle, 0xB80;
+    minstreth(RO):Instret, 0xB82;
     mvendorid(RO):Mvendorid, 0xF11;
     marchid(RO):Marchid, 0xF12;
     mimpid(RO):Mimpid, 0xF13;
@@ -295,28 +295,12 @@ Cycle {
 }
 
 define_csr! {
-Cycleh {
-    fields32 {
-       cycle(RO):31, 0;
-    },
-}
-}
-
-define_csr! {
 Instret {
     fields32 {
        instret(RO):31, 0;
     },
     fields64 {
        instret(RO):63, 0;
-    },
-}
-}
-
-define_csr! {
-Instreth {
-    fields32 {
-       instret(RO):31, 0;
     },
 }
 }

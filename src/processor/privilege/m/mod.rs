@@ -4,6 +4,7 @@ use crate::processor::ProcessorCfg;
 
 pub mod csrs;
 use csrs::*;
+use crate::prelude::XLen;
 
 pub struct PrivM {
     csrs: Rc<MCsrs>,
@@ -29,6 +30,8 @@ impl PrivM {
             }
         }
         );
+        m.csrs.mcycleh_mut().get_forbidden(cfg.xlen != XLen::X32);
+        m.csrs.minstreth_mut().get_forbidden(cfg.xlen != XLen::X32);
         m
     }
     pub fn get_csrs(&self) -> &Rc<MCsrs> {
