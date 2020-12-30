@@ -11,18 +11,17 @@ struct SRET();
 
 impl Execution for SRET {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let mcsrs = p.state().mcsrs();
         let scsrs = p.state().scsrs()?;
-        let tsr = mcsrs.mstatus().tsr();
+        let tsr = p.state().mcsrs().mstatus().tsr();
         if tsr == 1 && *p.state().privilege() == Privilege::S {
             return Err(Exception::IllegalInsn(*p.state().ir()));
         }
-        let spp = mcsrs.mstatus().spp();
-        let spie = mcsrs.mstatus().spie();
-        mcsrs.mstatus_mut().set_sie(spie);
-        mcsrs.mstatus_mut().set_spie(1);
+        let spp = scsrs.sstatus().spp();
+        let spie = scsrs.sstatus().spie();
+        scsrs.sstatus_mut().set_sie(spie);
+        scsrs.sstatus_mut().set_spie(1);
         let u_value: u8 = Privilege::U.into();
-        mcsrs.mstatus_mut().set_spp(u_value as RegT);
+        scsrs.sstatus_mut().set_spp(u_value as RegT);
         if p.state().check_extension('c').is_err() {
             let pc = (scsrs.sepc().get() >> 2) << 2;
             p.state_mut().set_pc(pc);

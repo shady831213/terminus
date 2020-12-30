@@ -1,8 +1,8 @@
 use crate::prelude::*;
-use crate::processor::privilege::m::csrs::{Tvec, Scratch, Epc, Cause, Tval, Counteren};
+use crate::processor::privilege::m::csrs::{Status, Tvec, Scratch, Epc, Cause, Tval, Counteren};
 csr_map! {
 pub SCsrs(0x0, 0xfff) {
-    sstatus(RW):SStatus,0x100;
+    sstatus(RW):Status,0x100;
     sie(RW):Sie, 0x104;
     stvec(RW):Tvec, 0x105;
     scounteren(RW):Counteren, 0x106;
@@ -15,28 +15,6 @@ pub SCsrs(0x0, 0xfff) {
 }
 }
 
-define_csr! {
-SStatus {
-    fields {
-         uie(RW): 0, 0;
-         sie(RW): 1, 1;
-         upie(RW): 4, 4;
-         spie(RW): 5, 5;
-         spp(RW): 8, 8;
-         fs(RW): 14, 13;
-         xs(RW): 16, 15;
-         sum(RW): 18, 18;
-         mxr(RW): 19, 19;
-    },
-    fields32 {
-         sd(RO): 31, 31;
-    },
-    fields64 {
-         uxl(RO): 33, 32;
-         sd(RO): 63, 63;
-    },
-}
-}
 
 define_csr! {
 Satp {

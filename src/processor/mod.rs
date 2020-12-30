@@ -468,15 +468,8 @@ impl Processor {
             Trap::Interrupt(i) => (true, mcsrs.mideleg().get(), i.code(), i.tval()),
         };
         //deleg to s-mode
-        let
-            degeged = *
-            self.
-                state().
-                privilege() !=
-            Privilege::M && (deleg >> code) & 1 == 1;
-        let
-            (pc, privilege) = if
-        degeged {
+        let degeged = *self.state().privilege() != Privilege::M && (deleg >> code) & 1 == 1;
+        let (pc, privilege) = if degeged {
             let scsrs = self.state().scsrs().unwrap();
             let tvec = scsrs.stvec();
             let offset = if tvec.mode() == 1 && int_flag {
@@ -494,11 +487,11 @@ impl Processor {
             }
             scsrs.stval_mut().set(tval);
 
-            let sie = mcsrs.mstatus().sie();
-            mcsrs.mstatus_mut().set_spie(sie);
+            let sie = scsrs.sstatus().sie();
+            scsrs.sstatus_mut().set_spie(sie);
             let priv_value: u8 = (*self.state().privilege()).into();
-            mcsrs.mstatus_mut().set_spp(priv_value as RegT);
-            mcsrs.mstatus_mut().set_sie(0);
+            scsrs.sstatus_mut().set_spp(priv_value as RegT);
+            scsrs.sstatus_mut().set_sie(0);
             self.mmu().flush_tlb();
             self.fetcher().flush_icache();
             (pc, Privilege::S)
@@ -528,12 +521,8 @@ impl Processor {
             self.fetcher().flush_icache();
             (pc, Privilege::M)
         };
-        self.
-            state_mut().
-            set_pc(pc);
-        self.
-            state_mut().
-            set_privilege(privilege);
+        self.state_mut().set_pc(pc);
+        self.state_mut().set_privilege(privilege);
     }
 
     fn execute_one(&mut self) -> Result<(), Trap> {

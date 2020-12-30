@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 csr_map! {
 pub MCsrs(0x0, 0xfff) {
-    mstatus(RW):MStatus, 0x300;
+    mstatus(RW):Status, 0x300;
     misa(RW):Misa, 0x301;
     medeleg(RW):Medeleg, 0x302;
     mideleg(RW):Mideleg, 0x303;
@@ -103,7 +103,7 @@ Misa {
 }
 
 define_csr! {
-MStatus {
+Status {
     fields {
          uie(RW): 0, 0;
          sie(RW): 1, 1;
@@ -131,6 +131,19 @@ MStatus {
          sd(RW): 63, 63;
     },
 }
+}
+
+impl Status {
+    pub fn as_s_priv(&mut self) {
+        self.mie_transform(|_|{0});
+        self.mpie_transform(|_|{0});
+        self.mpp_transform(|_|{0});
+        self.mprv_transform(|_|{0});
+        self.tvm_transform(|_|{0});
+        self.tw_transform(|_|{0});
+        self.tsr_transform(|_|{0});
+        self.sxl_transform(|_|{0});
+    }
 }
 
 define_csr! {
