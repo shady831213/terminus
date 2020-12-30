@@ -175,6 +175,68 @@ impl PrivilegeStates {
         }
     }
 
+    fn delegate_priv(&self, code:RegT, int_flag:bool) -> Privilege {
+        let deleg = if int_flag {
+            self.mcsrs().mideleg().get()
+        } else {
+            self.mcsrs().medeleg().get()
+        };
+        //deleg to s-mode
+        let degeged = self.cur != Privilege::M && (deleg >> code) & 1 == 1;
+        if degeged {
+            Privilege::S
+        } else {
+            Privilege::M
+        }
+    }
+
+    pub fn trap_enter(&self, state:&ProcessorState, code:RegT, int_flag:bool, val:RegT) -> (RegT, Privilege) {
+        let tgt_privilege = self.delegate_priv(code, int_flag);
+        let (tvec, mut cause, mut epc, mut tval) = match &tgt_privilege {
+            Privilege::M => {
+                (self.mcsrs().mtvec(),
+                 self.mcsrs().mcause_mut(),
+                 self.mcsrs().mepc_mut(),
+                 self.mcsrs().mtval_mut()
+                )
+            }
+            Privilege::S => {
+                (self.scsrs().unwrap().stvec(),
+                 self.scsrs().unwrap().scause_mut(),
+                 self.scsrs().unwrap().sepc_mut(),
+                 self.scsrs().unwrap().stval_mut()
+                )
+            }
+            _ => unreachable!()
+        };
+        let pc = tvec.get_trap_pc(code, int_flag);
+        cause.set_cause(code, int_flag);
+        if int_flag {
+            epc.set(*state.next_pc());
+        } else {
+            epc.set(*state.pc());
+        }
+        tval.set(val);
+
+        self.mcsrs().mstatus_mut().push_privilege(&tgt_privilege, &self.cur);
+        (pc, tgt_privilege)
+    }
+
+    pub fn trap_return(&self, cur_privilege:&Privilege) -> (RegT, Privilege) {
+        let epc = match cur_privilege {
+            Privilege::M => self.mcsrs().mepc(),
+            Privilege::S => self.scsrs().unwrap().sepc(),
+            _ => unreachable!()
+        };
+        let xpp = self.mcsrs().mstatus_mut().pop_privilege(cur_privilege);
+        let pc = if self.check_extension('c').is_err() {
+            (epc.get() >> 2) << 2
+        } else {
+            epc.get()
+        };
+        (pc, xpp)
+    }
+
     fn get_priv_by_csr_idx(&self, id: InsnT) -> Result<Privilege, ()> {
         let csr_priv: u8 = ((id >> 8) & 0x3) as u8;
         Privilege::try_from(csr_priv).map_err(|_| { () })

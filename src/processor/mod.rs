@@ -304,8 +304,16 @@ impl ProcessorState {
         self.privilege.cur_privilege()
     }
 
-    pub fn set_privilege(&mut self, privilege: Privilege) {
-        self.privilege.set_priv(privilege)
+    pub fn trap_enter(&mut self, code:RegT, int_flag:bool, val:RegT) {
+        let (pc, privilege) = self.privilege.trap_enter(self, code, int_flag, val);
+        self.set_pc(pc);
+        self.privilege.set_priv(privilege);
+    }
+
+    pub fn trap_return(&mut self, cur_privilege:&Privilege) {
+        let (pc, privilege) = self.privilege.trap_return(cur_privilege);
+        self.set_pc(pc);
+        self.privilege.set_priv(privilege);
     }
 
     pub fn pending_interrupts(&self) -> RegT {
@@ -462,47 +470,13 @@ impl Processor {
     }
 
     fn handle_trap(&mut self, trap: Trap) {
-        let mcsrs = self.state().mcsrs();
-        let (int_flag, deleg, code, tval) = match trap {
-            Trap::Exception(e) => (false, mcsrs.medeleg().get(), e.code(), e.tval()),
-            Trap::Interrupt(i) => (true, mcsrs.mideleg().get(), i.code(), i.tval()),
+        let (int_flag, code, tval) = match trap {
+            Trap::Exception(e) => (false, e.code(), e.tval()),
+            Trap::Interrupt(i) => (true, i.code(), i.tval()),
         };
-        //deleg to s-mode
-        let degeged = *self.state().privilege() != Privilege::M && (deleg >> code) & 1 == 1;
-        let (pc, privilege) = if degeged {
-            let scsrs = self.state().scsrs().unwrap();
-            let pc = scsrs.stvec().get_trap_pc(code, int_flag);
-            let tgt_privilege = Privilege::S;
-            scsrs.scause_mut().set_cause(code, int_flag);
-            if int_flag {
-                scsrs.sepc_mut().set(*self.state().next_pc());
-            } else {
-                scsrs.sepc_mut().set(*self.state().pc());
-            }
-            scsrs.stval_mut().set(tval);
-
-            scsrs.sstatus_mut().push_privilege(&tgt_privilege, self.state().privilege());
-
-            (pc, tgt_privilege)
-        } else {
-            let pc =  mcsrs.mtvec().get_trap_pc(code, int_flag);
-            let tgt_privilege = Privilege::M;
-            mcsrs.mcause_mut().set_cause(code, int_flag);
-            if int_flag {
-                mcsrs.mepc_mut().set(*self.state().next_pc());
-            } else {
-                mcsrs.mepc_mut().set(*self.state().pc());
-            }
-            mcsrs.mtval_mut().set(tval);
-
-            mcsrs.mstatus_mut().push_privilege(&tgt_privilege, self.state().privilege());
-
-            (pc, tgt_privilege)
-        };
+        self.state_mut().trap_enter(code, int_flag, tval);
         self.mmu().flush_tlb();
         self.fetcher().flush_icache();
-        self.state_mut().set_pc(pc);
-        self.state_mut().set_privilege(privilege);
     }
 
     fn execute_one(&mut self) -> Result<(), Trap> {

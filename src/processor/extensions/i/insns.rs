@@ -1173,16 +1173,7 @@ struct MRET();
 
 impl Execution for MRET {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let csrs = p.state().mcsrs();
-        let mpp = csrs.mstatus_mut().pop_privilege(&Privilege::M);
-        if p.state().check_extension('c').is_err() {
-            let pc = (csrs.mepc().get() >> 2) << 2;
-            p.state_mut().set_pc(pc);
-        } else {
-            let pc = csrs.mepc().get();
-            p.state_mut().set_pc(pc);
-        }
-        p.state_mut().set_privilege(mpp);
+        p.state_mut().trap_return(&Privilege::M);
         p.mmu().flush_tlb();
         p.fetcher().flush_icache();
         Ok(())

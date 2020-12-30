@@ -10,20 +10,12 @@ struct SRET();
 
 impl Execution for SRET {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
+        p.state().check_extension('s')?;
         let tsr = p.state().mcsrs().mstatus().tsr();
         if tsr == 1 && *p.state().privilege() == Privilege::S {
             return Err(Exception::IllegalInsn(*p.state().ir()));
         }
-        let scsrs = p.state().scsrs()?;
-        let spp = scsrs.sstatus_mut().pop_privilege(&Privilege::S);
-        if p.state().check_extension('c').is_err() {
-            let pc = (scsrs.sepc().get() >> 2) << 2;
-            p.state_mut().set_pc(pc);
-        } else {
-            let pc = scsrs.sepc().get();
-            p.state_mut().set_pc(pc);
-        }
-        p.state_mut().set_privilege(spp);
+        p.state_mut().trap_return(&Privilege::S);
         p.mmu().flush_tlb();
         p.fetcher().flush_icache();
         Ok(())
