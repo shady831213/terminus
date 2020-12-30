@@ -299,13 +299,6 @@ impl ProcessorState {
     pub fn scsrs(&self) -> Result<&Rc<SCsrs>, Exception> {
         self.privilege.scsrs().map_err(|_|{Exception::IllegalInsn(*self.ir())})
     }
-    pub fn check_xlen(&self, xlen: XLen) -> Result<(), Exception> {
-        if xlen == self.config().xlen {
-            Ok(())
-        } else {
-            Err(Exception::IllegalInsn(*self.ir()))
-        }
-    }
 
     pub fn privilege(&self) -> &Privilege {
         self.privilege.cur_privilege()
@@ -313,6 +306,18 @@ impl ProcessorState {
 
     pub fn set_privilege(&mut self, privilege: Privilege) {
         self.privilege.set_priv(privilege)
+    }
+
+    pub fn pending_interrupts(&self) -> RegT {
+        self.privilege.pending_interrupts()
+    }
+
+    pub fn check_xlen(&self, xlen: XLen) -> Result<(), Exception> {
+        if xlen == self.config().xlen {
+            Ok(())
+        } else {
+            Err(Exception::IllegalInsn(*self.ir()))
+        }
     }
 
     pub fn pc(&self) -> &RegT {
@@ -433,26 +438,7 @@ impl Processor {
         const SSIP: RegT = 1 << 1;
         const STIP: RegT = 1 << 5;
 
-        let csrs = self.state().mcsrs();
-        let pendings = csrs.mip().get() & csrs.mie().get();
-        if pendings == 0 {
-            return Ok(());
-        }
-
-        let mie = csrs.mstatus().mie();
-        let sie = csrs.mstatus().sie();
-        let deleg = csrs.mideleg().get();
-        let m_enabled = *self.state().privilege() != Privilege::M || (*self.state().privilege() == Privilege::M && mie == 1);
-        let m_pendings = pendings & !deleg & sext(m_enabled as RegT, 1);
-        let s_enabled = *self.state().privilege() == Privilege::U || (*self.state().privilege() == Privilege::S && sie == 1);
-        let s_pendings = pendings & deleg & sext(s_enabled as RegT, 1);
-
-        //m_pendings > s_pendings
-        let interrupts = if m_pendings == 0 {
-            s_pendings
-        } else {
-            m_pendings
-        };
+        let interrupts = self.state().pending_interrupts();
         if interrupts == 0 {
             Ok(())
         } else {

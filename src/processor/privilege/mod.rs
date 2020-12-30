@@ -1,5 +1,5 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use crate::prelude::{RegT, InsnT, XLen};
+use crate::prelude::{RegT, InsnT, XLen, sext};
 use crate::processor::{HasCsr, ProcessorState, ProcessorCfg};
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -262,6 +262,28 @@ impl PrivilegeStates {
             Ok(s_state.get_csrs())
         } else {
             Err(())
+        }
+    }
+
+    pub fn pending_interrupts(&self) -> RegT {
+        let csrs = self.mcsrs();
+        let pendings = csrs.mip().get() & csrs.mie().get();
+        if pendings == 0 {
+            return 0;
+        }
+        let mie = csrs.mstatus().mie();
+        let sie = csrs.mstatus().sie();
+        let deleg = csrs.mideleg().get();
+        let m_enabled = self.cur != Privilege::M || (self.cur == Privilege::M && mie == 1);
+        let m_pendings = pendings & !deleg & sext(m_enabled as RegT, 1);
+        let s_enabled = self.cur == Privilege::U || (self.cur == Privilege::S && sie == 1);
+        let s_pendings = pendings & deleg & sext(s_enabled as RegT, 1);
+
+        //m_pendings > s_pendings
+        if m_pendings == 0 {
+            s_pendings
+        } else {
+            m_pendings
         }
     }
 
