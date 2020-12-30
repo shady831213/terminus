@@ -89,7 +89,7 @@ impl ExtensionF {
         }
 
         //map dirty to mstatus.fs
-        state.icsrs().mstatus_mut().set_fs_transform(
+        state.privilege.mcsrs().mstatus_mut().set_fs_transform(
             {
                 let dirty = e.dirty.clone();
                 move |value| {
@@ -98,7 +98,7 @@ impl ExtensionF {
                 }
             }
         );
-        state.icsrs().mstatus_mut().fs_transform(
+        state.privilege.mcsrs().mstatus_mut().fs_transform(
             {
                 let dirty = e.dirty.clone();
                 move |_| {

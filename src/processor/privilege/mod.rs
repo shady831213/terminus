@@ -7,10 +7,12 @@ use std::cell::RefCell;
 pub mod m;
 
 use m::PrivM;
+pub use m::csrs::*;
 
 pub mod s;
 
 use s::PrivS;
+pub use s::csrs::*;
 
 pub mod u;
 
@@ -232,6 +234,14 @@ impl PrivilegeStates {
         &self.cur
     }
 
+    pub fn check_extension(&self, ext: char) -> Result<(), ()> {
+        if self.mcsrs().misa().get() & ((1 as RegT) << ((ext as u8 - 'a' as u8) as RegT)) != 0 {
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
     pub fn delegate_insns_cnt(&self, cnt: &Rc<RefCell<u64>>) {
         if let Some(PrivilegeState::M(m_state)) = &self.m {
             m_state.get_csrs().minstret_mut().instret_transform({
@@ -251,14 +261,30 @@ impl PrivilegeStates {
         }
     }
 
-    pub fn csr_privilege_check(&self, id: InsnT) -> Result<(), InsnT> {
+    pub fn csr_privilege_check(&self, id: InsnT) -> Result<(), ()> {
         let trip_id = id & 0xfff;
         let cur_priv: u8 = self.cur.into();
         let csr_priv: u8 = ((trip_id >> 8) & 0x3) as u8;
         if cur_priv < csr_priv {
-            return Err(id);
+            return Err(());
         }
         Ok(())
+    }
+
+    pub fn mcsrs(&self) -> &Rc<MCsrs> {
+        if let Some(PrivilegeState::M(m_state)) = &self.m {
+            m_state.get_csrs()
+        } else {
+            unreachable!()
+        }
+    }
+
+    pub fn scsrs(&self) -> Result<&Rc<SCsrs>, ()> {
+        if let Some(PrivilegeState::S(s_state)) = &self.s {
+            Ok(s_state.get_csrs())
+        } else {
+            Err(())
+        }
     }
 
     fn get_priv_by_csr_idx(&self, id: InsnT) -> Result<&Option<PrivilegeState>, InsnT> {
@@ -274,7 +300,6 @@ impl PrivilegeStates {
 
 impl HasCsr for PrivilegeStates {
     fn csr_write(&self, state: &ProcessorState, addr: InsnT, value: RegT) -> Option<()> {
-        let m_csrs = if let Some(PrivilegeState::M(m_state)) = &self.m { m_state.get_csrs() } else { unreachable!() };
         if let Ok(Some(p)) = self.get_priv_by_csr_idx(addr) {
             match p {
                 PrivilegeState::M(m) => {
@@ -282,7 +307,7 @@ impl HasCsr for PrivilegeStates {
                     m.get_csrs().write(addr as u64, value)
                 }
                 PrivilegeState::S(s) => {
-                    s.get_csrs().satp_mut().set_forbidden(self.cur == Privilege::S && m_csrs.mstatus().tvm() != 0);
+                    s.get_csrs().satp_mut().set_forbidden(self.cur == Privilege::S && self.mcsrs().mstatus().tvm() != 0);
                     s.get_csrs().write(addr as u64, value)
                 }
                 PrivilegeState::U(u) => {
@@ -294,7 +319,6 @@ impl HasCsr for PrivilegeStates {
         }
     }
     fn csr_read(&self, state: &ProcessorState, addr: InsnT) -> Option<RegT> {
-        let m_csrs = if let Some(PrivilegeState::M(m_state)) = &self.m { m_state.get_csrs() } else { unreachable!() };
         match self.get_priv_by_csr_idx(addr) {
             Ok(Some(p)) => {
                 match p {
@@ -303,18 +327,18 @@ impl HasCsr for PrivilegeStates {
                     }
                     PrivilegeState::S(s) => {
                         //stap
-                        s.get_csrs().satp_mut().get_forbidden(self.cur == Privilege::S && m_csrs.mstatus().tvm() != 0);
+                        s.get_csrs().satp_mut().get_forbidden(self.cur == Privilege::S && self.mcsrs().mstatus().tvm() != 0);
                         s.get_csrs().read(addr as u64)
                     }
                     PrivilegeState::U(u) => {
-                        let mcounter_dis = m_csrs.mcounteren().get() & ((1 as RegT) << (addr as RegT & 0x1f)) == 0;
+                        let mcounter_dis = self.mcsrs().mcounteren().get() & ((1 as RegT) << (addr as RegT & 0x1f)) == 0;
                         let counter_dis = match self.cur {
                             Privilege::S => {
                                 mcounter_dis
                             }
                             Privilege::U => {
-                                if let Some(PrivilegeState::S(s_state)) = &self.s {
-                                    mcounter_dis || (s_state.get_csrs().scounteren().get() & ((1 as RegT) << (addr as RegT & 0x1f)) == 0)
+                                if let Ok(scsrs) = self.scsrs() {
+                                    mcounter_dis || (scsrs.scounteren().get() & ((1 as RegT) << (addr as RegT & 0x1f)) == 0)
                                 } else {
                                     mcounter_dis
                                 }
