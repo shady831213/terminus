@@ -12,7 +12,6 @@ struct SRET();
 impl Execution for SRET {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('s')?;
-        p.state().check_privilege_level(Privilege::S)?;
         let mcsrs = p.state().privilege.mcsrs();
         let scsrs = p.state().privilege.scsrs().map_err(|_|{Exception::IllegalInsn(*p.state().ir())})?;
         let tsr = mcsrs.mstatus().tsr();
@@ -48,7 +47,6 @@ struct SFENCEVMA();
 impl Execution for SFENCEVMA {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         p.state().check_extension('s')?;
-        p.state().check_privilege_level(Privilege::S)?;
         if *p.state().privilege() == Privilege::S && p.state().privilege.mcsrs().mstatus().tvm() == 1 {
             return Err(Exception::IllegalInsn(*p.state().ir()));
         }

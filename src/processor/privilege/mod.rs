@@ -27,12 +27,6 @@ pub enum Privilege {
 }
 
 
-trait PrivilegeCode {
-    fn code(&self) -> Privilege;
-}
-
-trait PrivilegeMode: PrivilegeCode {}
-
 pub struct PrivilegeStates {
     m: Option<PrivilegeState>,
     s: Option<PrivilegeState>,

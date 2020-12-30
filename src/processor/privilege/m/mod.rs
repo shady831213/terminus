@@ -1,4 +1,3 @@
-use super::{PrivilegeCode, Privilege, PrivilegeMode};
 use std::rc::Rc;
 use crate::processor::ProcessorCfg;
 
@@ -38,10 +37,3 @@ impl PrivM {
         &self.csrs
     }
 }
-
-impl PrivilegeCode for PrivM{
-    fn code(&self) -> Privilege {
-        Privilege::M
-    }
-}
-impl PrivilegeMode for PrivM{}

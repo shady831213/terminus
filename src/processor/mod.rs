@@ -305,13 +305,6 @@ impl ProcessorState {
         }
     }
 
-    pub fn check_privilege_level(&self, privilege: Privilege) -> Result<(), Exception> {
-        if self.privilege.get_priv(privilege).is_none() {
-            return Err(Exception::IllegalInsn(*self.ir()));
-        }
-        Ok(())
-    }
-
     pub fn privilege(&self) -> &Privilege {
         self.privilege.cur_privilege()
     }
