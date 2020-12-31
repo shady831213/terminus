@@ -30,6 +30,7 @@ impl PrivM {
             }
         }
         );
+
         m.csrs.mcycleh_mut().get_forbidden(cfg.xlen != XLen::X32);
         m.csrs.minstreth_mut().get_forbidden(cfg.xlen != XLen::X32);
         m

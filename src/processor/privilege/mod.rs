@@ -4,6 +4,7 @@ use crate::processor::{HasCsr, ProcessorState, ProcessorCfg};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::convert::TryFrom;
+use terminus_spaceport::irq::IrqVec;
 
 mod m;
 
@@ -114,6 +115,86 @@ impl PrivilegeStates {
             }
         }
         );
+    }
+
+    pub fn delegate_ei(&self, irq: &IrqVec) {
+        self.m().mip_mut().meip_transform({
+            let l = irq.listener(0).unwrap();
+            move |_| {
+                l.pending_uncheck() as RegT
+            }
+        });
+        self.m().mip_mut().seip_transform({
+            let l = irq.listener(0).unwrap();
+            move |_| {
+                l.pending_uncheck() as RegT
+            }
+        });
+    }
+
+    pub fn delegate_si_ti(&self, irq: &IrqVec) {
+        self.m().mip_mut().msip_transform({
+            let l = irq.listener(0).unwrap();
+            move |_| {
+                l.pending_uncheck() as RegT
+            }
+        });
+        self.m().mip_mut().mtip_transform({
+            let l = irq.listener(1).unwrap();
+            move |_| {
+                l.pending_uncheck() as RegT
+            }
+        });
+    }
+
+    pub fn init_isa(&self, hartid:RegT, cfg: &ProcessorCfg) {
+        //hartid
+        self.m().mhartid_mut().set(hartid);
+        //extensions config, only f, d can disable
+        let mut misa = self.m().misa_mut();
+        for ext in cfg.extensions.iter() {
+            match ext {
+                'a' => misa.set_a(1),
+                'b' => misa.set_b(1),
+                'c' => misa.set_c(1),
+                'd' => misa.set_d(1),
+                'e' => misa.set_e(1),
+                'f' => misa.set_f(1),
+                'g' => misa.set_g(1),
+                'h' => misa.set_h(1),
+                'i' => misa.set_i(1),
+                'j' => misa.set_j(1),
+                'k' => misa.set_k(1),
+                'l' => misa.set_l(1),
+                'm' => misa.set_m(1),
+                'n' => misa.set_n(1),
+                'o' => misa.set_o(1),
+                'p' => misa.set_p(1),
+                'q' => misa.set_q(1),
+                'r' => misa.set_r(1),
+                's' => misa.set_s(1),
+                't' => misa.set_t(1),
+                'u' => misa.set_u(1),
+                'v' => misa.set_v(1),
+                'w' => misa.set_w(1),
+                'x' => misa.set_x(1),
+                'y' => misa.set_y(1),
+                'z' => misa.set_z(1),
+                _ => unreachable!()
+            }
+        }
+
+        //xlen config
+        match cfg.xlen {
+            XLen::X32 => {
+                misa.set_mxl(1);
+            }
+            XLen::X64 => {
+                misa.set_mxl(2);
+                self.m().mstatus_mut().set_uxl(2);
+                self.m().mstatus_mut().set_sxl(2);
+            }
+        }
     }
 
     pub fn csr_privilege_check(&self, id: InsnT) -> Result<(), ()> {

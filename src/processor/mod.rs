@@ -135,84 +135,13 @@ impl ProcessorState {
         self.next_pc = start_address;
         self.ir = 0;
         self.wfi = false;
-        let m = self.priv_m();
         if let Some(ref clint) = self.clint {
-            //register clint:0:msip, 1:mtip
-            m.mip_mut().msip_transform({
-                let l = clint.listener(0).unwrap();
-                move |_| {
-                    l.pending_uncheck() as RegT
-                }
-            });
-            m.mip_mut().mtip_transform({
-                let l = clint.listener(1).unwrap();
-                move |_| {
-                    l.pending_uncheck() as RegT
-                }
-            });
+            self.privilege.delegate_si_ti(clint);
         }
         if let Some(ref pilc) = self.plic {
-            //register plic
-            m.mip_mut().meip_transform({
-                let l = pilc.listener(0).unwrap();
-                move |_| {
-                    l.pending_uncheck() as RegT
-                }
-            });
-            m.mip_mut().seip_transform({
-                let l = pilc.listener(0).unwrap();
-                move |_| {
-                    l.pending_uncheck() as RegT
-                }
-            });
+            self.privilege.delegate_ei(pilc);
         }
-        //hartid
-        m.mhartid_mut().set(self.hartid as RegT);
-        //extensions config, only f, d can disable
-        let mut misa = m.misa_mut();
-        for ext in self.config().extensions.iter() {
-            match ext {
-                'a' => misa.set_a(1),
-                'b' => misa.set_b(1),
-                'c' => misa.set_c(1),
-                'd' => misa.set_d(1),
-                'e' => misa.set_e(1),
-                'f' => misa.set_f(1),
-                'g' => misa.set_g(1),
-                'h' => misa.set_h(1),
-                'i' => misa.set_i(1),
-                'j' => misa.set_j(1),
-                'k' => misa.set_k(1),
-                'l' => misa.set_l(1),
-                'm' => misa.set_m(1),
-                'n' => misa.set_n(1),
-                'o' => misa.set_o(1),
-                'p' => misa.set_p(1),
-                'q' => misa.set_q(1),
-                'r' => misa.set_r(1),
-                's' => misa.set_s(1),
-                't' => misa.set_t(1),
-                'u' => misa.set_u(1),
-                'v' => misa.set_v(1),
-                'w' => misa.set_w(1),
-                'x' => misa.set_x(1),
-                'y' => misa.set_y(1),
-                'z' => misa.set_z(1),
-                _ => unreachable!()
-            }
-        }
-        //xlen config
-        match self.config().xlen {
-            XLen::X32 => {
-                misa.set_mxl(1);
-            }
-            XLen::X64 => {
-                misa.set_mxl(2);
-                m.mstatus_mut().set_uxl(2);
-                m.mstatus_mut().set_sxl(2);
-            }
-        }
-
+        self.privilege.init_isa(self.hartid as RegT, self.config());
         Ok(())
     }
 
