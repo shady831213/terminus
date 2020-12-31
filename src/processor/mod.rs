@@ -426,12 +426,12 @@ impl Processor {
         self.state.ir = ir;
         match inst.execute(self) {
             Ok(_) => {
-                *self.state.insns_cnt.deref().borrow_mut() += 1;
+                *(*self.state.insns_cnt).borrow_mut() += 1;
                 Ok(())
             }
             Err(e) => {
                 if e.executed() {
-                    *self.state.insns_cnt.deref().borrow_mut() += 1;
+                    *(*self.state.insns_cnt).borrow_mut() += 1;
                 }
                 Err(e)
             }

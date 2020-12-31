@@ -47,7 +47,7 @@ impl<'m> PmpCfgsIter<'m> {
         }
     }
     fn get_cfg(&self) -> RegT {
-        match self.priv_m.deref().xlen {
+        match (*self.priv_m).xlen {
             32 => {
                 match (self.idx >> 2) & 0x3 {
                     0 => self.priv_m.pmpcfg0().get(),
@@ -69,7 +69,7 @@ impl<'m> PmpCfgsIter<'m> {
     }
 
     fn get_entry(&self) -> PmpCfgEntry {
-        let offset: u8 = match self.priv_m.deref().xlen {
+        let offset: u8 = match (*self.priv_m).xlen {
             32 => self.idx & 0x3,
             64 => self.idx & 0x7,
             _ => unreachable!()

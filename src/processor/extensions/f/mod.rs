@@ -9,7 +9,6 @@ mod insns;
 pub mod csrs;
 
 use csrs::FCsrs;
-use std::ops::Deref;
 
 pub type FRegT = u128;
 
@@ -102,7 +101,7 @@ impl ExtensionF {
             {
                 let dirty = e.dirty.clone();
                 move |_| {
-                    *dirty.deref().borrow()
+                    *(*dirty).borrow()
                 }
             }
         );
@@ -158,7 +157,7 @@ impl ExtensionF {
     }
 
     pub fn dirty(&self) -> RegT {
-        *self.dirty.deref().borrow()
+        *(*self.dirty).borrow()
     }
 
     pub fn fregs(&self) -> &[FRegT; 32] {

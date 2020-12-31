@@ -2,7 +2,6 @@ use terminus_spaceport::irq::{IrqVec, IrqVecSender};
 use terminus_spaceport::memory::prelude::*;
 use std::cell::{RefCell, Ref};
 use std::rc::Rc;
-use std::ops::Deref;
 
 struct IntHarts {
     irq_vecs: Vec<IrqVecSender>,
@@ -63,7 +62,7 @@ impl IntcInner {
     }
 
     fn alloc_irq(&mut self) -> IrqVec {
-        self.harts.deref().borrow_mut().alloc_irq()
+        (*self.harts).borrow_mut().alloc_irq()
     }
 
     fn alloc_src(&mut self, id: usize) -> IrqVecSender {
@@ -73,14 +72,14 @@ impl IntcInner {
         self.irq_src.binder().bind(id, {
             let harts = self.harts.clone();
             move || {
-                harts.deref().borrow().update_meip(id)
+                (*harts).borrow().update_meip(id)
             }
         }).unwrap();
         self.irq_src.sender(id).unwrap()
     }
 
     fn update_all_meip(&self) {
-        let harts = self.harts.deref().borrow();
+        let harts = (*self.harts).borrow();
         harts.clear_all_meip();
         for i in 1..self.num_src {
             if self.irq_src.pending_uncheck(i) {
@@ -105,7 +104,7 @@ impl IntcInner {
     fn pick_claim(&self) -> u32 {
         let mut max_pri: u32 = 0;
         let mut idx: u32 = 0;
-        let harts = self.harts.deref().borrow();
+        let harts = (*self.harts).borrow();
         for i in 1..self.num_src {
             if self.irq_src.pending_uncheck(i) {
                 let pri = unsafe { harts.priority.get_unchecked(i) };

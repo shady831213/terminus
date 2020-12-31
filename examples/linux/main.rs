@@ -6,7 +6,6 @@ use terminus_spaceport::devices::term_exit;
 use terminus_spaceport::EXIT_CTRL;
 use terminus_spaceport::memory::region::GHEAP;
 use terminus::global::XLen;
-use std::ops::Deref;
 
 fn main() {
     let num_cores = 1;

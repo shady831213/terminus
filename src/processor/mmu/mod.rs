@@ -162,7 +162,7 @@ impl Mmu {
             if !self.check_pmp(state, &pte_addr, 1 << info.size_shift, &MmuOpt::Load, &1) {
                 return Err(opt.access_exception(vaddr.value()));
             }
-            let pte = match Pte::load(info, self.bus.deref(), &pte_addr) {
+            let pte = match Pte::load(info, &*self.bus, &pte_addr) {
                 Ok(pte) => pte,
                 Err(_) => return Err(opt.access_exception(vaddr.value()))
             };
@@ -199,7 +199,7 @@ impl Mmu {
                     return Err(opt.access_exception(vaddr.value()));
                 }
                 leaf_pte.set_attr(&new_attr);
-                if leaf_pte.store(self.bus.deref(), &pte_addr).is_err() {
+                if leaf_pte.store(&*self.bus, &pte_addr).is_err() {
                     return Err(opt.access_exception(vaddr.value()));
                 }
             } else {
@@ -224,11 +224,11 @@ impl Mmu {
 
     #[cfg_attr(feature = "no-inline", inline(never))]
     pub fn ls_translate(&self, state: &ProcessorState, va: &RegT, len: usize, opt: MmuOpt) -> Result<u64, Exception> {
-        self.translate(state, va, len, opt, self.get_privileage(state, &opt), match opt {
+        self.translate(state, va, len, opt, self.get_privileage(state, &opt), &mut *match opt {
             MmuOpt::Store => self.store_tlb.borrow_mut(),
             MmuOpt::Load => self.load_tlb.borrow_mut(),
             _ => unreachable!()
-        }.deref_mut())
+        })
     }
 
     #[cfg_attr(feature = "no-inline", inline(never))]
@@ -236,7 +236,7 @@ impl Mmu {
         if privilege == 3 {
             return Ok(*va as u64);
         }
-        let info = PteInfo::new(state.priv_s()?.satp().deref());
+        let info = PteInfo::new(&*state.priv_s()?.satp());
         if info.mode == PTE_BARE {
             return Ok(*va as u64);
         }
@@ -260,7 +260,7 @@ impl Mmu {
 
     #[cfg_attr(feature = "no-inline", inline(never))]
     pub fn fetch_translate(&self, state: &ProcessorState, va: &RegT, len: usize) -> Result<u64, Exception> {
-        self.translate(state, va, len, MmuOpt::Fetch, (*state.privilege()).into(), self.fetch_tlb.borrow_mut().deref_mut())
+        self.translate(state, va, len, MmuOpt::Fetch, (*state.privilege()).into(), &mut self.fetch_tlb.borrow_mut())
     }
 }
 
@@ -271,7 +271,6 @@ use crate::processor::ProcessorCfg;
 #[cfg(test)]
 use crate::system::System;
 use std::cell::RefCell;
-use std::ops::DerefMut;
 use std::rc::Rc;
 
 #[test]

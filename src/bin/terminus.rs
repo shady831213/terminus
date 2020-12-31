@@ -21,8 +21,6 @@ use terminus_spaceport::devices::{PixelFormat, FrameBuffer};
 #[cfg(feature = "sdl")]
 use terminus::devices::display::{Fb, SimpleFb};
 #[cfg(feature = "sdl")]
-use std::ops::Deref;
-#[cfg(feature = "sdl")]
 use std::time::Duration;
 #[cfg(feature = "sdl")]
 use terminus_spaceport::devices::SDL;
@@ -357,7 +355,7 @@ fn main() {
                     if let Some(ref display) = sdl {
                         let rt = real_timer.as_mut().unwrap();
                         if rt.elapsed() >= interval.unwrap() {
-                            display.refresh(fb.as_ref().unwrap().deref(), kb.as_ref().unwrap().deref(), mouse.as_ref().unwrap().deref()).unwrap();
+                            display.refresh(&**fb.as_ref().unwrap(), &**kb.as_ref().unwrap(), &**mouse.as_ref().unwrap()).unwrap();
                             *rt += interval.unwrap()
                         }
                     }

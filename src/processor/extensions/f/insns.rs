@@ -73,7 +73,7 @@ impl Execution for FADDS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
         let rs2: u32 = f.flen.boxed(*f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
-        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        let res = self.compute(p.state().ir(), &*f, rs1, rs2, 0)?;
         let pc = *p.state().pc() + 4;
         let rd = self.rd(p.state().ir());
         let value = f.flen.padding(res as FRegT, FLen::F32);
@@ -102,7 +102,7 @@ impl Execution for FSUBS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
         let rs2: u32 = f.flen.boxed(*f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
-        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        let res = self.compute(p.state().ir(), &*f, rs1, rs2, 0)?;
         let pc = *p.state().pc() + 4;
         let rd = self.rd(p.state().ir());
         let value = f.flen.padding(res as FRegT, FLen::F32);
@@ -131,7 +131,7 @@ impl Execution for FMULS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
         let rs2: u32 = f.flen.boxed(*f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
-        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        let res = self.compute(p.state().ir(), &*f, rs1, rs2, 0)?;
         let pc = *p.state().pc() + 4;
         let rd = self.rd(p.state().ir());
         let value = f.flen.padding(res as FRegT, FLen::F32);
@@ -160,7 +160,7 @@ impl Execution for FDIVS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
         let rs2: u32 = f.flen.boxed(*f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
-        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        let res = self.compute(p.state().ir(), &*f, rs1, rs2, 0)?;
         let pc = *p.state().pc() + 4;
         let rd = self.rd(p.state().ir());
         let value = f.flen.padding(res as FRegT, FLen::F32);
@@ -188,7 +188,7 @@ impl Execution for FSQRTS {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
-        let res = self.compute(p.state().ir(), f.deref(), rs1, 0, 0)?;
+        let res = self.compute(p.state().ir(), &*f, rs1, 0, 0)?;
         let pc = *p.state().pc() + 4;
         let rd = self.rd(p.state().ir());
         let value = f.flen.padding(res as FRegT, FLen::F32);
@@ -227,7 +227,7 @@ impl Execution for FMINS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
         let rs2: u32 = f.flen.boxed(*f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
-        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        let res = self.compute(p.state().ir(), &*f, rs1, rs2, 0)?;
         let pc = *p.state().pc() + 4;
         let rd = self.rd(p.state().ir());
         let value = f.flen.padding(res as FRegT, FLen::F32);
@@ -266,7 +266,7 @@ impl Execution for FMAXS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
         let rs2: u32 = f.flen.boxed(*f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
-        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, 0)?;
+        let res = self.compute(p.state().ir(), &*f, rs1, rs2, 0)?;
         let pc = *p.state().pc() + 4;
         let rd = self.rd(p.state().ir());
         let value = f.flen.padding(res as FRegT, FLen::F32);
@@ -296,7 +296,7 @@ impl Execution for FMADDS {
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
         let rs2: u32 = f.flen.boxed(*f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
         let rs3: u32 = f.flen.boxed(*f.freg(self.rs3(p.state().ir())), FLen::F32) as u32;
-        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, rs3)?;
+        let res = self.compute(p.state().ir(), &*f, rs1, rs2, rs3)?;
         let pc = *p.state().pc() + 4;
         let rd = self.rd(p.state().ir());
         let value = f.flen.padding(res as FRegT, FLen::F32);
@@ -326,7 +326,7 @@ impl Execution for FMSUBS {
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
         let rs2: u32 = f.flen.boxed(*f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
         let rs3: u32 = f.flen.boxed(*f.freg(self.rs3(p.state().ir())), FLen::F32) as u32;
-        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, rs3)?;
+        let res = self.compute(p.state().ir(), &*f, rs1, rs2, rs3)?;
         let pc = *p.state().pc() + 4;
         let rd = self.rd(p.state().ir());
         let value = f.flen.padding(res as FRegT, FLen::F32);
@@ -357,7 +357,7 @@ impl Execution for FMNSUBS {
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
         let rs2: u32 = f.flen.boxed(*f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
         let rs3: u32 = f.flen.boxed(*f.freg(self.rs3(p.state().ir())), FLen::F32) as u32;
-        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, rs3)?;
+        let res = self.compute(p.state().ir(), &*f, rs1, rs2, rs3)?;
         let pc = *p.state().pc() + 4;
         let rd = self.rd(p.state().ir());
         let value = f.flen.padding(res as FRegT, FLen::F32);
@@ -387,7 +387,7 @@ impl Execution for FMNADDS {
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
         let rs2: u32 = f.flen.boxed(*f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
         let rs3: u32 = f.flen.boxed(*f.freg(self.rs3(p.state().ir())), FLen::F32) as u32;
-        let res = self.compute(p.state().ir(), f.deref(), rs1, rs2, rs3)?;
+        let res = self.compute(p.state().ir(), &*f, rs1, rs2, rs3)?;
         let pc = *p.state().pc() + 4;
         let rd = self.rd(p.state().ir());
         let value = f.flen.padding(res as FRegT, FLen::F32);
@@ -425,7 +425,7 @@ impl Execution for FCVTWS {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
-        let res = self.convert(p.state().ir(), f.deref(), rs1)? as u32;
+        let res = self.convert(p.state().ir(), &*f, rs1)? as u32;
         let rd = self.rd(p.state().ir());
         let value = sext(res as RegT, 32) & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -462,7 +462,7 @@ impl Execution for FCVTWUS {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
-        let res = self.convert(p.state().ir(), f.deref(), rs1)?;
+        let res = self.convert(p.state().ir(), &*f, rs1)?;
         let rd = self.rd(p.state().ir());
         let value = sext(res as RegT, 32) & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -500,7 +500,7 @@ impl Execution for FCVTLS {
         p.state().check_xlen(XLen::X64)?;
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
-        let res = self.convert(p.state().ir(), f.deref(), rs1)? as u64;
+        let res = self.convert(p.state().ir(), &*f, rs1)? as u64;
         let rd = self.rd(p.state().ir());
         let value = res as RegT & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -538,7 +538,7 @@ impl Execution for FCVTLUS {
         p.state().check_xlen(XLen::X64)?;
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
-        let res = self.convert(p.state().ir(), f.deref(), rs1)?;
+        let res = self.convert(p.state().ir(), &*f, rs1)?;
         let rd = self.rd(p.state().ir());
         let value = res as RegT & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -567,7 +567,7 @@ impl Execution for FCVTSW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
         let rs1: RegT = sext(*p.state().xreg(self.rs1(p.state().ir())), 32);
-        let fres = self.convert(p.state().ir(), f.deref(), rs1 as i32)?;
+        let fres = self.convert(p.state().ir(), &*f, rs1 as i32)?;
         let pc = *p.state().pc() + 4;
         let rd = self.rd(p.state().ir());
         let value = f.flen.padding(fres as FRegT, FLen::F32);
@@ -596,7 +596,7 @@ impl Execution for FCVTSWU {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
         let rs1: RegT = *p.state().xreg(self.rs1(p.state().ir())) & 0xffff_ffff;
-        let fres = self.convert(p.state().ir(), f.deref(), rs1 as u32)?;
+        let fres = self.convert(p.state().ir(), &*f, rs1 as u32)?;
         let pc = *p.state().pc() + 4;
         let rd = self.rd(p.state().ir());
         let value = f.flen.padding(fres as FRegT, FLen::F32);
@@ -626,7 +626,7 @@ impl Execution for FCVTSL {
         p.state().check_xlen(XLen::X64)?;
         let f = self.get_f_ext(p)?;
         let rs1: RegT = *p.state().xreg(self.rs1(p.state().ir()));
-        let fres = self.convert(p.state().ir(), f.deref(), rs1 as i64)?;
+        let fres = self.convert(p.state().ir(), &*f, rs1 as i64)?;
         let pc = *p.state().pc() + 4;
         let rd = self.rd(p.state().ir());
         let value = f.flen.padding(fres as FRegT, FLen::F32);
@@ -656,7 +656,7 @@ impl Execution for FCVTSLU {
         p.state().check_xlen(XLen::X64)?;
         let f = self.get_f_ext(p)?;
         let rs1: RegT = *p.state().xreg(self.rs1(p.state().ir()));
-        let fres = self.convert(p.state().ir(), f.deref(), rs1 as u64)?;
+        let fres = self.convert(p.state().ir(), &*f, rs1 as u64)?;
         let pc = *p.state().pc() + 4;
         let rd = self.rd(p.state().ir());
         let value = f.flen.padding(fres as FRegT, FLen::F32);
@@ -750,7 +750,7 @@ impl Execution for FEQS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
         let rs2: u32 = f.flen.boxed(*f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
-        if let Some(Ordering::Equal) = self.compare(p.state().ir(), f.deref(), rs1, rs2, false)? {
+        if let Some(Ordering::Equal) = self.compare(p.state().ir(), &*f, rs1, rs2, false)? {
             let rd = self.rd(p.state().ir());
             let value = 1;
             p.state_mut().set_xreg(rd, value);
@@ -780,7 +780,7 @@ impl Execution for FLTS {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
         let rs2: u32 = f.flen.boxed(*f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
-        if let Some(Ordering::Less) = self.compare(p.state().ir(), f.deref(), rs1, rs2, true)? {
+        if let Some(Ordering::Less) = self.compare(p.state().ir(), &*f, rs1, rs2, true)? {
             let rd = self.rd(p.state().ir());
             let value = 1;
             p.state_mut().set_xreg(rd, value);
@@ -810,7 +810,7 @@ impl Execution for FLES {
         let f = self.get_f_ext(p)?;
         let rs1: u32 = f.flen.boxed(*f.freg(self.rs1(p.state().ir())), FLen::F32) as u32;
         let rs2: u32 = f.flen.boxed(*f.freg(self.rs2(p.state().ir())), FLen::F32) as u32;
-        let res = self.compare(p.state().ir(), f.deref(), rs1, rs2, true)?;
+        let res = self.compare(p.state().ir(), &*f, rs1, rs2, true)?;
         if let Some(Ordering::Equal) = res {
             let rd = self.rd(p.state().ir());
             let value = 1;

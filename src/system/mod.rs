@@ -10,7 +10,6 @@ use std::fmt::{Display, Formatter};
 use crate::processor::{ProcessorCfg, Processor};
 use std::cmp::min;
 use crate::devices::clint::Timer;
-use std::ops::Deref;
 use std::rc::Rc;
 use crate::prelude::XLen;
 use crate::devices::plic::Intc;
@@ -202,11 +201,11 @@ impl System {
                     let region = space.get_region_by_addr(&addr).expect("not enough memory!");
                     let len = min((region.info.base + region.info.size - addr) as usize, data.len());
                     let (head, tails) = data.split_at(len);
-                    BytesAccess::write(region.deref(), &addr, head).unwrap();
+                    BytesAccess::write(&*region, &addr, head).unwrap();
                     load(space, region.info.base + region.info.size, tails)
                 }
             };
-            load(self.bus.space().deref(), addr, data)
+            load(&*self.bus.space(), addr, data)
         }) {
             Ok(_) => Ok(()),
             Err(msg) => Err(Error::ElfErr(msg))
@@ -380,7 +379,7 @@ impl System {
         }
         rom.append(&mut dtb);
         let rom_mem = GHEAP.alloc(rom.len() as u64, 1).expect("boot rom alloc fail!");
-        BytesAccess::write(rom_mem.deref(), &rom_mem.info.base, &rom).unwrap();
+        BytesAccess::write(&*rom_mem, &rom_mem.info.base, &rom).unwrap();
         self.register_memory("boot_rom", base, &rom_mem)?;
         Ok(())
     }
