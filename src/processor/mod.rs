@@ -135,16 +135,16 @@ impl ProcessorState {
         self.next_pc = start_address;
         self.ir = 0;
         self.wfi = false;
-        let csrs = self.mcsrs();
+        let m = self.priv_m();
         if let Some(ref clint) = self.clint {
             //register clint:0:msip, 1:mtip
-            csrs.mip_mut().msip_transform({
+            m.mip_mut().msip_transform({
                 let l = clint.listener(0).unwrap();
                 move |_| {
                     l.pending_uncheck() as RegT
                 }
             });
-            csrs.mip_mut().mtip_transform({
+            m.mip_mut().mtip_transform({
                 let l = clint.listener(1).unwrap();
                 move |_| {
                     l.pending_uncheck() as RegT
@@ -153,13 +153,13 @@ impl ProcessorState {
         }
         if let Some(ref pilc) = self.plic {
             //register plic
-            csrs.mip_mut().meip_transform({
+            m.mip_mut().meip_transform({
                 let l = pilc.listener(0).unwrap();
                 move |_| {
                     l.pending_uncheck() as RegT
                 }
             });
-            csrs.mip_mut().seip_transform({
+            m.mip_mut().seip_transform({
                 let l = pilc.listener(0).unwrap();
                 move |_| {
                     l.pending_uncheck() as RegT
@@ -167,9 +167,9 @@ impl ProcessorState {
             });
         }
         //hartid
-        csrs.mhartid_mut().set(self.hartid as RegT);
+        m.mhartid_mut().set(self.hartid as RegT);
         //extensions config, only f, d can disable
-        let mut misa = csrs.misa_mut();
+        let mut misa = m.misa_mut();
         for ext in self.config().extensions.iter() {
             match ext {
                 'a' => misa.set_a(1),
@@ -208,8 +208,8 @@ impl ProcessorState {
             }
             XLen::X64 => {
                 misa.set_mxl(2);
-                csrs.mstatus_mut().set_uxl(2);
-                csrs.mstatus_mut().set_sxl(2);
+                m.mstatus_mut().set_uxl(2);
+                m.mstatus_mut().set_sxl(2);
             }
         }
 
@@ -292,12 +292,12 @@ impl ProcessorState {
     pub fn check_extension(&self, ext: char) -> Result<(), Exception> {
         self.privilege.check_extension(ext).map_err(|_|{Exception::IllegalInsn(*self.ir())})
     }
-    pub fn mcsrs(&self) -> &Rc<MCsrs> {
-        self.privilege.mcsrs()
+    pub fn priv_m(&self) -> &PrivM {
+        self.privilege.m()
     }
 
-    pub fn scsrs(&self) -> Result<&Rc<SCsrs>, Exception> {
-        self.privilege.scsrs().map_err(|_|{Exception::IllegalInsn(*self.ir())})
+    pub fn priv_s(&self) -> Result<&PrivS, Exception> {
+        self.privilege.s().ok_or(Exception::IllegalInsn(*self.ir()))
     }
 
     pub fn privilege(&self) -> &Privilege {
@@ -487,8 +487,8 @@ impl Processor {
 
     fn one_step(&mut self) {
         if self.state().wfi() {
-            let csrs = self.state().mcsrs();
-            if csrs.mip().get() & csrs.mie().get() == 0 {
+            let m = self.state().priv_m();
+            if m.mip().get() & m.mie().get() == 0 {
                 return;
             } else {
                 self.state_mut().set_wfi(false)

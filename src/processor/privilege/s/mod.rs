@@ -1,14 +1,16 @@
 use std::rc::Rc;
 use crate::processor::ProcessorCfg;
+use std::ops::Deref;
+
 pub mod csrs;
 use csrs::*;
-use super::MCsrs;
+use super::PrivM;
 
 pub struct PrivS {
     csrs: Rc<SCsrs>,
 }
 impl PrivS {
-    pub fn new(cfg: &ProcessorCfg, mcsrs:&Rc<MCsrs>) -> PrivS {
+    pub fn new(cfg: &ProcessorCfg, m:&PrivM) -> PrivS {
         let s = PrivS {
             csrs:Rc::new(SCsrs::new(cfg.xlen.len()))
         };
@@ -17,7 +19,7 @@ impl PrivS {
         macro_rules! deleg_sstatus_set {
                     ($setter:ident, $transform:ident) => {
                         s.csrs.sstatus_mut().$transform({
-                        let csrs = mcsrs.clone();
+                        let csrs = (*m).clone();
                             move |field| {
                                 csrs.mstatus_mut().$setter(field);
                                 0
@@ -28,7 +30,7 @@ impl PrivS {
         macro_rules! deleg_sstatus_get {
                     ($getter:ident, $transform:ident) => {
                         s.csrs.sstatus_mut().$transform({
-                        let csrs = mcsrs.clone();
+                        let csrs = (*m).clone();
                             move |_| {
                                 csrs.mstatus().$getter()
                             }
@@ -57,7 +59,7 @@ impl PrivS {
         macro_rules! deleg_sip_get {
                     ($getter:ident, $transform:ident) => {
                         s.csrs.sip_mut().$transform({
-                        let csrs =  mcsrs.clone();
+                        let csrs =  (*m).clone();
                             move |_| {
                                 csrs.mideleg().$getter() & csrs.mip().$getter()
                             }
@@ -66,7 +68,7 @@ impl PrivS {
                 };
 
         s.csrs.sip_mut().set_ssip_transform({
-            let csrs = mcsrs.clone();
+            let csrs = (*m).clone();
             move |field| {
                 if csrs.mideleg().ssip() == 1 {
                     csrs.mip_mut().set_ssip(field)
@@ -86,7 +88,7 @@ impl PrivS {
         macro_rules! deleg_sie_get {
                     ($deleg_getter:ident, $getter:ident, $transform:ident) => {
                         s.csrs.sie_mut().$transform({
-                        let csrs = mcsrs.clone();
+                        let csrs = (*m).clone();
                             move |_| {
                                 csrs.mideleg().$deleg_getter() & csrs.mie().$getter()
                             }
@@ -96,7 +98,7 @@ impl PrivS {
         macro_rules! deleg_sie_set {
                     ($deleg_getter:ident, $setter:ident, $transform:ident) => {
                         s.csrs.sie_mut().$transform({
-                        let csrs = mcsrs.clone();
+                        let csrs = (*m).clone();
                             move |field| {
                                 if csrs.mideleg().$deleg_getter() == 1 {
                                     csrs.mie_mut().$setter(field)
@@ -120,7 +122,11 @@ impl PrivS {
         deleg_sie!(seip, seie, seie_transform, set_seie, set_seie_transform);
         s
     }
-    pub fn get_csrs(&self) -> &Rc<SCsrs> {
+}
+
+impl Deref for PrivS {
+    type Target = Rc<SCsrs>;
+    fn deref(&self) -> &Self::Target {
         &self.csrs
     }
 }

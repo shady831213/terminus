@@ -4,7 +4,6 @@ use std::marker::PhantomData;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use terminus_vault::*;
 use crate::processor::privilege::*;
-use std::rc::Rc;
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug)]
 #[repr(u8)]
@@ -33,35 +32,35 @@ impl From<u8> for PmpCfgEntry {
 }
 
 pub struct PmpCfgsIter<'m> {
-    mcsrs: &'m Rc<MCsrs>,
+    priv_m: &'m PrivM,
     idx: u8,
     marker: PhantomData<&'m Mmu>,
 }
 
 
 impl<'m> PmpCfgsIter<'m> {
-    pub fn new(mcsrs: &'m Rc<MCsrs>, marker: PhantomData<&'m Mmu>) -> PmpCfgsIter<'m> {
+    pub fn new(priv_m: &'m PrivM, marker: PhantomData<&'m Mmu>) -> PmpCfgsIter<'m> {
         PmpCfgsIter {
-            mcsrs,
+            priv_m,
             idx: 0,
             marker,
         }
     }
     fn get_cfg(&self) -> RegT {
-        match self.mcsrs.xlen {
+        match self.priv_m.deref().xlen {
             32 => {
                 match (self.idx >> 2) & 0x3 {
-                    0 => self.mcsrs.pmpcfg0().get(),
-                    1 => self.mcsrs.pmpcfg1().get(),
-                    2 => self.mcsrs.pmpcfg2().get(),
-                    3 => self.mcsrs.pmpcfg3().get(),
+                    0 => self.priv_m.pmpcfg0().get(),
+                    1 => self.priv_m.pmpcfg1().get(),
+                    2 => self.priv_m.pmpcfg2().get(),
+                    3 => self.priv_m.pmpcfg3().get(),
                     _ => unreachable!()
                 }
             }
             64 => {
                 match (self.idx >> 3) & 0x1 {
-                    0 => self.mcsrs.pmpcfg0().get(),
-                    1 => self.mcsrs.pmpcfg2().get(),
+                    0 => self.priv_m.pmpcfg0().get(),
+                    1 => self.priv_m.pmpcfg2().get(),
                     _ => unreachable!()
                 }
             }
@@ -70,7 +69,7 @@ impl<'m> PmpCfgsIter<'m> {
     }
 
     fn get_entry(&self) -> PmpCfgEntry {
-        let offset: u8 = match self.mcsrs.xlen {
+        let offset: u8 = match self.priv_m.deref().xlen {
             32 => self.idx & 0x3,
             64 => self.idx & 0x7,
             _ => unreachable!()

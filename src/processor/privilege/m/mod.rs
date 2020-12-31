@@ -1,5 +1,6 @@
 use std::rc::Rc;
 use crate::processor::ProcessorCfg;
+use std::ops::Deref;
 
 pub mod csrs;
 use csrs::*;
@@ -33,7 +34,11 @@ impl PrivM {
         m.csrs.minstreth_mut().get_forbidden(cfg.xlen != XLen::X32);
         m
     }
-    pub fn get_csrs(&self) -> &Rc<MCsrs> {
+}
+
+impl Deref for PrivM {
+    type Target = Rc<MCsrs>;
+    fn deref(&self) -> &Self::Target {
         &self.csrs
     }
 }

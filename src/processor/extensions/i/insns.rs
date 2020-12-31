@@ -1188,11 +1188,11 @@ struct WFI();
 
 impl Execution for WFI {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
-        let csrs = p.state().mcsrs();
-        if csrs.mstatus().tw() != 0 && (p.state().check_extension('s').is_ok() || p.state().check_extension('u').is_ok()) {
+        let m = p.state().priv_m();
+        if m.mstatus().tw() != 0 && (p.state().check_extension('s').is_ok() || p.state().check_extension('u').is_ok()) {
             return Err(Exception::IllegalInsn(*p.state().ir()));
         }
-        if csrs.mip().get() & csrs.mie().get() != 0 {
+        if m.mip().get() & m.mie().get() != 0 {
             let pc = *p.state().pc() + 4;
             p.state_mut().set_pc(pc);
             p.state_mut().set_wfi(false);
