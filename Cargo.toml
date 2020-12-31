@@ -13,6 +13,7 @@ crate-type = ["rlib","staticlib", "cdylib"]
 terminus-spaceport={git = "https://github.com/shady831213/terminus_spaceport"}
 terminus-vault={git = "https://github.com/shady831213/terminus_vault"}
 
+paste = "1"
 linkme = "0.1"
 xmas-elf = "0.7.0"
 num_enum = "0.4.3"
