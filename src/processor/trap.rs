@@ -40,7 +40,7 @@ impl From<Error> for Exception {
     }
 }
 impl Exception {
-    pub fn code(&self) -> RegT {
+    pub const fn code(&self) -> RegT {
         match self {
             Exception::FetchMisaligned(_) => 0,
             Exception::FetchAccess(_) => 1,
@@ -58,7 +58,7 @@ impl Exception {
             Exception::StorePageFault(_) => 15,
         }
     }
-    pub fn tval(&self) -> RegT {
+    pub const fn tval(&self) -> RegT {
         match self {
             Exception::FetchMisaligned(addr) => *addr as RegT,
             Exception::FetchAccess(addr) => *addr as RegT,
@@ -77,7 +77,7 @@ impl Exception {
         }
     }
 
-    pub fn executed(&self) -> bool {
+    pub const fn executed(&self) -> bool {
         match self {
             Exception::Breakpoint => true,
             Exception::UCall => true,
@@ -102,7 +102,7 @@ pub enum Interrupt {
 }
 
 impl Interrupt {
-    pub fn code(&self) -> RegT {
+    pub const fn code(&self) -> RegT {
         match self {
             Interrupt::USInt => 0,
             Interrupt::SSInt => 1,
@@ -115,7 +115,7 @@ impl Interrupt {
             Interrupt::MEInt => 11,
         }
     }
-    pub fn tval(&self) -> RegT {
+    pub const fn tval(&self) -> RegT {
         0
     }
 }
