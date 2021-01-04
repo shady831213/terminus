@@ -50,23 +50,23 @@ impl PteInfo {
 pub struct PteAttr(u8);
 
 impl PteAttr {
-    pub fn v(&self) -> u8 {
+    pub const fn v(&self) -> u8 {
         self.0 & 0x1
     }
 
-    pub fn r(&self) -> u8 {
+    pub const fn r(&self) -> u8 {
         (self.0 >> 1) & 0x1
     }
 
-    pub fn w(&self) -> u8 {
+    pub const fn w(&self) -> u8 {
         (self.0 >> 2) & 0x1
     }
 
-    pub fn x(&self) -> u8 {
+    pub const fn x(&self) -> u8 {
         (self.0 >> 3) & 0x1
     }
 
-    pub fn u(&self) -> u8 {
+    pub const fn u(&self) -> u8 {
         (self.0 >> 4) & 0x1
     }
 
@@ -74,7 +74,7 @@ impl PteAttr {
     //     (self.0 >> 5) & 0x1
     // }
 
-    pub fn a(&self) -> u8 {
+    pub const fn a(&self) -> u8 {
         (self.0 >> 6) & 0x1
     }
 
@@ -82,7 +82,7 @@ impl PteAttr {
         self.0 = ((value & 1) << 6) | self.0 & 0xbf
     }
 
-    pub fn d(&self) -> u8 {
+    pub const fn d(&self) -> u8 {
         (self.0 >> 7) & 0x1
     }
 
@@ -101,20 +101,20 @@ impl From<u8> for PteAttr {
 pub struct Sv32Vaddr(RegT);
 
 impl Sv32Vaddr {
-    fn vpn(&self, level: usize) -> RegT {
+    const fn vpn(&self, level: usize) -> RegT {
         match level {
             0 => (self.0 >> 12) & 0x3ff,
             1 => (self.0 >> 22) & 0x3ff,
-            _ => unreachable!()
+            _ => 0
         }
     }
-    fn value(&self) -> RegT {
+    const fn value(&self) -> RegT {
         self.0
     }
-    fn vpn_all(&self) -> RegT {
+    const fn vpn_all(&self) -> RegT {
         (self.0 >> 12) & 0xfffff
     }
-    fn offset(&self) -> RegT {
+    const fn offset(&self) -> RegT {
         self.0 & 0xfff
     }
 }
@@ -129,7 +129,7 @@ impl Sv32Paddr {
             _ => {}
         }
     }
-    fn value(&self) -> RegT {
+    const fn value(&self) -> RegT {
         self.0 & ((1 << 34) - 1)
     }
     // fn offset(&self) -> RegT {
@@ -140,17 +140,17 @@ impl Sv32Paddr {
 pub struct Sv32Pte(RegT);
 
 impl Sv32Pte {
-    fn ppn(&self, level: usize) -> RegT {
+    const fn ppn(&self, level: usize) -> RegT {
         match level {
             0 => (self.0 >> 10) & 0x3ff,
             1 => (self.0 >> 20) & 0xfff,
-            _ => unreachable!()
+            _ => 0
         }
     }
-    fn ppn_all(&self) -> RegT {
+    const fn ppn_all(&self) -> RegT {
         (self.0 >> 10) & 0x3fffff
     }
-    fn value(&self) -> RegT {
+    const fn value(&self) -> RegT {
         self.0
     }
     // fn rsw(&self) -> RegT {
@@ -167,21 +167,21 @@ impl Sv32Pte {
 pub struct Sv39Vaddr(RegT);
 
 impl Sv39Vaddr {
-    fn vpn(&self, level: usize) -> RegT {
+    const fn vpn(&self, level: usize) -> RegT {
         match level {
             0 => (self.0 >> 12) & 0x1ff,
             1 => (self.0 >> 21) & 0x1ff,
             2 => (self.0 >> 30) & 0x1ff,
-            _ => unreachable!()
+            _ => 0
         }
     }
-    fn value(&self) -> RegT {
+    const fn value(&self) -> RegT {
         self.0
     }
-    fn vpn_all(&self) -> RegT {
+    const fn vpn_all(&self) -> RegT {
         (self.0 >> 12) & 0x7ffffff
     }
-    fn offset(&self) -> RegT {
+    const fn offset(&self) -> RegT {
         self.0 & 0xfff
     }
 }
@@ -200,7 +200,7 @@ impl Sv39Paddr {
     // fn offset(&self) -> RegT {
     //     self.0 & 0xfff
     // }
-    fn value(&self) -> RegT {
+    const fn value(&self) -> RegT {
         self.0 & ((1 << 56) - 1)
     }
 }
@@ -208,18 +208,18 @@ impl Sv39Paddr {
 pub struct Sv39Pte(RegT);
 
 impl Sv39Pte {
-    fn ppn(&self, level: usize) -> RegT {
+    const fn ppn(&self, level: usize) -> RegT {
         match level {
             0 => (self.0 >> 10) & 0x1ff,
             1 => (self.0 >> 19) & 0x1ff,
             2 => (self.0 >> 28) & 0x3ffffff,
-            _ => unreachable!()
+            _ => 0
         }
     }
-    fn ppn_all(&self) -> RegT {
+    const fn ppn_all(&self) -> RegT {
         (self.0 >> 10) & 0xfff_ffffffff
     }
-    fn value(&self) -> RegT {
+    const fn value(&self) -> RegT {
         self.0
     }
     // fn rsw(&self) -> RegT {
@@ -236,22 +236,22 @@ impl Sv39Pte {
 pub struct Sv48Vaddr(RegT);
 
 impl Sv48Vaddr {
-    fn vpn(&self, level: usize) -> RegT {
+    const fn vpn(&self, level: usize) -> RegT {
         match level {
             0 => (self.0 >> 12) & 0x1ff,
             1 => (self.0 >> 21) & 0x1ff,
             2 => (self.0 >> 30) & 0x1ff,
             3 => (self.0 >> 39) & 0x1ff,
-            _ => unreachable!()
+            _ => 0
         }
     }
-    fn value(&self) -> RegT {
+    const fn value(&self) -> RegT {
         self.0
     }
-    fn vpn_all(&self) -> RegT {
+    const fn vpn_all(&self) -> RegT {
         (self.0 >> 12) & 0xf_ffffffff
     }
-    fn offset(&self) -> RegT {
+    const fn offset(&self) -> RegT {
         self.0 & 0xfff
     }
 }
@@ -271,7 +271,7 @@ impl Sv48Paddr {
     // fn offset(&self) -> RegT {
     //     self.0 & 0xfff
     // }
-    fn value(&self) -> RegT {
+    const fn value(&self) -> RegT {
         self.0 & ((1 << 56) - 1)
     }
 }
@@ -279,19 +279,19 @@ impl Sv48Paddr {
 pub struct Sv48Pte(RegT);
 
 impl Sv48Pte {
-    fn ppn(&self, level: usize) -> RegT {
+    const fn ppn(&self, level: usize) -> RegT {
         match level {
             0 => (self.0 >> 10) & 0x1ff,
             1 => (self.0 >> 19) & 0x1ff,
             2 => (self.0 >> 28) & 0x1ff,
             3 => (self.0 >> 37) & 0x1ffff,
-            _ => unreachable!()
+            _ => 0
         }
     }
-    fn ppn_all(&self) -> RegT {
+    const fn ppn_all(&self) -> RegT {
         (self.0 >> 10) & 0xfff_ffffffff
     }
-    fn value(&self) -> RegT {
+    const fn value(&self) -> RegT {
         self.0
     }
     // fn rsw(&self) -> RegT {
@@ -305,6 +305,28 @@ impl Sv48Pte {
     }
 }
 
+macro_rules! pt_const_export {
+    ($name:ident, $vis:vis $method:ident, $rt:ty, $($args:ident : $ty:ty),*) => {
+        #[cfg_attr(feature = "no-inline", inline(never))]
+       $vis const fn $method(&self, $($args : $ty,)*) -> $rt {
+            match self {
+                $name::Sv32(addr) => addr.$method($($args),*),
+                $name::Sv39(addr)  => addr.$method($($args),*),
+                $name::Sv48(addr) => addr.$method($($args),*),
+            }
+        }
+    };
+    ($name:ident, $vis:vis $method:ident, $rt:ty) => {
+        #[cfg_attr(feature = "no-inline", inline(never))]
+        $vis const fn $method(&self) -> $rt {
+            match self {
+                $name::Sv32(addr) => addr.$method(),
+                $name::Sv39(addr)  => addr.$method(),
+                $name::Sv48(addr) => addr.$method(),
+            }
+        }
+    };
+}
 
 macro_rules! pt_export {
     ($name:ident, $vis:vis $method:ident, $rt:ty, $($args:ident : $ty:ty),*) => {
@@ -345,10 +367,10 @@ impl Vaddr {
             _ => panic!(format!("unsupported PteMode {:?}", mode))
         }
     }
-    pt_export!(Vaddr, pub offset, RegT);
-    pt_export!(Vaddr, pub vpn, RegT, level:usize);
-    pt_export!(Vaddr, pub vpn_all, RegT);
-    pt_export!(Vaddr, pub value, RegT);
+    pt_const_export!(Vaddr, pub offset, RegT);
+    pt_const_export!(Vaddr, pub vpn, RegT, level:usize);
+    pt_const_export!(Vaddr, pub vpn_all, RegT);
+    pt_const_export!(Vaddr, pub value, RegT);
 }
 
 pub enum Paddr {
@@ -369,7 +391,7 @@ impl Paddr {
         }
         pa
     }
-    pt_export!(Paddr, pub value, RegT);
+    pt_const_export!(Paddr, pub value, RegT);
 
     pub fn set_ppn(&mut self, level: usize, ppn: RegT) {
         match self {
@@ -419,10 +441,10 @@ impl Pte {
         }
     }
 
-    pt_export!(Pte, pub ppn, RegT, level:usize);
-    pt_export!(Pte, pub ppn_all, RegT);
+    pt_const_export!(Pte, pub ppn, RegT, level:usize);
+    pt_const_export!(Pte, pub ppn_all, RegT);
     pt_export!(Pte, pub attr, PteAttr);
-    pt_export!(Pte, pub value, RegT);
+    pt_const_export!(Pte, pub value, RegT);
 
     pub fn set_attr(&mut self, attr: &PteAttr) {
         match self {
