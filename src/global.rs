@@ -1,12 +1,12 @@
 pub type InsnT = u32;
 
-pub fn insn_len() -> usize { std::mem::size_of::<InsnT>() << 3 }
+pub const fn insn_len() -> usize { std::mem::size_of::<InsnT>() << 3 }
 
 pub type RegT = u64;
 
 pub type SRegT = i64;
 
-pub fn reg_len() -> usize { std::mem::size_of::<RegT>() << 3 }
+pub const fn reg_len() -> usize { std::mem::size_of::<RegT>() << 3 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum XLen {
@@ -15,18 +15,18 @@ pub enum XLen {
 }
 
 impl XLen {
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         match self {
             XLen::X32 => 32,
             XLen::X64 => 64
         }
     }
 
-    pub fn size(&self) -> usize {
+    pub const fn size(&self) -> usize {
         self.len() >> 3
     }
 
-    pub fn mask(&self) -> RegT {
+    pub const fn mask(&self) -> RegT {
         match self {
             XLen::X32 => ((1 as RegT) << (self.len() as RegT)) - 1,
             XLen::X64 => -1i64 as RegT
@@ -35,7 +35,7 @@ impl XLen {
 }
 
 pub fn sext(value: RegT, len: usize) -> RegT {
-    let bit_len = std::mem::size_of::<RegT>() << 3;
+    let bit_len = reg_len();
     assert!(len > 0 && len <= bit_len);
     if len == bit_len {
         return value;
