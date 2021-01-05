@@ -88,7 +88,7 @@ impl PrivilegeStates {
         }
     }
 
-    pub fn cur_privilege(&self) -> &Privilege {
+    pub const fn cur_privilege(&self) -> &Privilege {
         &self.cur
     }
 
@@ -207,7 +207,7 @@ impl PrivilegeStates {
         Ok(())
     }
 
-    pub fn m(&self) -> &PrivM {
+    pub const fn m(&self) -> &PrivM {
         &self.m
     }
 

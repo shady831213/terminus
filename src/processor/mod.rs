@@ -159,7 +159,7 @@ impl ProcessorState {
         Ok(())
     }
 
-    fn extensions(&self) -> &[Extension; 26] {
+    const fn extensions(&self) -> &[Extension; 26] {
         &self.extensions
     }
 
@@ -173,7 +173,7 @@ impl ProcessorState {
         // &self.extensions[(id as u8 - 'a' as u8) as usize]
     }
 
-    pub fn wfi(&self) -> bool {
+    pub const fn wfi(&self) -> bool {
         self.wfi
     }
 
@@ -186,7 +186,7 @@ impl ProcessorState {
         format!("rv{}{}", self.config().xlen.len(), exts)
     }
 
-    pub fn config(&self) -> &ProcessorCfg {
+    pub const fn config(&self) -> &ProcessorCfg {
         &self.config
     }
 
@@ -221,7 +221,7 @@ impl ProcessorState {
     pub fn check_extension(&self, ext: char) -> Result<(), Exception> {
         self.privilege.check_extension(ext).map_err(|_|{Exception::IllegalInsn(*self.ir())})
     }
-    pub fn priv_m(&self) -> &PrivM {
+    pub const fn priv_m(&self) -> &PrivM {
         self.privilege.m()
     }
 
@@ -229,7 +229,7 @@ impl ProcessorState {
         self.privilege.s().ok_or(Exception::IllegalInsn(*self.ir()))
     }
 
-    pub fn privilege(&self) -> &Privilege {
+    pub const fn privilege(&self) -> &Privilege {
         self.privilege.cur_privilege()
     }
 
@@ -257,7 +257,7 @@ impl ProcessorState {
         }
     }
 
-    pub fn pc(&self) -> &RegT {
+    pub const fn pc(&self) -> &RegT {
         &self.pc
     }
 
@@ -265,7 +265,7 @@ impl ProcessorState {
         self.next_pc = pc
     }
 
-    pub fn ir(&self) -> &InsnT {
+    pub const fn ir(&self) -> &InsnT {
         &self.ir
     }
 
@@ -273,11 +273,11 @@ impl ProcessorState {
         self.ir = ir
     }
 
-    pub fn next_pc(&self) -> &RegT {
+    pub const fn next_pc(&self) -> &RegT {
         &self.next_pc
     }
 
-    pub fn insns_cnt(&self) -> &Rc<RefCell<u64>> {
+    pub const fn insns_cnt(&self) -> &Rc<RefCell<u64>> {
         &self.insns_cnt
     }
 
@@ -329,19 +329,19 @@ impl Processor {
         Ok(())
     }
 
-    pub fn fetcher(&self) -> &Fetcher {
+    pub const fn fetcher(&self) -> &Fetcher {
         &self.fetcher
     }
 
-    pub fn mmu(&self) -> &Mmu {
+    pub const fn mmu(&self) -> &Mmu {
         &self.mmu
     }
 
-    pub fn load_store(&self) -> &LoadStore {
+    pub const fn load_store(&self) -> &LoadStore {
         &self.load_store
     }
 
-    pub fn state(&self) -> &ProcessorState {
+    pub const fn state(&self) -> &ProcessorState {
         &self.state
     }
 
