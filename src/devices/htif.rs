@@ -40,8 +40,10 @@ impl HTIF {
     }
 
     fn handle_cmd(&self, desp: &mut HTIFDesp) {
-        if desp.tohost & 0x1 == 1 && desp.tohost_device() == 0 && desp.tohost_cmd() == 0 {
-            EXIT_CTRL.exit("htif shutdown!").unwrap();
+        if desp.tohost_device() == 0 && desp.tohost_cmd() == 0 {
+            if desp.tohost & 0x1 == 1 {
+                EXIT_CTRL.exit("htif shutdown!").unwrap();
+            }
         } else if desp.tohost_device() == 1 && desp.tohost_cmd() == 1 {
             let mut data = [0u8; 1];
             data[0] = desp.tohost as u8;
