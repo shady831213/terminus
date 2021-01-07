@@ -103,11 +103,10 @@ impl U32Access for HTIF {
     fn write(&self, addr: &u64, data: u32) {
         let mut desp = self.desc.borrow_mut();
         if *addr == self.tohost_off {
-            desp.borrow_mut().tohost.set_bit_range(31, 0, data);
-            self.handle_cmd(desp.borrow_mut())
+            desp.tohost.set_bit_range(31, 0, data);
+            self.handle_cmd(&mut desp)
         } else if *addr == self.tohost_off + 4 {
-            let mut desp = self.desc.borrow_mut();
-            desp.borrow_mut().tohost.set_bit_range(63, 32, data);
+            desp.tohost.set_bit_range(63, 32, data);
         } else if let Some(fromhost) = self.fromhost_off {
             if *addr == fromhost {
                 desp.fromhost.set_bit_range(31, 0, data)
