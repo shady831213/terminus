@@ -102,13 +102,10 @@ impl U32Access for HTIF {
         let mut desp = self.desc.borrow_mut();
         if *addr == self.tohost_off {
             desp.borrow_mut().tohost.set_bit_range(31, 0, data);
-            if desp.borrow().tohost & 0x1 == 1 && desp.tohost_device() == 0 && desp.tohost_cmd() == 0 {
-                EXIT_CTRL.exit("htif shutdown!").unwrap();
-            }
+            self.handle_cmd(desp.borrow_mut())
         } else if *addr == self.tohost_off + 4 {
             let mut desp = self.desc.borrow_mut();
             desp.borrow_mut().tohost.set_bit_range(63, 32, data);
-            self.handle_cmd(desp.borrow_mut())
         } else if let Some(fromhost) = self.fromhost_off {
             if *addr == fromhost {
                 desp.fromhost.set_bit_range(31, 0, data)
