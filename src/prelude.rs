@@ -1,5 +1,6 @@
 pub use crate::global::*;
-pub use terminus_vault::*;
-use crate::processor::Processor;
 use crate::processor::trap::Exception;
+use crate::processor::Processor;
+pub use terminus_vault::*;
+
 terminus_insn!(InsnT, Processor, Exception);

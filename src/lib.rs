@@ -1,7 +1,7 @@
-extern crate terminus_spaceport;
-extern crate terminus_vault;
 extern crate num_enum;
 extern crate paste;
+extern crate terminus_spaceport;
+extern crate terminus_vault;
 
 mod prelude;
 

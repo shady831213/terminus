@@ -1,6 +1,6 @@
 use crate::prelude::*;
-use crate::processor::{Processor, Privilege};
 use crate::processor::trap::Exception;
+use crate::processor::{Privilege, Processor};
 
 #[derive(Instruction)]
 #[format(I)]
@@ -35,7 +35,7 @@ impl Execution for SFENCEVMA {
             return Err(Exception::IllegalInsn(*p.state().ir()));
         }
         let pc = *p.state().pc() + 4;
-        if self.rs1(p.state().ir()) != 0{
+        if self.rs1(p.state().ir()) != 0 {
             let va = *p.state().xreg(self.rs1(p.state().ir()));
             p.mmu().flush_by_vpn(va >> 12);
             p.fetcher().flush_icache_by_vpn(va >> 12);

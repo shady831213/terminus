@@ -1,23 +1,22 @@
+use crate::devices::bus::Bus;
 use crate::prelude::*;
-use std::rc::Rc;
 use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
-use terminus_spaceport::irq::IrqVec;
-use crate::devices::bus::Bus;
 use std::mem::MaybeUninit;
+use std::rc::Rc;
+use terminus_spaceport::irq::IrqVec;
 
 pub mod privilege;
 use privilege::*;
 
 pub mod trap;
 
-use trap::{Exception, Trap, Interrupt};
+use trap::{Exception, Interrupt, Trap};
 
 pub mod extensions;
 
 use extensions::*;
-
 
 mod mmu;
 
@@ -97,9 +96,13 @@ impl Display for ProcessorState {
     }
 }
 
-
 impl ProcessorState {
-    fn new(hartid: usize, config: ProcessorCfg, clint: Option<IrqVec>, plic: Option<IrqVec>) -> ProcessorState {
+    fn new(
+        hartid: usize,
+        config: ProcessorCfg,
+        clint: Option<IrqVec>,
+        plic: Option<IrqVec>,
+    ) -> ProcessorState {
         let privilege = PrivilegeStates::new(&config);
         let mut state = ProcessorState {
             hartid,
@@ -109,14 +112,16 @@ impl ProcessorState {
             extensions: unsafe {
                 let mut arr: MaybeUninit<[Extension; 26]> = MaybeUninit::uninit();
                 for i in 0..26 {
-                    (arr.as_mut_ptr() as *mut Extension).add(i).write(Extension::InvalidExtension);
+                    (arr.as_mut_ptr() as *mut Extension)
+                        .add(i)
+                        .write(Extension::InvalidExtension);
                 }
                 arr.assume_init()
             },
             pc: 0,
             next_pc: 0,
             ir: 0,
-            insns_cnt:Rc::new(RefCell::new(0)),
+            insns_cnt: Rc::new(RefCell::new(0)),
             clint,
             plic,
             wfi: false,
@@ -128,7 +133,10 @@ impl ProcessorState {
 
     fn reset(&mut self, start_address: u64) -> Result<(), String> {
         if self.config.xlen == XLen::X32 && start_address.leading_zeros() < 32 {
-            return Err(format!("cpu{}:invalid start addr {:#x} when xlen == X32!", self.hartid, start_address));
+            return Err(format!(
+                "cpu{}:invalid start addr {:#x} when xlen == X32!",
+                self.hartid, start_address
+            ));
         }
         self.xreg = [0 as RegT; 32];
         self.pc = 0;
@@ -146,8 +154,14 @@ impl ProcessorState {
     }
 
     fn add_extension(&mut self) -> Result<(), String> {
-        let exts = self.config().extensions.iter().filter(|&e| { *e != 'i' }).map(|e| { *e }).collect::<Vec<char>>();
-        let mut add_one_extension = |id: char| -> Result<(), String>  {
+        let exts = self
+            .config()
+            .extensions
+            .iter()
+            .filter(|&e| *e != 'i')
+            .map(|e| *e)
+            .collect::<Vec<char>>();
+        let mut add_one_extension = |id: char| -> Result<(), String> {
             let ext = Extension::new(self, id)?;
             self.extensions[(id as u8 - 'a' as u8) as usize] = ext;
             Ok(())
@@ -164,12 +178,18 @@ impl ProcessorState {
     }
 
     fn get_extension(&self, id: char) -> &Extension {
-        unsafe { self.extensions.get_unchecked((id as u8 - 'a' as u8) as usize) }
+        unsafe {
+            self.extensions
+                .get_unchecked((id as u8 - 'a' as u8) as usize)
+        }
         // &self.extensions[(id as u8 - 'a' as u8) as usize]
     }
 
     fn get_extension_mut(&mut self, id: char) -> &mut Extension {
-        unsafe { self.extensions.get_unchecked_mut((id as u8 - 'a' as u8) as usize) }
+        unsafe {
+            self.extensions
+                .get_unchecked_mut((id as u8 - 'a' as u8) as usize)
+        }
         // &self.extensions[(id as u8 - 'a' as u8) as usize]
     }
 
@@ -196,30 +216,44 @@ impl ProcessorState {
 
     pub fn csr(&self, id: InsnT) -> Result<RegT, Exception> {
         let trip_id = id & 0xfff;
-        self.privilege.csr_privilege_check(trip_id).map_err(|_|{Exception::IllegalInsn(*self.ir())})?;
-        if let Some(v) = self.privilege.csr_read(self,trip_id) {
-            return Ok(v)
+        self.privilege
+            .csr_privilege_check(trip_id)
+            .map_err(|_| Exception::IllegalInsn(*self.ir()))?;
+        if let Some(v) = self.privilege.csr_read(self, trip_id) {
+            return Ok(v);
         }
-        match self.extensions().iter().find_map(|e| { e.csr_read(self, trip_id) }) {
+        match self
+            .extensions()
+            .iter()
+            .find_map(|e| e.csr_read(self, trip_id))
+        {
             Some(v) => Ok(v),
-            None => Err(Exception::IllegalInsn(*self.ir()))
+            None => Err(Exception::IllegalInsn(*self.ir())),
         }
     }
 
     pub fn set_csr(&self, id: InsnT, value: RegT) -> Result<(), Exception> {
         let trip_id = id & 0xfff;
-        self.privilege.csr_privilege_check(trip_id).map_err(|_|{Exception::IllegalInsn(*self.ir())})?;
-        if self.privilege.csr_write(self,trip_id, value).is_some() {
-            return Ok(())
+        self.privilege
+            .csr_privilege_check(trip_id)
+            .map_err(|_| Exception::IllegalInsn(*self.ir()))?;
+        if self.privilege.csr_write(self, trip_id, value).is_some() {
+            return Ok(());
         }
-        match self.extensions().iter().find_map(|e| { e.csr_write(self, trip_id, value) }) {
+        match self
+            .extensions()
+            .iter()
+            .find_map(|e| e.csr_write(self, trip_id, value))
+        {
             Some(_) => Ok(()),
-            None => Err(Exception::IllegalInsn(*self.ir()))
+            None => Err(Exception::IllegalInsn(*self.ir())),
         }
     }
 
     pub fn check_extension(&self, ext: char) -> Result<(), Exception> {
-        self.privilege.check_extension(ext).map_err(|_|{Exception::IllegalInsn(*self.ir())})
+        self.privilege
+            .check_extension(ext)
+            .map_err(|_| Exception::IllegalInsn(*self.ir()))
     }
     pub const fn priv_m(&self) -> &PrivM {
         self.privilege.m()
@@ -233,13 +267,13 @@ impl ProcessorState {
         self.privilege.cur_privilege()
     }
 
-    pub fn trap_enter(&mut self, code:RegT, int_flag:bool, val:RegT) {
+    pub fn trap_enter(&mut self, code: RegT, int_flag: bool, val: RegT) {
         let (pc, privilege) = self.privilege.trap_enter(self, code, int_flag, val);
         self.set_pc(pc);
         self.privilege.set_priv(privilege);
     }
 
-    pub fn trap_return(&mut self, cur_privilege:&Privilege) {
+    pub fn trap_return(&mut self, cur_privilege: &Privilege) {
         let (pc, privilege) = self.privilege.trap_return(cur_privilege);
         self.set_pc(pc);
         self.privilege.set_priv(privilege);
@@ -308,7 +342,13 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn new(hartid: usize, config: ProcessorCfg, bus: &Rc<Bus>, clint: Option<IrqVec>, plic: Option<IrqVec>) -> Processor {
+    pub fn new(
+        hartid: usize,
+        config: ProcessorCfg,
+        bus: &Rc<Bus>,
+        clint: Option<IrqVec>,
+        plic: Option<IrqVec>,
+    ) -> Processor {
         let state = ProcessorState::new(hartid, config, clint, plic);
         let mmu = Mmu::new(bus);
         let fetcher = Fetcher::new(bus);
@@ -440,13 +480,19 @@ impl Processor {
         }
     }
 
-    pub fn step_with_debug<O: Write>(&mut self, n: usize, log: &mut O, trace_all: bool) -> Result<(), String> {
+    pub fn step_with_debug<O: Write>(
+        &mut self,
+        n: usize,
+        log: &mut O,
+        trace_all: bool,
+    ) -> Result<(), String> {
         assert!(n > 0);
 
         for _ in 0..n {
             self.one_step();
             if trace_all {
-                log.write_all((self.state.trace() + "\n").as_bytes()).map_err(|e| { e.to_string() })?;
+                log.write_all((self.state.trace() + "\n").as_bytes())
+                    .map_err(|e| e.to_string())?;
             }
         }
 
@@ -454,8 +500,10 @@ impl Processor {
             ext.step_cb(self)
         }
         if !trace_all {
-            log.write_all((self.state.trace() + "\n").as_bytes()).map_err(|e| { e.to_string() })?;
+            log.write_all((self.state.trace() + "\n").as_bytes())
+                .map_err(|e| e.to_string())?;
         }
-        log.write_all(self.state.to_string().as_bytes()).map_err(|e| { e.to_string() })
+        log.write_all(self.state.to_string().as_bytes())
+            .map_err(|e| e.to_string())
     }
 }

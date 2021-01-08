@@ -1,40 +1,40 @@
-use std::rc::Rc;
 use crate::processor::ProcessorCfg;
-use std::ops::Deref;
 use paste::paste;
+use std::ops::Deref;
+use std::rc::Rc;
 pub mod csrs;
-use csrs::*;
 use super::PrivM;
+use csrs::*;
 
 pub struct PrivS {
     csrs: Rc<SCsrs>,
 }
 impl PrivS {
-    pub fn new(cfg: &ProcessorCfg, m:&PrivM) -> PrivS {
+    pub fn new(cfg: &ProcessorCfg, m: &PrivM) -> PrivS {
         let s = PrivS {
-            csrs:Rc::new(SCsrs::new(cfg.xlen.len()))
+            csrs: Rc::new(SCsrs::new(cfg.xlen.len())),
         };
         s.csrs.sstatus_mut().as_s_priv();
         //deleg sstatus to mstatus
         macro_rules! deleg_sstatus {
-                    ($field:ident) => {
-                        paste! {
-                            s.csrs.sstatus_mut().[<set_ $field _transform>]({
-                            let csrs = (*m).clone();
-                                move |field| {
-                                    csrs.mstatus_mut().[<set_ $field>](field);
-                                    0
-                                }
-                            });
-                            s.csrs.sstatus_mut().[<$field _transform>]({
-                            let csrs = (*m).clone();
-                                move |_| {
-                                    csrs.mstatus().$field()
-                                }
-                            });
+            ($field:ident) => {
+                paste! {
+                    s.csrs.sstatus_mut().[<set_ $field _transform>]({
+                    let csrs = (*m).clone();
+                        move |field| {
+                            csrs.mstatus_mut().[<set_ $field>](field);
+                            0
                         }
-                    }
-                };
+                    });
+                    s.csrs.sstatus_mut().[<$field _transform>]({
+                    let csrs = (*m).clone();
+                        move |_| {
+                            csrs.mstatus().$field()
+                        }
+                    });
+                }
+            };
+        };
         deleg_sstatus!(upie);
         deleg_sstatus!(sie);
         deleg_sstatus!(upie);
@@ -49,17 +49,17 @@ impl PrivS {
 
         //deleg sip to mip
         macro_rules! deleg_sip {
-                    ($field:ident) => {
-                        paste! {
-                            s.csrs.sip_mut().[<$field _transform>]({
-                            let csrs =  (*m).clone();
-                                move |_| {
-                                    csrs.mideleg().$field() & csrs.mip().$field()
-                                }
-                            });
+            ($field:ident) => {
+                paste! {
+                    s.csrs.sip_mut().[<$field _transform>]({
+                    let csrs =  (*m).clone();
+                        move |_| {
+                            csrs.mideleg().$field() & csrs.mip().$field()
                         }
-                    }
-                };
+                    });
+                }
+            };
+        };
         s.csrs.sip_mut().set_ssip_transform({
             let csrs = (*m).clone();
             move |field| {
@@ -79,26 +79,26 @@ impl PrivS {
 
         //deleg sie to mie
         macro_rules! deleg_sie {
-                    ($deleg_filed:ident, $field:ident) => {
-                        paste! {
-                            s.csrs.sie_mut().[<$field _transform>]({
-                            let csrs = (*m).clone();
-                                move |_| {
-                                    csrs.mideleg().$deleg_filed() & csrs.mie().$field()
-                                }
-                            });
-                            s.csrs.sie_mut().[<set_ $field _transform>]({
-                            let csrs = (*m).clone();
-                                move |field| {
-                                    if csrs.mideleg().$deleg_filed() == 1 {
-                                        csrs.mie_mut().[<set_ $field>](field)
-                                    }
-                                    0
-                                }
-                            });
+            ($deleg_filed:ident, $field:ident) => {
+                paste! {
+                    s.csrs.sie_mut().[<$field _transform>]({
+                    let csrs = (*m).clone();
+                        move |_| {
+                            csrs.mideleg().$deleg_filed() & csrs.mie().$field()
                         }
-                    }
-                };
+                    });
+                    s.csrs.sie_mut().[<set_ $field _transform>]({
+                    let csrs = (*m).clone();
+                        move |field| {
+                            if csrs.mideleg().$deleg_filed() == 1 {
+                                csrs.mie_mut().[<set_ $field>](field)
+                            }
+                            0
+                        }
+                    });
+                }
+            };
+        };
         deleg_sie!(usip, usie);
         deleg_sie!(ssip, ssie);
         deleg_sie!(utip, utie);

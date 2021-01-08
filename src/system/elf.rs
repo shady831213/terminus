@@ -1,28 +1,26 @@
 extern crate xmas_elf;
 
-use xmas_elf::ElfFile;
-use xmas_elf::program::SegmentData;
-use xmas_elf::header;
 use std::{fs, io};
-use xmas_elf::sections::SectionData::{SymbolTable64, SymbolTable32};
+use xmas_elf::header;
+use xmas_elf::program::SegmentData;
+use xmas_elf::sections::SectionData::{SymbolTable32, SymbolTable64};
 use xmas_elf::symbol_table::Entry;
+use xmas_elf::ElfFile;
 
 pub struct ElfLoader {
-    content: Box<[u8]>
+    content: Box<[u8]>,
 }
 
 impl ElfLoader {
     pub fn new(file: &str) -> io::Result<ElfLoader> {
         let content = fs::read(file)?.into_boxed_slice();
-        Ok(ElfLoader {
-            content
-        })
+        Ok(ElfLoader { content })
     }
 
     fn elf(&self) -> Result<ElfFile<'_>, String> {
         match ElfFile::new(&self.content) {
             Ok(elf) => Ok(elf),
-            Err(e) => Err(e.to_string())
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -51,23 +49,23 @@ impl ElfLoader {
                 if let Ok(SymbolTable64(table)) = syn.get_data(&elf) {
                     for e in table {
                         if tohost.is_some() && fromhost.is_some() {
-                            break
+                            break;
                         }
                         if let Ok("tohost") = e.get_name(&elf) {
                             tohost = Some(e.value() - s.address())
                         } else if let Ok("fromhost") = e.get_name(&elf) {
-                            fromhost = Some(e.value() -s.address())
+                            fromhost = Some(e.value() - s.address())
                         }
                     }
                 } else if let Ok(SymbolTable32(table)) = syn.get_data(&elf) {
                     for e in table {
                         if tohost.is_some() && fromhost.is_some() {
-                            break
+                            break;
                         }
                         if let Ok("tohost") = e.get_name(&elf) {
                             tohost = Some(e.value() - s.address())
                         } else if let Ok("fromhost") = e.get_name(&elf) {
-                            fromhost = Some(e.value() -s.address())
+                            fromhost = Some(e.value() - s.address())
                         }
                     }
                 }
@@ -88,7 +86,7 @@ impl ElfLoader {
         let result = elf.program_iter().map(|p| {
             let data = match p.get_data(&elf)? {
                 SegmentData::Undefined(d) => Ok(d),
-                _ => Err("Only support Undefined SectionData for now!")
+                _ => Err("Only support Undefined SectionData for now!"),
             };
             f(p.virtual_addr(), data?)
         });

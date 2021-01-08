@@ -1,17 +1,15 @@
-use crate::processor::{ProcessorState, NoCsr};
 use crate::processor::extensions::NoStepCb;
+use crate::processor::{NoCsr, ProcessorState};
 
 mod insns;
 
-pub struct ExtensionS {
-}
+pub struct ExtensionS {}
 
 impl ExtensionS {
     pub fn new(_: &ProcessorState) -> ExtensionS {
-        ExtensionS{}
+        ExtensionS {}
     }
 }
-impl NoCsr for ExtensionS{}
+impl NoCsr for ExtensionS {}
 
-impl NoStepCb for ExtensionS{}
-
+impl NoStepCb for ExtensionS {}

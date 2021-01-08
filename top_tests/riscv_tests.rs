@@ -1,17 +1,17 @@
-use terminus::processor::ProcessorCfg;
-use terminus::system::System;
-use terminus::global::XLen;
-use terminus_spaceport::memory::region::{GHEAP, U64Access};
-use terminus_spaceport::devices::term_exit;
 use std::ops::Deref;
 use std::path::Path;
+use terminus::global::XLen;
+use terminus::processor::ProcessorCfg;
+use terminus::system::System;
+use terminus_spaceport::devices::term_exit;
+use terminus_spaceport::memory::region::{U64Access, GHEAP};
 use terminus_spaceport::EXIT_CTRL;
 
-struct RsicvTestRunner{
+struct RsicvTestRunner {
     debug: bool,
-    tests_cnt:usize,
+    tests_cnt: usize,
     name: Option<String>,
-    timer:std::time::Instant,
+    timer: std::time::Instant,
 }
 
 impl RsicvTestRunner {
@@ -29,15 +29,15 @@ impl RsicvTestRunner {
             }
             arg = args.next()
         }
-        RsicvTestRunner{
+        RsicvTestRunner {
             debug,
-            tests_cnt:0,
+            tests_cnt: 0,
             name,
-            timer:std::time::Instant::now(),
+            timer: std::time::Instant::now(),
         }
     }
 
-    fn test_mp(&mut self, xlen: XLen, name: &str,num_cores: usize) {
+    fn test_mp(&mut self, xlen: XLen, name: &str, num_cores: usize) {
         let valid = {
             if let Some(test_name) = &self.name {
                 test_name == name
@@ -48,41 +48,61 @@ impl RsicvTestRunner {
         if valid {
             if !riscv_test(xlen, name, self.debug, num_cores) {
                 term_exit();
-                assert!(false, format!("{} fail!",name))
+                assert!(false, format!("{} fail!", name))
             }
             self.tests_cnt += 1;
-            println!("{}", format!("{} pass!",name));
+            println!("{}", format!("{} pass!", name));
         }
     }
 
     fn test(&mut self, xlen: XLen, name: &str) {
-        self.test_mp(xlen,name,1)
+        self.test_mp(xlen, name, 1)
     }
 }
 
 impl Drop for RsicvTestRunner {
     fn drop(&mut self) {
         term_exit();
-        println!("{} tests Pass in {} micro seconds!", self.tests_cnt, self.timer.elapsed().as_micros())
+        println!(
+            "{} tests Pass in {} micro seconds!",
+            self.tests_cnt,
+            self.timer.elapsed().as_micros()
+        )
     }
 }
 
 fn riscv_test(xlen: XLen, name: &str, debug: bool, num_cores: usize) -> bool {
     EXIT_CTRL.reset();
-    let configs = vec![ProcessorCfg {
-        xlen,
-        enable_dirty: true,
-        extensions: vec!['m', 'f', 'd', 's', 'u', 'c', 'a'].into_boxed_slice(),
-        freq:1000000000,
-    }; num_cores];
-    let mut sys = System::new(name, Path::new("top_tests/elf").join(Path::new(name)).to_str().expect(&format!("{} not existed!", name)), 10000000, 32);
+    let configs = vec![
+        ProcessorCfg {
+            xlen,
+            enable_dirty: true,
+            extensions: vec!['m', 'f', 'd', 's', 'u', 'c', 'a'].into_boxed_slice(),
+            freq: 1000000000,
+        };
+        num_cores
+    ];
+    let mut sys = System::new(
+        name,
+        Path::new("top_tests/elf")
+            .join(Path::new(name))
+            .to_str()
+            .expect(&format!("{} not existed!", name)),
+        10000000,
+        32,
+    );
     sys.register_htif(false);
     for cfg in configs {
         sys.new_processor_no_int(cfg)
     }
-    sys.register_memory("main_memory", 0x80000000, &GHEAP.alloc(0x10000000, 1).expect("main_memory alloc fail!")).unwrap();
+    sys.register_memory(
+        "main_memory",
+        0x80000000,
+        &GHEAP.alloc(0x10000000, 1).expect("main_memory alloc fail!"),
+    )
+    .unwrap();
     sys.load_elf().unwrap();
-    sys.reset(vec![-1i64 as u64;num_cores]).unwrap();
+    sys.reset(vec![-1i64 as u64; num_cores]).unwrap();
 
     loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
@@ -347,100 +367,99 @@ fn main() {
     runner.test(XLen::X32, "rv32ua-p-amoxor_w");
     runner.test(XLen::X32, "rv32ua-p-lrsc");
 
-
     //*-pm-*
     runner.test_mp(XLen::X64, "rv64ui-pm-add", 2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-addi",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-addiw",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-addw",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-and",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-andi",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-auipc",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-beq",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-bge",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-bgeu",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-blt",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-bltu",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-bne",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-fence_i",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-jal",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-jalr",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-lb",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-lbu",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-ld",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-lh",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-lhu",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-lui",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-lw",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-lwu",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-or",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-ori",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-sb",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-sd",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-sh",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-simple",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-sll",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-slli",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-slliw",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-sllw",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-slt",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-slti",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-sltiu",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-sltu",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-sra",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-srai",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-sraiw",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-sraw",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-srl",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-srli",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-srliw",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-srlw",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-sub",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-subw",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-xor",2);
-    runner.test_mp(XLen::X64, "rv64ui-pm-xori",2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-add" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-addi" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-and" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-andi" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-auipc" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-beq" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-bge" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-bgeu" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-blt" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-bltu" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-bne" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-fence_i" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-jal" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-jalr" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-lb" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-lbu" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-lh" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-lhu" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-lui" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-lw" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-or" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-ori" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-sb" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-sh" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-simple" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-sll" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-slli" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-slt" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-slti" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-sltiu" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-sltu" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-sra" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-srai" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-srl" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-srli" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-sub" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-sw" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-xor" ,2);
-    runner.test_mp(XLen::X32, "rv32ui-pm-xori" ,2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-addi", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-addiw", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-addw", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-and", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-andi", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-auipc", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-beq", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-bge", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-bgeu", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-blt", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-bltu", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-bne", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-fence_i", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-jal", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-jalr", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-lb", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-lbu", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-ld", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-lh", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-lhu", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-lui", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-lw", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-lwu", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-or", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-ori", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-sb", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-sd", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-sh", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-simple", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-sll", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-slli", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-slliw", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-sllw", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-slt", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-slti", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-sltiu", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-sltu", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-sra", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-srai", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-sraiw", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-sraw", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-srl", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-srli", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-srliw", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-srlw", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-sub", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-subw", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-xor", 2);
+    runner.test_mp(XLen::X64, "rv64ui-pm-xori", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-add", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-addi", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-and", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-andi", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-auipc", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-beq", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-bge", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-bgeu", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-blt", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-bltu", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-bne", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-fence_i", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-jal", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-jalr", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-lb", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-lbu", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-lh", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-lhu", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-lui", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-lw", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-or", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-ori", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-sb", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-sh", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-simple", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-sll", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-slli", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-slt", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-slti", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-sltiu", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-sltu", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-sra", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-srai", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-srl", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-srli", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-sub", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-sw", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-xor", 2);
+    runner.test_mp(XLen::X32, "rv32ui-pm-xori", 2);
 
-    runner.test_mp(XLen::X64, "rv64ua-pm-lrsc" ,4);
-    runner.test_mp(XLen::X32, "rv32ua-pm-lrsc" ,4);
+    runner.test_mp(XLen::X64, "rv64ua-pm-lrsc", 4);
+    runner.test_mp(XLen::X32, "rv32ua-pm-lrsc", 4);
 
     //*-v-*
     runner.test(XLen::X64, "rv64ui-v-add");
@@ -458,5 +477,3 @@ fn main() {
     runner.test(XLen::X64, "rv64ua-v-lrsc");
     runner.test(XLen::X32, "rv32ua-v-lrsc");
 }
-
-

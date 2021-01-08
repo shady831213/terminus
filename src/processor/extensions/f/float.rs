@@ -3,13 +3,13 @@ extern crate simple_soft_float;
 use crate::prelude::*;
 use crate::processor::extensions::f::ExtensionF;
 use crate::processor::extensions::Extension;
-use simple_soft_float::{RoundingMode, StatusFlags, FloatClass, FloatTraits, Float, FloatBitsType};
+use crate::processor::trap::Exception;
+use crate::processor::Processor;
+use simple_soft_float::{Float, FloatBitsType, FloatClass, FloatTraits, RoundingMode, StatusFlags};
 use std::cmp::Ordering;
 use std::num::Wrapping;
-use crate::processor::Processor;
-use crate::processor::trap::Exception;
 
-pub use simple_soft_float::{F64, F32, Sign, F64Traits, F32Traits, FPState};
+pub use simple_soft_float::{F32Traits, F64Traits, FPState, Sign, F32, F64};
 
 pub trait FloatInsn: InstructionImp {
     fn get_f_ext<'p>(&self, p: &'p Processor) -> Result<&'p ExtensionF, Exception> {
@@ -47,7 +47,7 @@ pub trait FloatInsn: InstructionImp {
             2 => Some(RoundingMode::TowardNegative),
             3 => Some(RoundingMode::TowardPositive),
             4 => Some(RoundingMode::TiesToAway),
-            _ => None
+            _ => None,
         }
     }
 
@@ -55,7 +55,6 @@ pub trait FloatInsn: InstructionImp {
         (s.bits() << 27).reverse_bits() as RegT
     }
 }
-
 
 pub trait FStore: FloatInsn {
     fn offset(&self, code: &InsnT) -> Wrapping<RegT> {
@@ -68,26 +67,49 @@ pub trait FStore: FloatInsn {
     }
 }
 
-pub trait FCompute<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + Default>: FloatInsn {
-    fn opt(&self, ir: &InsnT, frs1: Float<FpTrait>, frs2: Float<FpTrait>, frs3: Float<FpTrait>, state: &mut FPState) -> Float<FpTrait>;
-    fn compute(&self, ir: &InsnT, f: &ExtensionF, rs1: Bits, rs2: Bits, rs3: Bits) -> Result<Bits, Exception> {
+pub trait FCompute<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits = Bits> + Default>:
+    FloatInsn
+{
+    fn opt(
+        &self,
+        ir: &InsnT,
+        frs1: Float<FpTrait>,
+        frs2: Float<FpTrait>,
+        frs3: Float<FpTrait>,
+        state: &mut FPState,
+    ) -> Float<FpTrait>;
+    fn compute(
+        &self,
+        ir: &InsnT,
+        f: &ExtensionF,
+        rs1: Bits,
+        rs2: Bits,
+        rs3: Bits,
+    ) -> Result<Bits, Exception> {
         let mut fp_state = FPState::default();
         fp_state.rounding_mode = if let Some(rm) = Self::rm_from_bits(f.csrs.frm().get()) {
             rm
         } else {
-            if self.rm(ir) == 7 { return Err(Exception::IllegalInsn(*ir)); } else { RoundingMode::default() }
+            if self.rm(ir) == 7 {
+                return Err(Exception::IllegalInsn(*ir));
+            } else {
+                RoundingMode::default()
+            }
         };
         let frs1 = Float::<FpTrait>::from_bits(rs1);
         let frs2 = Float::<FpTrait>::from_bits(rs2);
         let frs3 = Float::<FpTrait>::from_bits(rs3);
         let fres = self.opt(ir, frs1, frs2, frs3, &mut fp_state);
-        f.csrs.fflags_mut().set(Self::status_flags_to_bits(&fp_state.status_flags));
+        f.csrs
+            .fflags_mut()
+            .set(Self::status_flags_to_bits(&fp_state.status_flags));
         Ok(*fres.bits())
     }
 }
 
-
-pub trait FToX<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + Default>: FloatInsn {
+pub trait FToX<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits = Bits> + Default>:
+    FloatInsn
+{
     type T;
     fn opt(&self, ir: &InsnT, frs1: Float<FpTrait>, state: &mut FPState) -> Self::T;
     fn convert(&self, ir: &InsnT, f: &ExtensionF, rs1: Bits) -> Result<Self::T, Exception> {
@@ -95,16 +117,24 @@ pub trait FToX<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + Def
         fp_state.rounding_mode = if let Some(rm) = Self::rm_from_bits(f.csrs.frm().get()) {
             rm
         } else {
-            if self.rm(ir) == 7 { return Err(Exception::IllegalInsn(*ir)); } else { RoundingMode::default() }
+            if self.rm(ir) == 7 {
+                return Err(Exception::IllegalInsn(*ir));
+            } else {
+                RoundingMode::default()
+            }
         };
         let fres = Float::<FpTrait>::from_bits(rs1);
         let res: Self::T = self.opt(ir, fres, &mut fp_state);
-        f.csrs.fflags_mut().set(Self::status_flags_to_bits(&fp_state.status_flags));
+        f.csrs
+            .fflags_mut()
+            .set(Self::status_flags_to_bits(&fp_state.status_flags));
         Ok(res)
     }
 }
 
-pub trait XToF<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + Default>: FloatInsn {
+pub trait XToF<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits = Bits> + Default>:
+    FloatInsn
+{
     type T;
     fn opt(&self, ir: &InsnT, rs1: Self::T, state: &mut FPState) -> Float<FpTrait>;
     fn convert(&self, ir: &InsnT, f: &ExtensionF, rs1: Self::T) -> Result<Bits, Exception> {
@@ -112,21 +142,40 @@ pub trait XToF<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + Def
         fp_state.rounding_mode = if let Some(rm) = Self::rm_from_bits(f.csrs.frm().get()) {
             rm
         } else {
-            if self.rm(ir) == 7 { return Err(Exception::IllegalInsn(*ir)); } else { RoundingMode::default() }
+            if self.rm(ir) == 7 {
+                return Err(Exception::IllegalInsn(*ir));
+            } else {
+                RoundingMode::default()
+            }
         };
         let res = self.opt(ir, rs1, &mut fp_state);
-        f.csrs.fflags_mut().set(Self::status_flags_to_bits(&fp_state.status_flags));
+        f.csrs
+            .fflags_mut()
+            .set(Self::status_flags_to_bits(&fp_state.status_flags));
         Ok(*res.bits())
     }
 }
 
-pub trait FCompare<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + Default>: FloatInsn {
-    fn compare(&self, ir: &InsnT, f: &ExtensionF, rs1: Bits, rs2: Bits, check_nan: bool) -> Result<Option<Ordering>, Exception> {
+pub trait FCompare<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits = Bits> + Default>:
+    FloatInsn
+{
+    fn compare(
+        &self,
+        ir: &InsnT,
+        f: &ExtensionF,
+        rs1: Bits,
+        rs2: Bits,
+        check_nan: bool,
+    ) -> Result<Option<Ordering>, Exception> {
         let mut fp_state = FPState::default();
         fp_state.rounding_mode = if let Some(rm) = Self::rm_from_bits(f.csrs.frm().get()) {
             rm
         } else {
-            if self.rm(ir) == 7 { return Err(Exception::IllegalInsn(*ir)); } else { RoundingMode::default() }
+            if self.rm(ir) == 7 {
+                return Err(Exception::IllegalInsn(*ir));
+            } else {
+                RoundingMode::default()
+            }
         };
         let frs1 = Float::<FpTrait>::from_bits(rs1);
         let frs2 = Float::<FpTrait>::from_bits(rs2);
@@ -136,12 +185,16 @@ pub trait FCompare<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> +
                 fp_state.status_flags = StatusFlags::INVALID_OPERATION;
             }
         }
-        f.csrs.fflags_mut().set(Self::status_flags_to_bits(&fp_state.status_flags));
+        f.csrs
+            .fflags_mut()
+            .set(Self::status_flags_to_bits(&fp_state.status_flags));
         Ok(res)
     }
 }
 
-pub trait FClass<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + Default>: FloatInsn {
+pub trait FClass<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits = Bits> + Default>:
+    FloatInsn
+{
     fn class(&self, rs1: Bits) -> RegT {
         let frs1 = Float::<FpTrait>::from_bits(rs1);
         1 << match frs1.class() {
@@ -154,8 +207,7 @@ pub trait FClass<Bits: FloatBitsType + Copy, FpTrait: FloatTraits<Bits=Bits> + D
             FloatClass::PositiveNormal => 6,
             FloatClass::PositiveInfinity => 7,
             FloatClass::SignalingNaN => 8,
-            FloatClass::QuietNaN => 9
+            FloatClass::QuietNaN => 9,
         }
     }
 }
-

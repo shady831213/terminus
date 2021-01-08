@@ -1,6 +1,6 @@
+use crate::devices::bus::Bus;
 use crate::prelude::RegT;
 use crate::processor::privilege::*;
-use crate::devices::bus::Bus;
 
 pub const PTE_BARE: u8 = 0;
 pub const PTE_SV32: u8 = 1;
@@ -32,7 +32,7 @@ impl PteInfo {
                     PTE_SV39 => 3,
                     PTE_SV48 => 4,
                     PTE_BARE => 0,
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
                 PteInfo {
                     mode: mode,
@@ -40,8 +40,8 @@ impl PteInfo {
                     size_shift: 3,
                     page_size_shift: 12,
                 }
-            },
-            _ => unreachable!()
+            }
+            _ => unreachable!(),
         }
     }
 }
@@ -97,7 +97,6 @@ impl From<u8> for PteAttr {
     }
 }
 
-
 pub struct Sv32Vaddr(RegT);
 
 impl Sv32Vaddr {
@@ -105,7 +104,7 @@ impl Sv32Vaddr {
         match level {
             0 => (self.0 >> 12) & 0x3ff,
             1 => (self.0 >> 22) & 0x3ff,
-            _ => 0
+            _ => 0,
         }
     }
     const fn value(&self) -> RegT {
@@ -144,7 +143,7 @@ impl Sv32Pte {
         match level {
             0 => (self.0 >> 10) & 0x3ff,
             1 => (self.0 >> 20) & 0xfff,
-            _ => 0
+            _ => 0,
         }
     }
     const fn ppn_all(&self) -> RegT {
@@ -172,7 +171,7 @@ impl Sv39Vaddr {
             0 => (self.0 >> 12) & 0x1ff,
             1 => (self.0 >> 21) & 0x1ff,
             2 => (self.0 >> 30) & 0x1ff,
-            _ => 0
+            _ => 0,
         }
     }
     const fn value(&self) -> RegT {
@@ -213,7 +212,7 @@ impl Sv39Pte {
             0 => (self.0 >> 10) & 0x1ff,
             1 => (self.0 >> 19) & 0x1ff,
             2 => (self.0 >> 28) & 0x3ffffff,
-            _ => 0
+            _ => 0,
         }
     }
     const fn ppn_all(&self) -> RegT {
@@ -242,7 +241,7 @@ impl Sv48Vaddr {
             1 => (self.0 >> 21) & 0x1ff,
             2 => (self.0 >> 30) & 0x1ff,
             3 => (self.0 >> 39) & 0x1ff,
-            _ => 0
+            _ => 0,
         }
     }
     const fn value(&self) -> RegT {
@@ -285,7 +284,7 @@ impl Sv48Pte {
             1 => (self.0 >> 19) & 0x1ff,
             2 => (self.0 >> 28) & 0x1ff,
             3 => (self.0 >> 37) & 0x1ffff,
-            _ => 0
+            _ => 0,
         }
     }
     const fn ppn_all(&self) -> RegT {
@@ -364,7 +363,7 @@ impl Vaddr {
             PTE_SV32 => Vaddr::Sv32(Sv32Vaddr(addr)),
             PTE_SV39 => Vaddr::Sv39(Sv39Vaddr(addr)),
             PTE_SV48 => Vaddr::Sv48(Sv48Vaddr(addr)),
-            _ => panic!(format!("unsupported PteMode {:?}", mode))
+            _ => panic!(format!("unsupported PteMode {:?}", mode)),
         }
     }
     pt_const_export!(Vaddr, pub offset, RegT);
@@ -384,7 +383,7 @@ impl Paddr {
         let mut pa = match vaddr {
             Vaddr::Sv32(addr) => Paddr::Sv32(Sv32Paddr(addr.vpn_all() << 12 | addr.offset())),
             Vaddr::Sv39(addr) => Paddr::Sv39(Sv39Paddr(addr.vpn_all() << 12 | addr.offset())),
-            Vaddr::Sv48(addr) => Paddr::Sv48(Sv48Paddr(addr.vpn_all() << 12 | addr.offset()))
+            Vaddr::Sv48(addr) => Paddr::Sv48(Sv48Paddr(addr.vpn_all() << 12 | addr.offset())),
         };
         for i in level..info.level {
             pa.set_ppn(i, pte.ppn(i))
@@ -414,22 +413,22 @@ impl Pte {
             PTE_SV32 => Pte::Sv32(Sv32Pte(value)),
             PTE_SV39 => Pte::Sv39(Sv39Pte(value)),
             PTE_SV48 => Pte::Sv48(Sv48Pte(value)),
-            _ => panic!(format!("unsupported PteMode {:?}", mode))
+            _ => panic!(format!("unsupported PteMode {:?}", mode)),
         }
     }
     pub fn load(info: &PteInfo, bus: &Bus, addr: &u64) -> Result<Pte, u64> {
         let value = match info.size_shift {
             2 => {
-                let mut data:u32= 0;
-                bus.read_u32(addr,&mut data)?;
+                let mut data: u32 = 0;
+                bus.read_u32(addr, &mut data)?;
                 data as RegT
             }
             3 => {
-                let mut data:u64= 0;
-                bus.read_u64(addr,&mut data)?;
+                let mut data: u64 = 0;
+                bus.read_u64(addr, &mut data)?;
                 data as RegT
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         };
         Ok(Pte::new(info.mode, value))
     }
@@ -437,7 +436,7 @@ impl Pte {
     pub fn store(&self, bus: &Bus, addr: &u64) -> Result<(), u64> {
         match self {
             Pte::Sv32(_) => bus.write_u32(addr, &(self.value() as u32)),
-            _ => bus.write_u64(addr, &(self.value() as u64))
+            _ => bus.write_u64(addr, &(self.value() as u64)),
         }
     }
 

@@ -1,5 +1,5 @@
-use crate::processor::{ProcessorState, Processor, HasCsr, NoCsr};
 use crate::prelude::*;
+use crate::processor::{HasCsr, NoCsr, Processor, ProcessorState};
 use paste::paste;
 
 trait HasStepCb {

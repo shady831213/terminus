@@ -13,4 +13,4 @@ impl ExtensionC {
 
 impl NoCsr for ExtensionC {}
 
-impl NoStepCb for ExtensionC{}
+impl NoStepCb for ExtensionC {}

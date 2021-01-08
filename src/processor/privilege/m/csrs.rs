@@ -63,7 +63,6 @@ Mimpid {
 }
 }
 
-
 define_csr! {
 Misa {
     fields {
@@ -136,44 +135,44 @@ Status {
 
 impl Status {
     pub fn as_s_priv(&mut self) {
-        self.mie_transform(|_|{0});
-        self.mpie_transform(|_|{0});
-        self.mpp_transform(|_|{0});
-        self.mprv_transform(|_|{0});
-        self.tvm_transform(|_|{0});
-        self.tw_transform(|_|{0});
-        self.tsr_transform(|_|{0});
-        self.sxl_transform(|_|{0});
+        self.mie_transform(|_| 0);
+        self.mpie_transform(|_| 0);
+        self.mpp_transform(|_| 0);
+        self.mprv_transform(|_| 0);
+        self.tvm_transform(|_| 0);
+        self.tw_transform(|_| 0);
+        self.tsr_transform(|_| 0);
+        self.sxl_transform(|_| 0);
     }
 
-    pub fn push_privilege(&mut self, tgt_p:&Privilege, cur_p:&Privilege) {
+    pub fn push_privilege(&mut self, tgt_p: &Privilege, cur_p: &Privilege) {
         let priv_value: u8 = (*cur_p).into();
         match tgt_p {
             Privilege::M => self.push_m_privilege(priv_value),
             Privilege::S => self.push_s_privilege(priv_value),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
-    fn push_m_privilege(&mut self, p:u8) {
+    fn push_m_privilege(&mut self, p: u8) {
         let mie = self.mie();
         self.set_mpie(mie);
         self.set_mpp(p as RegT);
         self.set_mie(0);
     }
 
-    fn push_s_privilege(&mut self, p:u8) {
+    fn push_s_privilege(&mut self, p: u8) {
         let sie = self.sie();
         self.set_spie(sie);
         self.set_spp(p as RegT);
         self.set_sie(0);
     }
 
-    pub fn pop_privilege(&mut self, cur_p:&Privilege) -> Privilege {
+    pub fn pop_privilege(&mut self, cur_p: &Privilege) -> Privilege {
         let priv_value = match cur_p {
             Privilege::M => self.pop_m_privilege(),
             Privilege::S => self.pop_s_privilege(),
-            _ => unreachable!()
+            _ => unreachable!(),
         };
         Privilege::try_from(priv_value).unwrap()
     }
@@ -257,7 +256,7 @@ Tvec {
 }
 
 impl Tvec {
-    pub fn get_trap_pc(&self, code:RegT, int_flag:bool) -> RegT {
+    pub fn get_trap_pc(&self, code: RegT, int_flag: bool) -> RegT {
         let offset = if self.mode() == 1 && int_flag {
             code << 2
         } else {
@@ -338,7 +337,7 @@ Cause {
 }
 
 impl Cause {
-    pub fn set_cause(&mut self, code:RegT, int_flag:bool) {
+    pub fn set_cause(&mut self, code: RegT, int_flag: bool) {
         self.set_code(code);
         self.set_int(int_flag as RegT);
     }
@@ -395,4 +394,3 @@ fn test_status() {
     status.set_xs(0);
     assert_eq!(status.xs(), 0);
 }
-

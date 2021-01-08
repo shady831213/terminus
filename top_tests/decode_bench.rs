@@ -1,9 +1,8 @@
 #![feature(test)]
 extern crate test;
 
-use test::Bencher;
 use terminus::processor::decode::*;
-
+use test::Bencher;
 
 #[bench]
 fn decode_bench(b: &mut Bencher) {

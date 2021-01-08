@@ -1,11 +1,10 @@
 use crate::prelude::*;
 use crate::processor::extensions::a::ExtensionA;
 use crate::processor::extensions::Extension;
-use std::num::Wrapping;
-use std::cmp::{min, max};
-use crate::processor::Processor;
 use crate::processor::trap::Exception;
-
+use crate::processor::Processor;
+use std::cmp::{max, min};
+use std::num::Wrapping;
 
 pub trait LRSCInsn: InstructionImp {
     fn get_a_ext<'p>(&self, p: &'p Processor) -> Result<&'p ExtensionA, Exception> {
@@ -36,7 +35,8 @@ impl Execution for LRW {
             let addr = p.state().xreg(self.rs1(p.state().ir()));
             let success = p.load_store().acquire(p.state(), addr, 4, p.mmu())?;
             let mut data: u32 = 0;
-            p.load_store().load_word(p.state(), addr, &mut data, p.mmu())?;
+            p.load_store()
+                .load_word(p.state(), addr, &mut data, p.mmu())?;
             if success {
                 lc_res.valid = true;
                 lc_res.addr = *addr;
@@ -74,7 +74,8 @@ impl Execution for LRD {
             let addr = state.xreg(self.rs1(state.ir()));
             let success = p.load_store().acquire(state, addr, 8, p.mmu())?;
             let mut data: u64 = 0;
-            p.load_store().load_double_word(state, addr, &mut data, p.mmu())?;
+            p.load_store()
+                .load_double_word(state, addr, &mut data, p.mmu())?;
             if success {
                 lc_res.valid = true;
                 lc_res.addr = *addr;
@@ -118,7 +119,12 @@ impl Execution for SCW {
                 false
             };
             if success {
-                p.load_store().store_word(p.state(), addr, unsafe{ &*(data as *const RegT as *const u32)}, p.mmu())?
+                p.load_store().store_word(
+                    p.state(),
+                    addr,
+                    unsafe { &*(data as *const RegT as *const u32) },
+                    p.mmu(),
+                )?
             }
             lc_res.valid = false;
             p.load_store().release(p.state());
@@ -159,7 +165,8 @@ impl Execution for SCD {
                 false
             };
             if success {
-                p.load_store().store_double_word(p.state(), addr, data, p.mmu())?
+                p.load_store()
+                    .store_double_word(p.state(), addr, data, p.mmu())?
             }
             lc_res.valid = false;
             p.load_store().release(p.state());
@@ -185,7 +192,9 @@ impl Execution for AMOSWAPW {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir()));
-        let data = p.load_store().amo_word(p.state(), addr, |_| { src as u32 }, p.mmu())?;
+        let data = p
+            .load_store()
+            .amo_word(p.state(), addr, |_| src as u32, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = sext(data, 32) & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -207,7 +216,9 @@ impl Execution for AMOSWAPD {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir()));
-        let data = p.load_store().amo_double_word(p.state(), addr, |_| { src as u64 }, p.mmu())?;
+        let data = p
+            .load_store()
+            .amo_double_word(p.state(), addr, |_| src as u64, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = data & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -228,9 +239,9 @@ impl Execution for AMOADDW {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src: Wrapping<u32> = Wrapping(*p.state().xreg(self.rs2(p.state().ir())) as u32);
-        let data = p.load_store().amo_word(p.state(), addr, |read| {
-            (src + Wrapping(read)).0
-        }, p.mmu())?;
+        let data =
+            p.load_store()
+                .amo_word(p.state(), addr, |read| (src + Wrapping(read)).0, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = sext(data, 32) & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -252,9 +263,12 @@ impl Execution for AMOADDD {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src: Wrapping<u64> = Wrapping(*p.state().xreg(self.rs2(p.state().ir())) as u64);
-        let data = p.load_store().amo_double_word(p.state(), addr, |read| {
-            (src + Wrapping(read)).0
-        }, p.mmu())?;
+        let data = p.load_store().amo_double_word(
+            p.state(),
+            addr,
+            |read| (src + Wrapping(read)).0,
+            p.mmu(),
+        )?;
         let rd = self.rd(p.state().ir());
         let value = data & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -275,9 +289,9 @@ impl Execution for AMOANDW {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u32;
-        let data = p.load_store().amo_word(p.state(), addr, |read| {
-            src & read
-        }, p.mmu())?;
+        let data = p
+            .load_store()
+            .amo_word(p.state(), addr, |read| src & read, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = sext(data, 32) & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -299,9 +313,9 @@ impl Execution for AMOADND {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u64;
-        let data = p.load_store().amo_double_word(p.state(), addr, |read| {
-            src & read
-        }, p.mmu())?;
+        let data = p
+            .load_store()
+            .amo_double_word(p.state(), addr, |read| src & read, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = data & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -322,9 +336,9 @@ impl Execution for AMOORW {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u32;
-        let data = p.load_store().amo_word(p.state(), addr, |read| {
-            src | read
-        }, p.mmu())?;
+        let data = p
+            .load_store()
+            .amo_word(p.state(), addr, |read| src | read, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = sext(data, 32) & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -346,9 +360,9 @@ impl Execution for AMOORD {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u64;
-        let data = p.load_store().amo_double_word(p.state(), addr, |read| {
-            src | read
-        }, p.mmu())?;
+        let data = p
+            .load_store()
+            .amo_double_word(p.state(), addr, |read| src | read, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = data & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -369,9 +383,9 @@ impl Execution for AMOXORW {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u32;
-        let data = p.load_store().amo_word(p.state(), addr, |read| {
-            src ^ read
-        }, p.mmu())?;
+        let data = p
+            .load_store()
+            .amo_word(p.state(), addr, |read| src ^ read, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = sext(data, 32) & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -393,9 +407,9 @@ impl Execution for AMOXORD {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u64;
-        let data = p.load_store().amo_double_word(p.state(), addr, |read| {
-            src ^ read
-        }, p.mmu())?;
+        let data = p
+            .load_store()
+            .amo_double_word(p.state(), addr, |read| src ^ read, p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = data & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -416,9 +430,12 @@ impl Execution for AMOMAXW {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u32 as i32;
-        let data = p.load_store().amo_word(p.state(), addr, |read| {
-            max(src, read as u32 as i32) as u32
-        }, p.mmu())?;
+        let data = p.load_store().amo_word(
+            p.state(),
+            addr,
+            |read| max(src, read as u32 as i32) as u32,
+            p.mmu(),
+        )?;
         let rd = self.rd(p.state().ir());
         let value = sext(data, 32) & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -440,9 +457,12 @@ impl Execution for AMOMAXD {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u64 as i64;
-        let data = p.load_store().amo_double_word(p.state(), addr, |read| {
-            max(src, read as u64 as i64) as u64
-        }, p.mmu())?;
+        let data = p.load_store().amo_double_word(
+            p.state(),
+            addr,
+            |read| max(src, read as u64 as i64) as u64,
+            p.mmu(),
+        )?;
         let rd = self.rd(p.state().ir());
         let value = data & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -463,9 +483,12 @@ impl Execution for AMOMINW {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u32 as i32;
-        let data = p.load_store().amo_word(p.state(), addr, |read| {
-            min(src, read as u32 as i32) as u32
-        }, p.mmu())?;
+        let data = p.load_store().amo_word(
+            p.state(),
+            addr,
+            |read| min(src, read as u32 as i32) as u32,
+            p.mmu(),
+        )?;
         let rd = self.rd(p.state().ir());
         let value = sext(data, 32) & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -487,9 +510,12 @@ impl Execution for AMOMIND {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u64 as i64;
-        let data = p.load_store().amo_double_word(p.state(), addr, |read| {
-            min(src, read as u64 as i64) as u64
-        }, p.mmu())?;
+        let data = p.load_store().amo_double_word(
+            p.state(),
+            addr,
+            |read| min(src, read as u64 as i64) as u64,
+            p.mmu(),
+        )?;
         let rd = self.rd(p.state().ir());
         let value = data & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -510,9 +536,9 @@ impl Execution for AMOMAXUW {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u32;
-        let data = p.load_store().amo_word(p.state(), addr, |read| {
-            max(src, read)
-        }, p.mmu())?;
+        let data = p
+            .load_store()
+            .amo_word(p.state(), addr, |read| max(src, read), p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = sext(data, 32) & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -534,9 +560,9 @@ impl Execution for AMOMAXUD {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u64;
-        let data = p.load_store().amo_double_word(p.state(), addr, |read| {
-            max(src, read)
-        }, p.mmu())?;
+        let data =
+            p.load_store()
+                .amo_double_word(p.state(), addr, |read| max(src, read), p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = data & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -557,9 +583,9 @@ impl Execution for AMOMINUW {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u32;
-        let data = p.load_store().amo_word(p.state(), addr, |read| {
-            min(src, read)
-        }, p.mmu())?;
+        let data = p
+            .load_store()
+            .amo_word(p.state(), addr, |read| min(src, read), p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = sext(data, 32) & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;
@@ -581,9 +607,9 @@ impl Execution for AMOMINUD {
         p.state().check_extension('a')?;
         let addr = p.state().xreg(self.rs1(p.state().ir()));
         let src = *p.state().xreg(self.rs2(p.state().ir())) as u64;
-        let data = p.load_store().amo_double_word(p.state(), addr, |read| {
-            min(src, read)
-        }, p.mmu())?;
+        let data =
+            p.load_store()
+                .amo_double_word(p.state(), addr, |read| min(src, read), p.mmu())?;
         let rd = self.rd(p.state().ir());
         let value = data & p.state().config().xlen.mask();
         let pc = *p.state().pc() + 4;

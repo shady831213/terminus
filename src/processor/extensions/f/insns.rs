@@ -1,11 +1,12 @@
 use crate::prelude::*;
-use std::num::Wrapping;
-use crate::processor::extensions::f::{FRegT, FLen};
-use crate::processor::extensions::f::float::{F32, FloatInsn, FStore, FCompute, F32Traits, FPState, FToX, Sign, XToF, FCompare, FClass};
-use std::cmp::Ordering;
-use crate::processor::Processor;
+use crate::processor::extensions::f::float::{
+    F32Traits, FClass, FCompare, FCompute, FPState, FStore, FToX, FloatInsn, Sign, XToF, F32,
+};
+use crate::processor::extensions::f::{FLen, FRegT};
 use crate::processor::trap::Exception;
-
+use crate::processor::Processor;
+use std::cmp::Ordering;
+use std::num::Wrapping;
 
 #[derive(Instruction)]
 #[format(I)]
@@ -19,9 +20,11 @@ impl Execution for FLW {
     fn execute(&self, p: &mut Processor) -> Result<(), Exception> {
         let f = self.get_f_ext(p)?;
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
-        let offset: Wrapping<RegT> = Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
+        let offset: Wrapping<RegT> =
+            Wrapping(sext(self.imm(p.state().ir()) as RegT, self.imm_len()));
         let mut data: u32 = 0;
-        p.load_store().load_word(p.state(), &(base + offset).0, &mut data, p.mmu())?;
+        p.load_store()
+            .load_word(p.state(), &(base + offset).0, &mut data, p.mmu())?;
         let pc = *p.state().pc() + 4;
         let rd = self.rd(p.state().ir());
         let value = f.flen.padding(data as FRegT, FLen::F32);
@@ -30,7 +33,6 @@ impl Execution for FLW {
         Ok(())
     }
 }
-
 
 #[derive(Instruction)]
 #[format(I)]
@@ -47,7 +49,12 @@ impl Execution for FSW {
         let f = self.get_f_ext(p)?;
         let base: Wrapping<RegT> = Wrapping(*p.state().xreg(self.rs1(p.state().ir())));
         let data = f.freg(self.src(p.state().ir()));
-        p.load_store().store_word(p.state(), &(base + self.offset(p.state().ir())).0, unsafe{ &*(data as *const FRegT as *const u32)}, p.mmu())?;
+        p.load_store().store_word(
+            p.state(),
+            &(base + self.offset(p.state().ir())).0,
+            unsafe { &*(data as *const FRegT as *const u32) },
+            p.mmu(),
+        )?;
         let pc = *p.state().pc() + 4;
         p.state_mut().set_pc(pc);
         Ok(())
@@ -316,7 +323,12 @@ impl FloatInsn for FMSUBS {}
 
 impl FCompute<u32, F32Traits> for FMSUBS {
     fn opt(&self, ir: &InsnT, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
-        frs1.fused_mul_add(&frs2, &frs3.neg(), Self::rm_from_bits(self.rm(ir)), Some(state))
+        frs1.fused_mul_add(
+            &frs2,
+            &frs3.neg(),
+            Self::rm_from_bits(self.rm(ir)),
+            Some(state),
+        )
     }
 }
 
@@ -336,7 +348,6 @@ impl Execution for FMSUBS {
     }
 }
 
-
 #[derive(Instruction)]
 #[format(R)]
 #[code("32b?????00??????????????????1001011")]
@@ -347,7 +358,13 @@ impl FloatInsn for FMNSUBS {}
 
 impl FCompute<u32, F32Traits> for FMNSUBS {
     fn opt(&self, ir: &InsnT, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
-        frs1.fused_mul_add(&frs2, &frs3.neg(), Self::rm_from_bits(self.rm(ir)), Some(state)).neg()
+        frs1.fused_mul_add(
+            &frs2,
+            &frs3.neg(),
+            Self::rm_from_bits(self.rm(ir)),
+            Some(state),
+        )
+        .neg()
     }
 }
 
@@ -377,7 +394,8 @@ impl FloatInsn for FMNADDS {}
 
 impl FCompute<u32, F32Traits> for FMNADDS {
     fn opt(&self, ir: &InsnT, frs1: F32, frs2: F32, frs3: F32, state: &mut FPState) -> F32 {
-        frs1.fused_mul_add(&frs2, &frs3, Self::rm_from_bits(self.rm(ir)), Some(state)).neg()
+        frs1.fused_mul_add(&frs2, &frs3, Self::rm_from_bits(self.rm(ir)), Some(state))
+            .neg()
     }
 }
 
@@ -396,7 +414,6 @@ impl Execution for FMNADDS {
         Ok(())
     }
 }
-
 
 #[derive(Instruction)]
 #[format(R)]
@@ -829,7 +846,6 @@ impl Execution for FLES {
         Ok(())
     }
 }
-
 
 #[derive(Instruction)]
 #[format(R)]

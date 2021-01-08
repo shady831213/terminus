@@ -1,25 +1,25 @@
+use crate::prelude::{sext, InsnT, RegT, XLen};
+use crate::processor::{HasCsr, ProcessorCfg, ProcessorState};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use crate::prelude::{RegT, InsnT, XLen, sext};
-use crate::processor::{HasCsr, ProcessorState, ProcessorCfg};
-use std::rc::Rc;
 use std::cell::RefCell;
 use std::convert::TryFrom;
+use std::rc::Rc;
 use terminus_spaceport::irq::IrqVec;
 
 mod m;
 
-pub use m::PrivM;
 pub use m::csrs::*;
+pub use m::PrivM;
 
 mod s;
 
-pub use s::PrivS;
 pub use s::csrs::*;
+pub use s::PrivS;
 
 mod u;
 
-pub use u::PrivU;
 pub use u::csrs::*;
+pub use u::PrivU;
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
@@ -28,7 +28,6 @@ pub enum Privilege {
     S = 1,
     M = 3,
 }
-
 
 pub struct PrivilegeStates {
     m: PrivM,
@@ -48,8 +47,8 @@ impl PrivilegeStates {
         let s = if u.is_some() && cfg.extensions.contains(&'s') {
             Some(PrivS::new(cfg, &m_state))
         } else {
-            m_state.mstatus_mut().set_tvm_transform(|_| { 0 });
-            m_state.mstatus_mut().set_tsr_transform(|_| { 0 });
+            m_state.mstatus_mut().set_tvm_transform(|_| 0);
+            m_state.mstatus_mut().set_tsr_transform(|_| 0);
             None
         };
 
@@ -57,10 +56,8 @@ impl PrivilegeStates {
         if u.is_none() {
             let m: u8 = Privilege::M.into();
             m_state.mstatus_mut().set_mpp(m as RegT);
-            m_state.mstatus_mut().set_mpp_transform(move |_| {
-                m as RegT
-            });
-            m_state.mstatus_mut().set_tw_transform(|_| { 0 });
+            m_state.mstatus_mut().set_mpp_transform(move |_| m as RegT);
+            m_state.mstatus_mut().set_tw_transform(|_| 0);
         } else if s.is_none() {
             m_state.mstatus_mut().set_mpp_transform(|mpp| {
                 if mpp != 0 {
@@ -82,8 +79,8 @@ impl PrivilegeStates {
 
     pub fn set_priv(&mut self, p: Privilege) {
         match p {
-            Privilege::S if self.s.is_none() => { self.cur = Privilege::M }
-            Privilege::U if self.u.is_none() => { self.cur = Privilege::M }
+            Privilege::S if self.s.is_none() => self.cur = Privilege::M,
+            Privilege::U if self.u.is_none() => self.cur = Privilege::M,
             _ => self.cur = p,
         }
     }
@@ -103,51 +100,37 @@ impl PrivilegeStates {
     pub fn delegate_insns_cnt(&self, cnt: &Rc<RefCell<u64>>) {
         self.m.minstret_mut().instret_transform({
             let count = cnt.clone();
-            move |_| {
-                *count.borrow() as RegT
-            }
-        }
-        );
+            move |_| *count.borrow() as RegT
+        });
         self.m.minstreth_mut().instret_transform({
             let count = cnt.clone();
-            move |_| {
-                (*count.borrow() >> 32) as RegT
-            }
-        }
-        );
+            move |_| (*count.borrow() >> 32) as RegT
+        });
     }
 
     pub fn delegate_ei(&self, irq: &IrqVec) {
         self.m().mip_mut().meip_transform({
             let l = irq.listener(0).unwrap();
-            move |_| {
-                l.pending_uncheck() as RegT
-            }
+            move |_| l.pending_uncheck() as RegT
         });
         self.m().mip_mut().seip_transform({
             let l = irq.listener(0).unwrap();
-            move |_| {
-                l.pending_uncheck() as RegT
-            }
+            move |_| l.pending_uncheck() as RegT
         });
     }
 
     pub fn delegate_si_ti(&self, irq: &IrqVec) {
         self.m().mip_mut().msip_transform({
             let l = irq.listener(0).unwrap();
-            move |_| {
-                l.pending_uncheck() as RegT
-            }
+            move |_| l.pending_uncheck() as RegT
         });
         self.m().mip_mut().mtip_transform({
             let l = irq.listener(1).unwrap();
-            move |_| {
-                l.pending_uncheck() as RegT
-            }
+            move |_| l.pending_uncheck() as RegT
         });
     }
 
-    pub fn init_isa(&self, hartid:RegT, cfg: &ProcessorCfg) {
+    pub fn init_isa(&self, hartid: RegT, cfg: &ProcessorCfg) {
         //hartid
         self.m().mhartid_mut().set(hartid);
         //extensions config, only f, d can disable
@@ -180,7 +163,7 @@ impl PrivilegeStates {
                 'x' => misa.set_x(1),
                 'y' => misa.set_y(1),
                 'z' => misa.set_z(1),
-                _ => unreachable!()
+                _ => unreachable!(),
             }
         }
 
@@ -256,24 +239,28 @@ impl PrivilegeStates {
         }
     }
 
-    pub fn trap_enter(&self, state: &ProcessorState, code: RegT, int_flag: bool, val: RegT) -> (RegT, Privilege) {
+    pub fn trap_enter(
+        &self,
+        state: &ProcessorState,
+        code: RegT,
+        int_flag: bool,
+        val: RegT,
+    ) -> (RegT, Privilege) {
         let tgt_privilege = self.delegate_priv(code, int_flag);
         let (tvec, mut cause, mut epc, mut tval) = match &tgt_privilege {
-            Privilege::M => {
-                (self.m().mtvec(),
-                 self.m().mcause_mut(),
-                 self.m().mepc_mut(),
-                 self.m().mtval_mut()
-                )
-            }
-            Privilege::S => {
-                (self.s().unwrap().stvec(),
-                 self.s().unwrap().scause_mut(),
-                 self.s().unwrap().sepc_mut(),
-                 self.s().unwrap().stval_mut()
-                )
-            }
-            _ => unreachable!()
+            Privilege::M => (
+                self.m().mtvec(),
+                self.m().mcause_mut(),
+                self.m().mepc_mut(),
+                self.m().mtval_mut(),
+            ),
+            Privilege::S => (
+                self.s().unwrap().stvec(),
+                self.s().unwrap().scause_mut(),
+                self.s().unwrap().sepc_mut(),
+                self.s().unwrap().stval_mut(),
+            ),
+            _ => unreachable!(),
         };
         let pc = tvec.get_trap_pc(code, int_flag);
         cause.set_cause(code, int_flag);
@@ -284,7 +271,9 @@ impl PrivilegeStates {
         }
         tval.set(val);
 
-        self.m().mstatus_mut().push_privilege(&tgt_privilege, &self.cur);
+        self.m()
+            .mstatus_mut()
+            .push_privilege(&tgt_privilege, &self.cur);
         (pc, tgt_privilege)
     }
 
@@ -292,7 +281,7 @@ impl PrivilegeStates {
         let epc = match cur_privilege {
             Privilege::M => self.m().mepc(),
             Privilege::S => self.s().unwrap().sepc(),
-            _ => unreachable!()
+            _ => unreachable!(),
         };
         let xpp = self.m().mstatus_mut().pop_privilege(cur_privilege);
         let pc = if self.check_extension('c').is_err() {
@@ -305,7 +294,7 @@ impl PrivilegeStates {
 
     fn get_priv_by_csr_idx(&self, id: InsnT) -> Result<Privilege, ()> {
         let csr_priv: u8 = ((id >> 8) & 0x3) as u8;
-        Privilege::try_from(csr_priv).map_err(|_| { () })
+        Privilege::try_from(csr_priv).map_err(|_| ())
     }
 }
 
@@ -314,18 +303,22 @@ impl HasCsr for PrivilegeStates {
         if let Ok(p) = self.get_priv_by_csr_idx(addr) {
             match p {
                 Privilege::M => {
-                    self.m().misa_mut().set_ignore(value & ((1 as RegT) << (('c' as u8 - 'a' as u8) as RegT)) == 0 && state.pc().trailing_zeros() == 1);
+                    self.m().misa_mut().set_ignore(
+                        value & ((1 as RegT) << (('c' as u8 - 'a' as u8) as RegT)) == 0
+                            && state.pc().trailing_zeros() == 1,
+                    );
                     self.m().write(addr as u64, value)
                 }
-                Privilege::S => {
-                    self.s().map(|s| {
-                        s.satp_mut().set_forbidden(self.cur == Privilege::S && self.m().mstatus().tvm() != 0);
+                Privilege::S => self
+                    .s()
+                    .map(|s| {
+                        s.satp_mut().set_forbidden(
+                            self.cur == Privilege::S && self.m().mstatus().tvm() != 0,
+                        );
                         s.write(addr as u64, value)
-                    }).flatten()
-                }
-                Privilege::U => {
-                    self.u().map(|u| { u.write(addr as u64, value) }).flatten()
-                }
+                    })
+                    .flatten(),
+                Privilege::U => self.u().map(|u| u.write(addr as u64, value)).flatten(),
             }
         } else {
             None
@@ -334,38 +327,45 @@ impl HasCsr for PrivilegeStates {
     fn csr_read(&self, state: &ProcessorState, addr: InsnT) -> Option<RegT> {
         if let Ok(p) = self.get_priv_by_csr_idx(addr) {
             match p {
-                Privilege::M => {
-                    self.m().read(addr as u64)
-                }
-                Privilege::S => {
-                    self.s().map(|s| {
-                        s.satp_mut().get_forbidden(self.cur == Privilege::S && self.m().mstatus().tvm() != 0);
+                Privilege::M => self.m().read(addr as u64),
+                Privilege::S => self
+                    .s()
+                    .map(|s| {
+                        s.satp_mut().get_forbidden(
+                            self.cur == Privilege::S && self.m().mstatus().tvm() != 0,
+                        );
                         s.read(addr as u64)
-                    }).flatten()
-                }
-                Privilege::U => {
-                    self.u().map(|u| {
-                        let mcounter_dis = self.m().mcounteren().get() & ((1 as RegT) << (addr as RegT & 0x1f)) == 0;
+                    })
+                    .flatten(),
+                Privilege::U => self
+                    .u()
+                    .map(|u| {
+                        let mcounter_dis = self.m().mcounteren().get()
+                            & ((1 as RegT) << (addr as RegT & 0x1f))
+                            == 0;
                         let counter_dis = match self.cur {
-                            Privilege::S => {
-                                mcounter_dis
-                            }
+                            Privilege::S => mcounter_dis,
                             Privilege::U => {
                                 if let Some(s) = self.s() {
-                                    mcounter_dis || (s.scounteren().get() & ((1 as RegT) << (addr as RegT & 0x1f)) == 0)
+                                    mcounter_dis
+                                        || (s.scounteren().get()
+                                            & ((1 as RegT) << (addr as RegT & 0x1f))
+                                            == 0)
                                 } else {
                                     mcounter_dis
                                 }
                             }
-                            _ => false
+                            _ => false,
                         };
                         u.cycle_mut().get_forbidden(counter_dis);
-                        u.cycleh_mut().get_forbidden(counter_dis || state.config().xlen != XLen::X32);
+                        u.cycleh_mut()
+                            .get_forbidden(counter_dis || state.config().xlen != XLen::X32);
                         u.instret_mut().get_forbidden(counter_dis);
-                        u.instreth_mut().get_forbidden(counter_dis || state.config().xlen != XLen::X32);
+                        u.instreth_mut()
+                            .get_forbidden(counter_dis || state.config().xlen != XLen::X32);
                         u.read(addr as u64)
-                    }).flatten()
-                }
+                    })
+                    .flatten(),
             }
         } else {
             None

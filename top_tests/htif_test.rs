@@ -1,11 +1,9 @@
-extern crate terminus_spaceport;
 extern crate terminus;
+extern crate terminus_spaceport;
 use terminus::devices::htif::HTIF;
+use terminus_spaceport::devices::term_exit;
 use terminus_spaceport::memory::region::{U32Access, U64Access};
 use terminus_spaceport::EXIT_CTRL;
-use terminus_spaceport::devices::term_exit;
-
-
 
 fn main() {
     let htif = HTIF::new(0, Some(8), true);
@@ -14,11 +12,14 @@ fn main() {
     loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
             println!("{}", msg);
-            break
+            break;
         }
         U64Access::write(&htif, &0, 0x0100_0000_0000_0000u64);
         if U32Access::read(&htif, &0x8) & 0xff != 0 {
-            println!("get char: {}!", std::char::from_u32(U32Access::read(&htif, &0x8) & 0xff).unwrap());
+            println!(
+                "get char: {}!",
+                std::char::from_u32(U32Access::read(&htif, &0x8) & 0xff).unwrap()
+            );
             U64Access::write(&htif, &0x8, 0);
             U64Access::write(&htif, &0, 1);
         }

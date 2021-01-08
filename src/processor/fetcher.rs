@@ -1,11 +1,11 @@
-use crate::processor::ProcessorState;
+use crate::devices::bus::Bus;
+use crate::prelude::*;
 use crate::processor::mmu::Mmu;
 use crate::processor::trap::Exception;
-use crate::devices::bus::Bus;
+use crate::processor::ProcessorState;
 use std::cell::RefCell;
 use std::mem::MaybeUninit;
 use std::rc::Rc;
-use crate::prelude::*;
 struct ICacheEntry {
     accessed: bool,
     tag: u64,
@@ -24,7 +24,13 @@ impl ICacheBasket {
             entries: unsafe {
                 let mut arr: MaybeUninit<[ICacheEntry; 4]> = MaybeUninit::uninit();
                 for i in 0..4 {
-                    (arr.as_mut_ptr() as *mut ICacheEntry).add(i).write(ICacheEntry { accessed: false, tag: 0, insn: None });
+                    (arr.as_mut_ptr() as *mut ICacheEntry)
+                        .add(i)
+                        .write(ICacheEntry {
+                            accessed: false,
+                            tag: 0,
+                            insn: None,
+                        });
                 }
                 arr.assume_init()
             },
@@ -47,7 +53,9 @@ impl ICacheBasket {
             ptr = Self::next_ptr(ptr);
         }
         if ptr != tail {
-            return unsafe { self.entries.get_unchecked(ptr as usize) }.insn.as_ref();
+            return unsafe { self.entries.get_unchecked(ptr as usize) }
+                .insn
+                .as_ref();
         }
         None
     }
@@ -94,14 +102,17 @@ impl ICacheBasket {
     }
 
     fn invalid_all(&mut self) {
-        self.entries.iter_mut().for_each(|e| { e.insn = None })
+        self.entries.iter_mut().for_each(|e| e.insn = None)
     }
 
     fn invalid_by_vpn(&mut self, vpn: u64) {
-        self.entries.iter_mut().for_each(|e| { if vpn == e.tag >> 11 { e.insn = None } })
+        self.entries.iter_mut().for_each(|e| {
+            if vpn == e.tag >> 11 {
+                e.insn = None
+            }
+        })
     }
 }
-
 
 struct ICache {
     size: usize,
@@ -116,24 +127,32 @@ impl ICache {
         };
         for _ in 0..size {
             cache.baskets.push(ICacheBasket::new())
-        };
+        }
         cache
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
     fn get_insn(&mut self, addr: u64) -> Option<&(InsnT, &'static Instruction)> {
-        unsafe { self.baskets.get_unchecked_mut(((addr >> 1) as usize) & (self.size - 1)) }.get_insn(addr >> 1)
+        unsafe {
+            self.baskets
+                .get_unchecked_mut(((addr >> 1) as usize) & (self.size - 1))
+        }
+        .get_insn(addr >> 1)
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
     fn set_entry(&mut self, addr: u64, ir: InsnT, insn: &'static Instruction) {
-        unsafe { self.baskets.get_unchecked_mut(((addr >> 1) as usize) & (self.size - 1)) }.set_entry(addr >> 1, ir, insn)
+        unsafe {
+            self.baskets
+                .get_unchecked_mut(((addr >> 1) as usize) & (self.size - 1))
+        }
+        .set_entry(addr >> 1, ir, insn)
     }
 
     fn invalid_all(&mut self) {
-        self.baskets.iter_mut().for_each(|b| { b.invalid_all() })
+        self.baskets.iter_mut().for_each(|b| b.invalid_all())
     }
 
     fn invalid_by_vpn(&mut self, vpn: u64) {
-        self.baskets.iter_mut().for_each(|b| { b.invalid_by_vpn(vpn) })
+        self.baskets.iter_mut().for_each(|b| b.invalid_by_vpn(vpn))
     }
 }
 
@@ -152,18 +171,14 @@ impl Fetcher {
     #[cfg_attr(feature = "no-inline", inline(never))]
     fn fetch_u16_slow(&self, addr: &u64, pc: &u64, data: &mut u16) -> Result<(), Exception> {
         match self.bus.read_u16(addr, data) {
-            Ok(_) => {
-                Ok(())
-            }
+            Ok(_) => Ok(()),
             Err(_) => Err(Exception::FetchAccess(*pc)),
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
     fn fetch_u32_slow(&self, addr: &u64, pc: &u64, data: &mut u32) -> Result<(), Exception> {
         match self.bus.read_u32(addr, data) {
-            Ok(_) => {
-                Ok(())
-            }
+            Ok(_) => Ok(()),
             Err(_) => Err(Exception::FetchAccess(*pc)),
         }
     }
@@ -176,7 +191,11 @@ impl Fetcher {
         self.icache.borrow_mut().invalid_by_vpn(vpn)
     }
 
-    pub fn fetch(&self, state: &ProcessorState, mmu: &Mmu) -> Result<(InsnT, &'static Instruction), Exception> {
+    pub fn fetch(
+        &self,
+        state: &ProcessorState,
+        mmu: &Mmu,
+    ) -> Result<(InsnT, &'static Instruction), Exception> {
         let mut icache = self.icache.borrow_mut();
         let pc = state.pc();
         if let Some(res) = icache.get_insn(*pc) {

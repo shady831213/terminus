@@ -1,29 +1,32 @@
-use crate::processor::extensions::{NoCsr, HasStepCb};
-use crate::processor::{ProcessorState, Processor};
-use std::cell::RefCell;
 use crate::prelude::RegT;
+use crate::processor::extensions::{HasStepCb, NoCsr};
+use crate::processor::{Processor, ProcessorState};
+use std::cell::RefCell;
 
 mod insns;
 
 struct LCReservation {
-    valid:bool,
+    valid: bool,
     addr: RegT,
     len: u64,
     timestamp: u64,
 }
 
 pub struct ExtensionA {
-    lc_res: RefCell<LCReservation>
+    lc_res: RefCell<LCReservation>,
 }
 
 impl ExtensionA {
-    pub fn new(_: &ProcessorState) -> ExtensionA
-    {
+    pub fn new(_: &ProcessorState) -> ExtensionA {
         ExtensionA {
-            lc_res: RefCell::new(LCReservation{valid:false, addr: 0, len:0, timestamp:0})
+            lc_res: RefCell::new(LCReservation {
+                valid: false,
+                addr: 0,
+                len: 0,
+                timestamp: 0,
+            }),
         }
     }
-
 }
 
 impl NoCsr for ExtensionA {}

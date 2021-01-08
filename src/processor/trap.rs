@@ -1,4 +1,4 @@
-use crate::prelude::{InsnT, RegT, Error};
+use crate::prelude::{Error, InsnT, RegT};
 #[derive(Debug, Copy, Clone)]
 pub enum Trap {
     Exception(Exception),
@@ -83,7 +83,7 @@ impl Exception {
             Exception::UCall => true,
             Exception::SCall => true,
             Exception::MCall => true,
-            _ => false
+            _ => false,
         }
     }
 }

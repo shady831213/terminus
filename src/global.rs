@@ -1,12 +1,16 @@
 pub type InsnT = u32;
 
-pub const fn insn_len() -> usize { std::mem::size_of::<InsnT>() << 3 }
+pub const fn insn_len() -> usize {
+    std::mem::size_of::<InsnT>() << 3
+}
 
 pub type RegT = u64;
 
 pub type SRegT = i64;
 
-pub const fn reg_len() -> usize { std::mem::size_of::<RegT>() << 3 }
+pub const fn reg_len() -> usize {
+    std::mem::size_of::<RegT>() << 3
+}
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum XLen {
@@ -18,7 +22,7 @@ impl XLen {
     pub const fn len(&self) -> usize {
         match self {
             XLen::X32 => 32,
-            XLen::X64 => 64
+            XLen::X64 => 64,
         }
     }
 
@@ -29,7 +33,7 @@ impl XLen {
     pub const fn mask(&self) -> RegT {
         match self {
             XLen::X32 => ((1 as RegT) << (self.len() as RegT)) - 1,
-            XLen::X64 => -1i64 as RegT
+            XLen::X64 => -1i64 as RegT,
         }
     }
 }

@@ -1,6 +1,6 @@
-use std::fmt::{Display, Formatter};
-use std::fmt;
 use std::collections::HashMap;
+use std::fmt;
+use std::fmt::{Display, Formatter};
 const FDT_MAGIC: u32 = 0xd00dfeed;
 const FDT_VERSION: u32 = 17;
 
@@ -59,7 +59,8 @@ impl FdtState {
 
     fn compile(&mut self, root: &FdtNode) -> Vec<u8> {
         root.pack(self);
-        self.struct_buffer.append(&mut FDT_END.to_be_bytes().to_vec());
+        self.struct_buffer
+            .append(&mut FDT_END.to_be_bytes().to_vec());
         let mut header = FdtHeader {
             magic: FDT_MAGIC.to_be(),
             total_size: 0,
@@ -86,18 +87,32 @@ impl FdtState {
             size: 0,
         };
         pos += std::mem::size_of::<FdtRsvEntry>() as u32;
-        let off_dt_strings= pos;
+        let off_dt_strings = pos;
         header.off_dt_strings = off_dt_strings.to_be();
         pos += self.string_buffer.len() as u32;
         while pos & 0x7 != 0 {
             pos += 1
-        };
+        }
         header.total_size = pos.to_be();
         let mut res: Vec<u8> = vec![0; pos as usize];
-        res[0..std::mem::size_of::<FdtHeader>()].copy_from_slice(unsafe { std::slice::from_raw_parts((&header as *const FdtHeader) as *const u8, std::mem::size_of::<FdtHeader>()) });
-        res[off_dt_struct as usize.. (off_dt_struct as usize) + self.struct_buffer.len()].copy_from_slice(&self.struct_buffer);
-        res[off_mem_rsvmap as usize..(off_mem_rsvmap as usize) + std::mem::size_of::<FdtRsvEntry>()].copy_from_slice(unsafe { std::slice::from_raw_parts((&re as *const FdtRsvEntry) as *const u8, std::mem::size_of::<FdtRsvEntry>()) });
-        res[off_dt_strings as usize..(off_dt_strings as usize) + self.string_buffer.len()].copy_from_slice(&self.string_buffer);
+        res[0..std::mem::size_of::<FdtHeader>()].copy_from_slice(unsafe {
+            std::slice::from_raw_parts(
+                (&header as *const FdtHeader) as *const u8,
+                std::mem::size_of::<FdtHeader>(),
+            )
+        });
+        res[off_dt_struct as usize..(off_dt_struct as usize) + self.struct_buffer.len()]
+            .copy_from_slice(&self.struct_buffer);
+        res[off_mem_rsvmap as usize
+            ..(off_mem_rsvmap as usize) + std::mem::size_of::<FdtRsvEntry>()]
+            .copy_from_slice(unsafe {
+                std::slice::from_raw_parts(
+                    (&re as *const FdtRsvEntry) as *const u8,
+                    std::mem::size_of::<FdtRsvEntry>(),
+                )
+            });
+        res[off_dt_strings as usize..(off_dt_strings as usize) + self.string_buffer.len()]
+            .copy_from_slice(&self.string_buffer);
         res
     }
 }
@@ -147,10 +162,26 @@ impl Display for FdtPropValue {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             FdtPropValue::Null => write!(f, ""),
-            FdtPropValue::Str(values) => write!(f, "= {}", values.iter().map(|s| { format!("\"{}\"", s) }).collect::<Vec<String>>().join(",")),
+            FdtPropValue::Str(values) => write!(
+                f,
+                "= {}",
+                values
+                    .iter()
+                    .map(|s| { format!("\"{}\"", s) })
+                    .collect::<Vec<String>>()
+                    .join(",")
+            ),
             FdtPropValue::U32(values) => {
                 write!(f, "= <")?;
-                write!(f, "{}", values.iter().map(|v| { format!("{:#x}", v) }).collect::<Vec<String>>().join(" "))?;
+                write!(
+                    f,
+                    "{}",
+                    values
+                        .iter()
+                        .map(|v| { format!("{:#x}", v) })
+                        .collect::<Vec<String>>()
+                        .join(" ")
+                )?;
                 write!(f, ">")
             }
         }
@@ -175,7 +206,7 @@ impl FdtProp {
         FdtProp {
             indent: 0,
             name: name.to_string(),
-            value: FdtPropValue::Str(value.iter().map(|s| { s.to_string() }).collect()),
+            value: FdtPropValue::Str(value.iter().map(|s| s.to_string()).collect()),
         }
     }
 
@@ -201,9 +232,13 @@ impl FdtProp {
     }
 
     fn pack(&self, state: &mut FdtState) {
-        state.struct_buffer.append(&mut FDT_PROP.to_be_bytes().to_vec());
+        state
+            .struct_buffer
+            .append(&mut FDT_PROP.to_be_bytes().to_vec());
         let mut data = self.value.pack();
-        state.struct_buffer.append(&mut (data.len() as u32).to_be_bytes().to_vec());
+        state
+            .struct_buffer
+            .append(&mut (data.len() as u32).to_be_bytes().to_vec());
         let mut offset = state.get_string_offset(&self.name).to_be_bytes().to_vec();
         state.struct_buffer.append(&mut offset);
         state.struct_buffer.append(&mut data);
@@ -212,7 +247,14 @@ impl FdtProp {
 
 impl Display for FdtProp {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        writeln!(f, "{:indent$}{} {};", "", self.name, self.value.to_string(), indent = self.indent * 4)
+        writeln!(
+            f,
+            "{:indent$}{} {};",
+            "",
+            self.name,
+            self.value.to_string(),
+            indent = self.indent * 4
+        )
     }
 }
 
@@ -270,7 +312,9 @@ impl FdtNode {
     }
 
     fn pack(&self, state: &mut FdtState) {
-        state.struct_buffer.append(&mut FDT_BEGIN_NODE.to_be_bytes().to_vec());
+        state
+            .struct_buffer
+            .append(&mut FDT_BEGIN_NODE.to_be_bytes().to_vec());
         state.struct_buffer.append(&mut self.pack_name());
         for prop in self.props.iter() {
             prop.pack(state)
@@ -278,13 +322,21 @@ impl FdtNode {
         for node in self.nodes.iter() {
             node.pack(state)
         }
-        state.struct_buffer.append(&mut FDT_END_NODE.to_be_bytes().to_vec());
+        state
+            .struct_buffer
+            .append(&mut FDT_END_NODE.to_be_bytes().to_vec());
     }
 }
 
 impl Display for FdtNode {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        writeln!(f, "{:indent$}{} {{", "", self.name, indent = self.indent * 4)?;
+        writeln!(
+            f,
+            "{:indent$}{} {{",
+            "",
+            self.name,
+            indent = self.indent * 4
+        )?;
         for prop in self.props.iter() {
             write!(f, "{}", prop.to_string())?
         }
@@ -305,7 +357,10 @@ mod test {
         let mut root = FdtNode::new("");
         root.add_prop(FdtProp::u32_prop("#address-cells", vec![2]));
         root.add_prop(FdtProp::u32_prop("#size-cells", vec![2]));
-        root.add_prop(FdtProp::str_prop("compatible", vec!["ucbbar,terminus-bare-dev"]));
+        root.add_prop(FdtProp::str_prop(
+            "compatible",
+            vec!["ucbbar,terminus-bare-dev"],
+        ));
         root.add_prop(FdtProp::str_prop("model", vec!["ucbbar,terminus-bare"]));
 
         let mut cpus = FdtNode::new("cpus");
@@ -336,11 +391,13 @@ mod test {
         memory.add_prop(FdtProp::u64_prop("reg", vec![0x80000000, 0x10000000]));
         root.add_node(memory);
 
-
         let mut soc = FdtNode::new("soc");
         soc.add_prop(FdtProp::u32_prop("#address-cells", vec![2]));
         soc.add_prop(FdtProp::u32_prop("#size-cells", vec![2]));
-        soc.add_prop(FdtProp::str_prop("compatible", vec!["ucbbar,terminus-bare-soc", "simple-bus"]));
+        soc.add_prop(FdtProp::str_prop(
+            "compatible",
+            vec!["ucbbar,terminus-bare-soc", "simple-bus"],
+        ));
         soc.add_prop(FdtProp::null_prop("range"));
         let mut clint = FdtNode::new_with_num("clint", 0x20000);
         clint.add_prop(FdtProp::str_prop("compatible", vec!["riscv,clint0"]));
@@ -351,7 +408,10 @@ mod test {
             interrupts_extended.push((i + 1) as u32);
             interrupts_extended.push(7 as u32);
         }
-        clint.add_prop(FdtProp::u32_prop("interrupts-extended", interrupts_extended));
+        clint.add_prop(FdtProp::u32_prop(
+            "interrupts-extended",
+            interrupts_extended,
+        ));
         clint.add_prop(FdtProp::u64_prop("reg", vec![0x20000, 0x10000]));
         soc.add_node(clint);
 

@@ -1,9 +1,9 @@
-use std::marker::PhantomData;
-use std::convert::TryFrom;
-use crate::processor::trap::Exception;
-use crate::prelude::*;
-use crate::processor::ProcessorState;
 use crate::devices::bus::Bus;
+use crate::prelude::*;
+use crate::processor::trap::Exception;
+use crate::processor::ProcessorState;
+use std::convert::TryFrom;
+use std::marker::PhantomData;
 
 mod pmp;
 
@@ -29,7 +29,7 @@ impl MmuOpt {
         match self {
             MmuOpt::Fetch => Exception::FetchAccess(addr as u64),
             MmuOpt::Load => Exception::LoadAccess(addr as u64),
-            MmuOpt::Store => Exception::StoreAccess(addr as u64)
+            MmuOpt::Store => Exception::StoreAccess(addr as u64),
         }
     }
 
@@ -37,7 +37,7 @@ impl MmuOpt {
         match self {
             MmuOpt::Fetch => Exception::FetchPageFault(addr as u64),
             MmuOpt::Load => Exception::LoadPageFault(addr as u64),
-            MmuOpt::Store => Exception::StorePageFault(addr as u64)
+            MmuOpt::Store => Exception::StorePageFault(addr as u64),
         }
     }
 
@@ -45,7 +45,7 @@ impl MmuOpt {
         match self {
             MmuOpt::Fetch => pmpcfg.x() == 1,
             MmuOpt::Load => pmpcfg.r() == 1,
-            MmuOpt::Store => pmpcfg.w() == 1
+            MmuOpt::Store => pmpcfg.w() == 1,
         }
     }
 }
@@ -71,39 +71,53 @@ impl Mmu {
         PmpCfgsIter::new(state.priv_m(), PhantomData)
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn match_pmpcfg_entry(&self, state: &ProcessorState, addr: &u64, len: usize) -> Option<PmpCfgEntry> {
-        self.pmpcfgs_iter(state).enumerate()
+    fn match_pmpcfg_entry(
+        &self,
+        state: &ProcessorState,
+        addr: &u64,
+        len: usize,
+    ) -> Option<PmpCfgEntry> {
+        self.pmpcfgs_iter(state)
+            .enumerate()
             .find(|(idx, entry)| {
                 ((*addr >> 2)..((*addr + len as u64 - 1) >> 2) + 1)
-                    .map(|trail_addr| {
-                        match PmpAType::try_from(entry.a()).unwrap() {
-                            PmpAType::OFF => false,
-                            PmpAType::TOR => {
-                                let low = if *idx == 0 {
-                                    0
-                                } else {
-                                    state.priv_m().read(0x3b0 + ((*idx - 1) as u8 as u64)).unwrap()
-                                };
-                                let high = state.priv_m().read(0x3b0 + (*idx as u8 as u64)).unwrap();
-                                trail_addr >= low && trail_addr < high
-                            }
-                            PmpAType::NA4 => {
-                                let pmpaddr = state.priv_m().read(0x3b0 + (*idx as u8 as u64)).unwrap();
-                                trail_addr == pmpaddr
-                            }
-                            PmpAType::NAPOT => {
-                                let pmpaddr = state.priv_m().read(0x3b0 + (*idx as u8 as u64)).unwrap();
-                                let trialing_ones = (!pmpaddr).trailing_zeros();
-                                (trail_addr >> trialing_ones) == (pmpaddr >> trialing_ones)
-                            }
+                    .map(|trail_addr| match PmpAType::try_from(entry.a()).unwrap() {
+                        PmpAType::OFF => false,
+                        PmpAType::TOR => {
+                            let low = if *idx == 0 {
+                                0
+                            } else {
+                                state
+                                    .priv_m()
+                                    .read(0x3b0 + ((*idx - 1) as u8 as u64))
+                                    .unwrap()
+                            };
+                            let high = state.priv_m().read(0x3b0 + (*idx as u8 as u64)).unwrap();
+                            trail_addr >= low && trail_addr < high
+                        }
+                        PmpAType::NA4 => {
+                            let pmpaddr = state.priv_m().read(0x3b0 + (*idx as u8 as u64)).unwrap();
+                            trail_addr == pmpaddr
+                        }
+                        PmpAType::NAPOT => {
+                            let pmpaddr = state.priv_m().read(0x3b0 + (*idx as u8 as u64)).unwrap();
+                            let trialing_ones = (!pmpaddr).trailing_zeros();
+                            (trail_addr >> trialing_ones) == (pmpaddr >> trialing_ones)
                         }
                     })
-                    .fold(true, |acc, m| { acc && m })
+                    .fold(true, |acc, m| acc && m)
             })
-            .map(|(_, entry)| { entry })
+            .map(|(_, entry)| entry)
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn check_pmp(&self, state: &ProcessorState, addr: &u64, len: usize, opt: &MmuOpt, privilege: &u8) -> bool {
+    fn check_pmp(
+        &self,
+        state: &ProcessorState,
+        addr: &u64,
+        len: usize,
+        opt: &MmuOpt,
+        privilege: &u8,
+    ) -> bool {
         if let Some(entry) = self.match_pmpcfg_entry(state, addr, len) {
             *privilege == 3 && entry.l() == 0 || opt.pmp_match(&entry)
         } else {
@@ -117,11 +131,18 @@ impl Mmu {
         match opt {
             &MmuOpt::Load if is_mprv => mpp,
             &MmuOpt::Store if is_mprv => mpp,
-            _ => (*state.privilege()).into()
+            _ => (*state.privilege()).into(),
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn check_pte_privilege(&self, state: &ProcessorState, addr: RegT, pte_attr: &PteAttr, opt: &MmuOpt, privilege: &u8) -> Result<(), Exception> {
+    fn check_pte_privilege(
+        &self,
+        state: &ProcessorState,
+        addr: RegT,
+        pte_attr: &PteAttr,
+        opt: &MmuOpt,
+        privilege: &u8,
+    ) -> Result<(), Exception> {
         let priv_s = *privilege == 1;
         let pte_x = pte_attr.x() == 1;
         let pte_u = pte_attr.u() == 1;
@@ -136,7 +157,11 @@ impl Mmu {
                 }
             }
             &MmuOpt::Load => {
-                if priv_s && !sum && pte_u || !pte_u && !priv_s || !pte_r && !mxr || mxr && !pte_r && !pte_x {
+                if priv_s && !sum && pte_u
+                    || !pte_u && !priv_s
+                    || !pte_r && !mxr
+                    || mxr && !pte_r && !pte_x
+                {
                     return Err(opt.pagefault_exception(addr));
                 }
             }
@@ -149,7 +174,14 @@ impl Mmu {
         Ok(())
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn pt_walk(&self, state: &ProcessorState, vaddr: &Vaddr, opt: &MmuOpt, privilege: &u8, info: &PteInfo) -> Result<u64, Exception> {
+    fn pt_walk(
+        &self,
+        state: &ProcessorState,
+        vaddr: &Vaddr,
+        opt: &MmuOpt,
+        privilege: &u8,
+        info: &PteInfo,
+    ) -> Result<u64, Exception> {
         //step 1
         let ppn = state.priv_s()?.satp().ppn();
         let mut a = (ppn << info.page_size_shift) as RegT;
@@ -164,7 +196,7 @@ impl Mmu {
             }
             let pte = match Pte::load(info, &*self.bus, &pte_addr) {
                 Ok(pte) => pte,
-                Err(_) => return Err(opt.access_exception(vaddr.value()))
+                Err(_) => return Err(opt.access_exception(vaddr.value())),
             };
             //step 3
             if pte.attr().v() == 0 || pte.attr().r() == 0 && pte.attr().w() == 1 {
@@ -223,16 +255,37 @@ impl Mmu {
     }
 
     #[cfg_attr(feature = "no-inline", inline(never))]
-    pub fn ls_translate(&self, state: &ProcessorState, va: &RegT, len: usize, opt: MmuOpt) -> Result<u64, Exception> {
-        self.translate(state, va, len, opt, self.get_privileage(state, &opt), &mut *match opt {
-            MmuOpt::Store => self.store_tlb.borrow_mut(),
-            MmuOpt::Load => self.load_tlb.borrow_mut(),
-            _ => unreachable!()
-        })
+    pub fn ls_translate(
+        &self,
+        state: &ProcessorState,
+        va: &RegT,
+        len: usize,
+        opt: MmuOpt,
+    ) -> Result<u64, Exception> {
+        self.translate(
+            state,
+            va,
+            len,
+            opt,
+            self.get_privileage(state, &opt),
+            &mut *match opt {
+                MmuOpt::Store => self.store_tlb.borrow_mut(),
+                MmuOpt::Load => self.load_tlb.borrow_mut(),
+                _ => unreachable!(),
+            },
+        )
     }
 
     #[cfg_attr(feature = "no-inline", inline(never))]
-    fn translate(&self, state: &ProcessorState, va: &RegT, len: usize, opt: MmuOpt, privilege: u8, tlb: &mut TLB) -> Result<u64, Exception> {
+    fn translate(
+        &self,
+        state: &ProcessorState,
+        va: &RegT,
+        len: usize,
+        opt: MmuOpt,
+        privilege: u8,
+        tlb: &mut TLB,
+    ) -> Result<u64, Exception> {
         if privilege == 3 {
             return Ok(*va as u64);
         }
@@ -246,21 +299,33 @@ impl Mmu {
             return Ok(pa);
         }
         match self.pt_walk(state, &vaddr, &opt, &privilege, &info) {
-            Ok(pa) => if !self.check_pmp(state, &pa, len as usize, &opt, &privilege) {
-                return Err(opt.access_exception(*va));
-            } else {
-                tlb.set_entry(vaddr.vpn_all(), pa >> (info.page_size_shift as u64));
-                Ok(pa)
+            Ok(pa) => {
+                if !self.check_pmp(state, &pa, len as usize, &opt, &privilege) {
+                    return Err(opt.access_exception(*va));
+                } else {
+                    tlb.set_entry(vaddr.vpn_all(), pa >> (info.page_size_shift as u64));
+                    Ok(pa)
+                }
             }
-            Err(e) => {
-                Err(e)
-            }
+            Err(e) => Err(e),
         }
     }
 
     #[cfg_attr(feature = "no-inline", inline(never))]
-    pub fn fetch_translate(&self, state: &ProcessorState, va: &RegT, len: usize) -> Result<u64, Exception> {
-        self.translate(state, va, len, MmuOpt::Fetch, (*state.privilege()).into(), &mut self.fetch_tlb.borrow_mut())
+    pub fn fetch_translate(
+        &self,
+        state: &ProcessorState,
+        va: &RegT,
+        len: usize,
+    ) -> Result<u64, Exception> {
+        self.translate(
+            state,
+            va,
+            len,
+            MmuOpt::Fetch,
+            (*state.privilege()).into(),
+            &mut self.fetch_tlb.borrow_mut(),
+        )
     }
 }
 
@@ -288,29 +353,80 @@ fn pmp_basic_test() {
     //no valid region
     assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), &0, 1), None);
     //NA4
-    p.state().priv_m().pmpcfg0_mut().set_bit_range(4, 3, PmpAType::NA4.into());
+    p.state()
+        .priv_m()
+        .pmpcfg0_mut()
+        .set_bit_range(4, 3, PmpAType::NA4.into());
     p.state().priv_m().pmpaddr0_mut().set(0x8000_0000 >> 2);
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x8000_0000, 4).is_some());
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x8000_0000, 5).is_none());
+    assert!(p
+        .mmu()
+        .match_pmpcfg_entry(p.state(), &0x8000_0000, 4)
+        .is_some());
+    assert!(p
+        .mmu()
+        .match_pmpcfg_entry(p.state(), &0x8000_0000, 5)
+        .is_none());
 
     //NAPOT
-    p.state().priv_m().pmpcfg3_mut().set_bit_range(4, 3, PmpAType::NAPOT.into());
-    p.state().priv_m().pmpaddr12_mut().set((0x2000_0000 + 0x1_0000 - 1) >> 2);
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x2000_0000, 4).is_some());
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x2000_ffff, 1).is_some());
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x2000_ffff, 2).is_none());
-    assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), &0x2000_ffff, 1), p.mmu().match_pmpcfg_entry(p.state(), &0x2000_0000, 4));
+    p.state()
+        .priv_m()
+        .pmpcfg3_mut()
+        .set_bit_range(4, 3, PmpAType::NAPOT.into());
+    p.state()
+        .priv_m()
+        .pmpaddr12_mut()
+        .set((0x2000_0000 + 0x1_0000 - 1) >> 2);
+    assert!(p
+        .mmu()
+        .match_pmpcfg_entry(p.state(), &0x2000_0000, 4)
+        .is_some());
+    assert!(p
+        .mmu()
+        .match_pmpcfg_entry(p.state(), &0x2000_ffff, 1)
+        .is_some());
+    assert!(p
+        .mmu()
+        .match_pmpcfg_entry(p.state(), &0x2000_ffff, 2)
+        .is_none());
+    assert_eq!(
+        p.mmu().match_pmpcfg_entry(p.state(), &0x2000_ffff, 1),
+        p.mmu().match_pmpcfg_entry(p.state(), &0x2000_0000, 4)
+    );
     assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), &0x1000_ffff, 1), None);
     assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), &0x2001_0000, 4), None);
     //TOR
-    p.state().priv_m().pmpcfg3_mut().set_bit_range(12, 11, PmpAType::TOR.into());
-    p.state().priv_m().pmpaddr13_mut().set((0x2000_0000 + 0x1_0000) >> 2);
-    p.state().priv_m().pmpcfg3_mut().set_bit_range(20, 19, PmpAType::TOR.into());
-    p.state().priv_m().pmpaddr14_mut().set((0x2000_0000 + 0x2_0000) >> 2);
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x2001_0000, 4).is_some());
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x2001_ffff, 1).is_some());
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x2001_ffff, 2).is_none());
+    p.state()
+        .priv_m()
+        .pmpcfg3_mut()
+        .set_bit_range(12, 11, PmpAType::TOR.into());
+    p.state()
+        .priv_m()
+        .pmpaddr13_mut()
+        .set((0x2000_0000 + 0x1_0000) >> 2);
+    p.state()
+        .priv_m()
+        .pmpcfg3_mut()
+        .set_bit_range(20, 19, PmpAType::TOR.into());
+    p.state()
+        .priv_m()
+        .pmpaddr14_mut()
+        .set((0x2000_0000 + 0x2_0000) >> 2);
+    assert!(p
+        .mmu()
+        .match_pmpcfg_entry(p.state(), &0x2001_0000, 4)
+        .is_some());
+    assert!(p
+        .mmu()
+        .match_pmpcfg_entry(p.state(), &0x2001_ffff, 1)
+        .is_some());
+    assert!(p
+        .mmu()
+        .match_pmpcfg_entry(p.state(), &0x2001_ffff, 2)
+        .is_none());
     assert_eq!(p.mmu().match_pmpcfg_entry(p.state(), &0x2002_0000, 4), None);
     p.state().priv_m().pmpcfg3_mut().set_bit_range(23, 23, 1);
-    assert!(p.mmu().match_pmpcfg_entry(p.state(), &0x2001_0000, 4).is_some());
+    assert!(p
+        .mmu()
+        .match_pmpcfg_entry(p.state(), &0x2001_0000, 4)
+        .is_some());
 }

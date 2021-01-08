@@ -1,10 +1,10 @@
+use std::borrow::{Borrow, BorrowMut};
+use std::cell::RefCell;
+use std::io::{ErrorKind, Read, Write};
+use terminus_spaceport::devices::TERM;
 use terminus_spaceport::memory::prelude::*;
 use terminus_spaceport::EXIT_CTRL;
-use terminus_spaceport::devices::TERM;
-use std::io::{Write, ErrorKind, Read};
 use terminus_vault::*;
-use std::borrow::{BorrowMut, Borrow};
-use std::cell::RefCell;
 
 // test refer to top_tests/htif_test
 struct HTIFDesp {
@@ -32,7 +32,10 @@ pub struct HTIF {
 impl HTIF {
     pub fn new(tohost_off: u64, fromhost_off: Option<u64>, input_en: bool) -> HTIF {
         HTIF {
-            desc: RefCell::new(HTIFDesp { tohost: 0, fromhost: 0 }),
+            desc: RefCell::new(HTIFDesp {
+                tohost: 0,
+                fromhost: 0,
+            }),
             tohost_off,
             fromhost_off,
             input_en,
@@ -69,7 +72,7 @@ impl HTIF {
                     desp.fromhost.set_bit_range(63, 48, 0x0100);
                 }
                 Err(e) if e.kind() == ErrorKind::WouldBlock => {}
-                Err(e) => panic!("{:?}", e)
+                Err(e) => panic!("{:?}", e),
             }
         }
     }
@@ -138,7 +141,6 @@ impl U32Access for HTIF {
     }
 }
 
-
 impl U64Access for HTIF {
     fn write(&self, addr: &u64, data: u64) {
         let mut desp = self.desc.borrow_mut();
@@ -173,6 +175,3 @@ impl U64Access for HTIF {
         data
     }
 }
-
-
-

@@ -12,4 +12,4 @@ impl ExtensionU {
 
 impl NoCsr for ExtensionU {}
 
-impl NoStepCb for ExtensionU{}
+impl NoStepCb for ExtensionU {}

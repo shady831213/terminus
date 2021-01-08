@@ -1,9 +1,9 @@
+use std::cell::{Ref, RefCell, RefMut};
 use std::num::Wrapping;
-use terminus_spaceport::memory::prelude::*;
-use terminus_spaceport::irq::{IrqVec, IrqVecSender, IrqVecListener};
-use terminus_vault::*;
 use std::rc::Rc;
-use std::cell::{Ref, RefMut, RefCell};
+use terminus_spaceport::irq::{IrqVec, IrqVecListener, IrqVecSender};
+use terminus_spaceport::memory::prelude::*;
+use terminus_vault::*;
 
 struct TimerInner {
     freq: usize,
@@ -89,7 +89,6 @@ impl Timer {
     }
 }
 
-
 const MSIP_BASE: u64 = 0x0;
 const MSIP_SIZE: u64 = 4;
 const MTIMECMP_BASE: u64 = 0x4000;
@@ -107,7 +106,7 @@ impl Clint {
 }
 
 impl BytesAccess for Clint {
-    fn write(&self, addr: &u64, data: &[u8])  -> std::result::Result<usize, String> {
+    fn write(&self, addr: &u64, data: &[u8]) -> std::result::Result<usize, String> {
         if data.len() == 4 {
             let mut bytes = [0; 4];
             bytes.copy_from_slice(data);
@@ -120,7 +119,7 @@ impl BytesAccess for Clint {
         Ok(0)
     }
 
-    fn read(&self, addr: &u64, data: &mut [u8]) -> std::result::Result<usize, String>  {
+    fn read(&self, addr: &u64, data: &mut [u8]) -> std::result::Result<usize, String> {
         if data.len() == 4 {
             data.copy_from_slice(&U32Access::read(self, addr).to_le_bytes())
         } else if data.len() == 8 {
@@ -132,7 +131,10 @@ impl BytesAccess for Clint {
 
 impl U32Access for Clint {
     fn write(&self, addr: &u64, data: u32) {
-        assert!((*addr).trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
+        assert!(
+            (*addr).trailing_zeros() > 1,
+            format!("U32Access:unaligned addr:{:#x}", addr)
+        );
         let mut timer = self.0.inner_mut();
         if *addr >= MSIP_BASE && *addr + 4 <= MSIP_BASE + timer.sints.len() as u64 * MSIP_SIZE {
             let offset = ((*addr - MSIP_BASE) >> 2) as usize;
@@ -142,7 +144,9 @@ impl U32Access for Clint {
                 timer.sints[offset].clear().unwrap();
             }
             return;
-        } else if *addr >= MTIMECMP_BASE && *addr + 4 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
+        } else if *addr >= MTIMECMP_BASE
+            && *addr + 4 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE
+        {
             let offset = ((*addr - MTIMECMP_BASE) >> 3) as usize;
             if (*addr).trailing_zeros() == 2 {
                 timer.mtimecmps[offset].set_bit_range(63, 32, data)
@@ -163,12 +167,18 @@ impl U32Access for Clint {
     }
 
     fn read(&self, addr: &u64) -> u32 {
-        assert!((*addr).trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
+        assert!(
+            (*addr).trailing_zeros() > 1,
+            format!("U32Access:unaligned addr:{:#x}", addr)
+        );
         let timer = self.0.inner();
-        if *addr >= MSIP_BASE && *addr + 4 <= MSIP_BASE + timer.sint_status.len() as u64 * MSIP_SIZE {
+        if *addr >= MSIP_BASE && *addr + 4 <= MSIP_BASE + timer.sint_status.len() as u64 * MSIP_SIZE
+        {
             let offset = ((*addr - MSIP_BASE) >> 2) as usize;
             return timer.sint_status[offset].pending_uncheck() as u32;
-        } else if *addr >= MTIMECMP_BASE && *addr + 4 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
+        } else if *addr >= MTIMECMP_BASE
+            && *addr + 4 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE
+        {
             let offset = ((*addr - MTIMECMP_BASE) >> 3) as usize;
             return if (*addr).trailing_zeros() == 2 {
                 timer.mtimecmps[offset] >> 32
@@ -187,10 +197,12 @@ impl U32Access for Clint {
     }
 }
 
-
 impl U64Access for Clint {
     fn write(&self, addr: &u64, data: u64) {
-        assert!((*addr).trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", addr));
+        assert!(
+            (*addr).trailing_zeros() > 2,
+            format!("U64Access:unaligned addr:{:#x}", addr)
+        );
 
         let mut timer = self.0.inner_mut();
         if *addr >= MSIP_BASE && *addr + 8 <= MSIP_BASE + timer.sints.len() as u64 * MSIP_SIZE {
@@ -206,7 +218,9 @@ impl U64Access for Clint {
                 timer.sints[offset + 1].clear().unwrap();
             }
             return;
-        } else if *addr >= MTIMECMP_BASE && *addr + 8 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
+        } else if *addr >= MTIMECMP_BASE
+            && *addr + 8 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE
+        {
             let offset = ((*addr - MTIMECMP_BASE) >> 3) as usize;
             timer.mtimecmps[offset] = data;
             timer.tick(0);
@@ -219,13 +233,20 @@ impl U64Access for Clint {
     }
 
     fn read(&self, addr: &u64) -> u64 {
-        assert!((*addr).trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", addr));
+        assert!(
+            (*addr).trailing_zeros() > 2,
+            format!("U64Access:unaligned addr:{:#x}", addr)
+        );
 
         let timer = self.0.inner();
-        if *addr >= MSIP_BASE && *addr + 8 <= MSIP_BASE + timer.sint_status.len() as u64 * MSIP_SIZE {
+        if *addr >= MSIP_BASE && *addr + 8 <= MSIP_BASE + timer.sint_status.len() as u64 * MSIP_SIZE
+        {
             let offset = (((*addr - MSIP_BASE) >> 3) << 1) as usize;
-            return (timer.sint_status[offset].pending_uncheck() as u64) | ((timer.sint_status[offset + 1].pending_uncheck() as u64) << 32);
-        } else if *addr >= MTIMECMP_BASE && *addr + 8 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE {
+            return (timer.sint_status[offset].pending_uncheck() as u64)
+                | ((timer.sint_status[offset + 1].pending_uncheck() as u64) << 32);
+        } else if *addr >= MTIMECMP_BASE
+            && *addr + 8 <= MTIMECMP_BASE + timer.mtimecmps.len() as u64 * MTMIECMP_SIZE
+        {
             let offset = ((addr - MTIMECMP_BASE) >> 3) as usize;
             return timer.mtimecmps[offset];
         } else if *addr >= MTIME_BASE && *addr + 8 <= MTIME_BASE + MTIME_SIZE {

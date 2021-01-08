@@ -1,19 +1,19 @@
-use std::rc::Rc;
 use crate::processor::ProcessorCfg;
 use std::ops::Deref;
+use std::rc::Rc;
 
 pub mod csrs;
-use csrs::*;
 use crate::prelude::XLen;
+use csrs::*;
 
 pub struct PrivM {
     csrs: Rc<MCsrs>,
 }
 
 impl PrivM {
-    pub fn new(cfg:&ProcessorCfg) -> PrivM {
-        let m = PrivM{
-            csrs:Rc::new(MCsrs::new(cfg.xlen.len()))
+    pub fn new(cfg: &ProcessorCfg) -> PrivM {
+        let m = PrivM {
+            csrs: Rc::new(MCsrs::new(cfg.xlen.len())),
         };
         //no debug
         m.csrs.tselect_mut().set(0xffff_ffff_ffff_ffff);
@@ -28,8 +28,7 @@ impl PrivM {
                     0
                 }
             }
-        }
-        );
+        });
 
         m.csrs.mcycleh_mut().get_forbidden(cfg.xlen != XLen::X32);
         m.csrs.minstreth_mut().get_forbidden(cfg.xlen != XLen::X32);

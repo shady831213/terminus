@@ -1,9 +1,9 @@
 use crate::prelude::RegT;
 use crate::processor::mmu::Mmu;
-use std::marker::PhantomData;
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-use terminus_vault::*;
 use crate::processor::privilege::*;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use std::marker::PhantomData;
+use terminus_vault::*;
 
 #[derive(IntoPrimitive, TryFromPrimitive, Debug)]
 #[repr(u8)]
@@ -37,7 +37,6 @@ pub struct PmpCfgsIter<'m> {
     marker: PhantomData<&'m Mmu>,
 }
 
-
 impl<'m> PmpCfgsIter<'m> {
     pub fn new(priv_m: &'m PrivM, marker: PhantomData<&'m Mmu>) -> PmpCfgsIter<'m> {
         PmpCfgsIter {
@@ -48,23 +47,19 @@ impl<'m> PmpCfgsIter<'m> {
     }
     fn get_cfg(&self) -> RegT {
         match (*self.priv_m).xlen {
-            32 => {
-                match (self.idx >> 2) & 0x3 {
-                    0 => self.priv_m.pmpcfg0().get(),
-                    1 => self.priv_m.pmpcfg1().get(),
-                    2 => self.priv_m.pmpcfg2().get(),
-                    3 => self.priv_m.pmpcfg3().get(),
-                    _ => unreachable!()
-                }
-            }
-            64 => {
-                match (self.idx >> 3) & 0x1 {
-                    0 => self.priv_m.pmpcfg0().get(),
-                    1 => self.priv_m.pmpcfg2().get(),
-                    _ => unreachable!()
-                }
-            }
-            _ => unreachable!()
+            32 => match (self.idx >> 2) & 0x3 {
+                0 => self.priv_m.pmpcfg0().get(),
+                1 => self.priv_m.pmpcfg1().get(),
+                2 => self.priv_m.pmpcfg2().get(),
+                3 => self.priv_m.pmpcfg3().get(),
+                _ => unreachable!(),
+            },
+            64 => match (self.idx >> 3) & 0x1 {
+                0 => self.priv_m.pmpcfg0().get(),
+                1 => self.priv_m.pmpcfg2().get(),
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
         }
     }
 
@@ -72,9 +67,9 @@ impl<'m> PmpCfgsIter<'m> {
         let offset: u8 = match (*self.priv_m).xlen {
             32 => self.idx & 0x3,
             64 => self.idx & 0x7,
-            _ => unreachable!()
+            _ => unreachable!(),
         };
-        let cfg:u8 = (self.get_cfg() >> ((offset as RegT) << 3)) as u8;
+        let cfg: u8 = (self.get_cfg() >> ((offset as RegT) << 3)) as u8;
 
         cfg.into()
     }
