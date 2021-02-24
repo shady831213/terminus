@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::devices::bus::BaseBus;
+use crate::devices::bus::Bus;
 use crate::prelude::RegT;
 use crate::processor::privilege::*;
 
@@ -418,7 +418,7 @@ impl Pte {
             _ => panic!(format!("unsupported PteMode {:?}", mode)),
         }
     }
-    pub fn load(info: &PteInfo, bus: &Rc<dyn BaseBus>, addr: &u64) -> Result<Pte, u64> {
+    pub fn load(info: &PteInfo, bus: &Rc<dyn Bus>, addr: &u64) -> Result<Pte, u64> {
         let value = match info.size_shift {
             2 => {
                 let mut data: u32 = 0;
@@ -435,7 +435,7 @@ impl Pte {
         Ok(Pte::new(info.mode, value))
     }
 
-    pub fn store(&self, bus:  &Rc<dyn BaseBus>, addr: &u64) -> Result<(), u64> {
+    pub fn store(&self, bus:  &Rc<dyn Bus>, addr: &u64) -> Result<(), u64> {
         match self {
             Pte::Sv32(_) => bus.write_u32(addr, &(self.value() as u32)),
             _ => bus.write_u64(addr, &(self.value() as u64)),

@@ -24,25 +24,7 @@ impl LockEntry {
     }
 }
 
-pub trait AtomicBus {
-    fn acquire(&self, addr: &u64, len: usize, who: usize) -> bool;
-    fn lock_holder(&self, addr: &u64, len: usize) -> Option<usize>;
-    fn invalid_lock(&self, addr: &u64, len: usize, who: usize);
-    fn release(&self, who: usize);
-}
-
-pub trait BaseBus {
-    fn write_u8(&self, addr: &u64, data: &u8) -> Result<(), u64>;
-    fn read_u8(&self, addr: &u64, data: &mut u8) -> Result<(), u64>;
-    fn write_u16(&self, addr: &u64, data: &u16) -> Result<(), u64>;
-    fn read_u16(&self, addr: &u64, data: &mut u16) -> Result<(), u64>;
-    fn write_u32(&self, addr: &u64, data: &u32) -> Result<(), u64>;
-    fn read_u32(&self, addr: &u64, data: &mut u32) -> Result<(), u64>;
-    fn write_u64(&self, addr: &u64, data: &u64) -> Result<(), u64>;
-    fn read_u64(&self, addr: &u64, data: &mut u64) -> Result<(), u64>;
-}
-
-pub trait NonAtomicBus:AtomicBus {
+pub trait Bus {
     fn acquire(&self, _addr: &u64, _len: usize, _who: usize) -> bool {
         panic!("acquire is not supported!")
     }
@@ -55,9 +37,15 @@ pub trait NonAtomicBus:AtomicBus {
     fn release(&self, _who: usize) {
         panic!("release is not supported!")
     }
+    fn write_u8(&self, addr: &u64, data: &u8) -> Result<(), u64>;
+    fn read_u8(&self, addr: &u64, data: &mut u8) -> Result<(), u64>;
+    fn write_u16(&self, addr: &u64, data: &u16) -> Result<(), u64>;
+    fn read_u16(&self, addr: &u64, data: &mut u16) -> Result<(), u64>;
+    fn write_u32(&self, addr: &u64, data: &u32) -> Result<(), u64>;
+    fn read_u32(&self, addr: &u64, data: &mut u32) -> Result<(), u64>;
+    fn write_u64(&self, addr: &u64, data: &u64) -> Result<(), u64>;
+    fn read_u64(&self, addr: &u64, data: &mut u64) -> Result<(), u64>;
 }
-
-pub trait CoreBus:BaseBus+AtomicBus{}
 
 pub struct TerminusBus {
     space: RefCell<Space>,
@@ -80,7 +68,7 @@ impl TerminusBus {
     }
 }
 
-impl AtomicBus for TerminusBus {
+impl Bus for TerminusBus {
     #[cfg_attr(feature = "no-inline", inline(never))]
     fn acquire(&self, addr: &u64, len: usize, who: usize) -> bool {
         let mut lock_table = self.lock_table.borrow_mut();
@@ -148,10 +136,7 @@ impl AtomicBus for TerminusBus {
     fn release(&self, who: usize) {
         let mut lock_table = self.lock_table.borrow_mut();
         lock_table.retain(|e| e.holder != who)
-    }
-}
-
-impl BaseBus for TerminusBus {
+    }    
     fn write_u8(&self, addr: &u64, data: &u8) -> Result<(), u64> {
         self.space.borrow().write_bytes(addr, unsafe {
             std::slice::from_raw_parts(data as *const u8, 1)
@@ -208,5 +193,3 @@ impl BaseBus for TerminusBus {
         Ok(())
     }
 }
-
-impl CoreBus for TerminusBus {}

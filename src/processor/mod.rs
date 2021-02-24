@@ -1,4 +1,4 @@
-use crate::devices::bus::CoreBus;
+use crate::devices::bus::Bus;
 use crate::prelude::*;
 use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
@@ -348,7 +348,7 @@ impl Processor {
         bus: &Rc<B>,
         clint: Option<IrqVec>,
         plic: Option<IrqVec>,
-    ) -> Processor where B:CoreBus+'static {
+    ) -> Processor where B:Bus+'static {
         let state = ProcessorState::new(hartid, config, clint, plic);
         let mmu = Mmu::new(bus);
         let fetcher = Fetcher::new(bus);
