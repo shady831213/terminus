@@ -1,4 +1,4 @@
-use crate::devices::bus::Bus;
+use crate::devices::bus::BaseBus;
 use crate::prelude::*;
 use crate::processor::mmu::Mmu;
 use crate::processor::trap::Exception;
@@ -157,12 +157,12 @@ impl ICache {
 }
 
 pub struct Fetcher {
-    bus: Rc<dyn Bus>,
+    bus: Rc<dyn BaseBus>,
     icache: RefCell<ICache>,
 }
 
 impl Fetcher {
-    pub fn new<B:Bus+'static>(bus: &Rc<B>) -> Fetcher {
+    pub fn new<B:BaseBus+'static>(bus: &Rc<B>) -> Fetcher {
         Fetcher {
             bus: bus.clone(),
             icache: RefCell::new(ICache::new(1024)),

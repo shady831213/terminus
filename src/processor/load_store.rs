@@ -1,4 +1,4 @@
-use crate::devices::bus::Bus;
+use crate::devices::bus::CoreBus;
 use crate::prelude::RegT;
 use crate::processor::mmu::{Mmu, MmuOpt};
 use crate::processor::trap::Exception;
@@ -6,11 +6,11 @@ use crate::processor::ProcessorState;
 use std::rc::Rc;
 
 pub struct LoadStore {
-    bus: Rc<dyn Bus>,
+    bus: Rc<dyn CoreBus>,
 }
 
 impl LoadStore {
-    pub fn new<B:Bus+'static>(bus: &Rc<B>) -> LoadStore {
+    pub fn new<B:CoreBus+'static>(bus: &Rc<B>) -> LoadStore {
         LoadStore { bus: bus.clone() }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]

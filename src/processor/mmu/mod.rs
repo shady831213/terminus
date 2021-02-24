@@ -1,4 +1,4 @@
-use crate::devices::bus::Bus;
+use crate::devices::bus::BaseBus;
 use crate::prelude::*;
 use crate::processor::trap::Exception;
 use crate::processor::ProcessorState;
@@ -51,14 +51,14 @@ impl MmuOpt {
 }
 
 pub struct Mmu {
-    bus: Rc<dyn Bus>,
+    bus: Rc<dyn BaseBus>,
     fetch_tlb: RefCell<TLB>,
     load_tlb: RefCell<TLB>,
     store_tlb: RefCell<TLB>,
 }
 
 impl Mmu {
-    pub fn new<B:Bus+'static>(bus: &Rc<B>) -> Mmu {
+    pub fn new<B:BaseBus+'static>(bus: &Rc<B>) -> Mmu {
         Mmu {
             bus: bus.clone(),
             fetch_tlb: RefCell::new(TLB::new()),
