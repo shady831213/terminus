@@ -34,9 +34,7 @@ pub trait Bus {
     fn invalid_lock(&self, _addr: &u64, _len: usize, _who: usize){
         panic!("invalid_lock is not supported!")
     }
-    fn release(&self, _who: usize) {
-        panic!("release is not supported!")
-    }
+    fn release(&self, _who: usize) {}
     fn write_u8(&self, addr: &u64, data: &u8) -> Result<(), u64>;
     fn read_u8(&self, addr: &u64, data: &mut u8) -> Result<(), u64>;
     fn write_u16(&self, addr: &u64, data: &u16) -> Result<(), u64>;
