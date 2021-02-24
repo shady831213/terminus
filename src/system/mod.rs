@@ -1,4 +1,4 @@
-use crate::devices::bus::Bus;
+use crate::devices::bus::TerminusBus;
 use crate::devices::clint::Timer;
 use crate::devices::htif::HTIF;
 use crate::devices::plic::Intc;
@@ -56,7 +56,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 pub struct System {
     name: String,
-    bus: Rc<Bus>,
+    bus: Rc<TerminusBus>,
     timer: Rc<Timer>,
     intc: Rc<Intc>,
     elf: ElfLoader,
@@ -67,7 +67,7 @@ pub struct System {
 
 impl System {
     pub fn new(name: &str, elf_file: &str, timer_freq: usize, max_int_src: usize) -> System {
-        let bus = Rc::new(Bus::new());
+        let bus = Rc::new(TerminusBus::new());
         let elf = ElfLoader::new(elf_file).expect(&format!("Invalid Elf {}", elf_file));
         let sys = System {
             name: name.to_string(),
@@ -139,7 +139,7 @@ impl System {
         &mut self.processors
     }
 
-    pub fn bus(&self) -> &Rc<Bus> {
+    pub fn bus(&self) -> &Rc<TerminusBus> {
         &self.bus
     }
 

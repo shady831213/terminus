@@ -342,13 +342,13 @@ pub struct Processor {
 }
 
 impl Processor {
-    pub fn new(
+    pub fn new<B>(
         hartid: usize,
         config: ProcessorCfg,
-        bus: &Rc<Bus>,
+        bus: &Rc<B>,
         clint: Option<IrqVec>,
         plic: Option<IrqVec>,
-    ) -> Processor {
+    ) -> Processor where B:Bus+'static {
         let state = ProcessorState::new(hartid, config, clint, plic);
         let mmu = Mmu::new(bus);
         let fetcher = Fetcher::new(bus);

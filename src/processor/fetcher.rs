@@ -157,12 +157,12 @@ impl ICache {
 }
 
 pub struct Fetcher {
-    bus: Rc<Bus>,
+    bus: Rc<dyn Bus>,
     icache: RefCell<ICache>,
 }
 
 impl Fetcher {
-    pub fn new(bus: &Rc<Bus>) -> Fetcher {
+    pub fn new<B:Bus+'static>(bus: &Rc<B>) -> Fetcher {
         Fetcher {
             bus: bus.clone(),
             icache: RefCell::new(ICache::new(1024)),

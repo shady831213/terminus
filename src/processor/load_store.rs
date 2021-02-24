@@ -6,11 +6,11 @@ use crate::processor::ProcessorState;
 use std::rc::Rc;
 
 pub struct LoadStore {
-    bus: Rc<Bus>,
+    bus: Rc<dyn Bus>,
 }
 
 impl LoadStore {
-    pub fn new(bus: &Rc<Bus>) -> LoadStore {
+    pub fn new<B:Bus+'static>(bus: &Rc<B>) -> LoadStore {
         LoadStore { bus: bus.clone() }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
@@ -158,6 +158,19 @@ impl LoadStore {
         }
     }
 
+    fn amo_u32<F: Fn(u32) -> u32>(&self, addr: &u64, f: F) -> Result<u32, u64> {
+        let mut read: u32 = 0;
+        self.bus.read_u32(addr, &mut read)?;
+        self.bus.write_u32(addr, &f(read))?;
+        Ok(read)
+    }
+    fn amo_u64<F: Fn(u64) -> u64>(&self, addr: &u64, f: F) -> Result<u64, u64> {
+        let mut read: u64 = 0;
+        self.bus.read_u64(addr, &mut read)?;
+        self.bus.write_u64(addr, &f(read))?;
+        Ok(read)
+    }
+
     pub fn amo_word<F: Fn(u32) -> u32>(
         &self,
         state: &ProcessorState,
@@ -174,7 +187,7 @@ impl LoadStore {
                 self.bus.invalid_lock(addr, 4, lock_holder);
             }
         }
-        match self.bus.amo_u32(&pa, f) {
+        match self.amo_u32(&pa, f) {
             Ok(data) => Ok(data as RegT),
             Err(_) => Err(Exception::StoreAccess(*addr)),
         }
@@ -195,7 +208,7 @@ impl LoadStore {
                 self.bus.invalid_lock(addr, 8, lock_holder);
             }
         }
-        match self.bus.amo_u64(&pa, f) {
+        match self.amo_u64(&pa, f) {
             Ok(data) => Ok(data as RegT),
             Err(_) => Err(Exception::StoreAccess(*addr)),
         }

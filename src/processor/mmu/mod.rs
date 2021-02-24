@@ -51,14 +51,14 @@ impl MmuOpt {
 }
 
 pub struct Mmu {
-    bus: Rc<Bus>,
+    bus: Rc<dyn Bus>,
     fetch_tlb: RefCell<TLB>,
     load_tlb: RefCell<TLB>,
     store_tlb: RefCell<TLB>,
 }
 
 impl Mmu {
-    pub fn new(bus: &Rc<Bus>) -> Mmu {
+    pub fn new<B:Bus+'static>(bus: &Rc<B>) -> Mmu {
         Mmu {
             bus: bus.clone(),
             fetch_tlb: RefCell::new(TLB::new()),
@@ -194,7 +194,7 @@ impl Mmu {
             if !self.check_pmp(state, &pte_addr, 1 << info.size_shift, &MmuOpt::Load, &1) {
                 return Err(opt.access_exception(vaddr.value()));
             }
-            let pte = match Pte::load(info, &*self.bus, &pte_addr) {
+            let pte = match Pte::load(info, &self.bus, &pte_addr) {
                 Ok(pte) => pte,
                 Err(_) => return Err(opt.access_exception(vaddr.value())),
             };
@@ -231,7 +231,7 @@ impl Mmu {
                     return Err(opt.access_exception(vaddr.value()));
                 }
                 leaf_pte.set_attr(&new_attr);
-                if leaf_pte.store(&*self.bus, &pte_addr).is_err() {
+                if leaf_pte.store(&self.bus, &pte_addr).is_err() {
                     return Err(opt.access_exception(vaddr.value()));
                 }
             } else {

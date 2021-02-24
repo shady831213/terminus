@@ -24,20 +24,60 @@ impl LockEntry {
     }
 }
 
-pub struct Bus {
+pub trait Bus {
+    fn acquire(&self, addr: &u64, len: usize, who: usize) -> bool;
+    fn lock_holder(&self, addr: &u64, len: usize) -> Option<usize>;
+    fn invalid_lock(&self, addr: &u64, len: usize, who: usize);
+    fn release(&self, who: usize);
+    fn write_u8(&self, addr: &u64, data: &u8) -> Result<(), u64>;
+    fn read_u8(&self, addr: &u64, data: &mut u8) -> Result<(), u64>;
+    fn write_u16(&self, addr: &u64, data: &u16) -> Result<(), u64>;
+    fn read_u16(&self, addr: &u64, data: &mut u16) -> Result<(), u64>;
+    fn write_u32(&self, addr: &u64, data: &u32) -> Result<(), u64>;
+    fn read_u32(&self, addr: &u64, data: &mut u32) -> Result<(), u64>;
+    fn write_u64(&self, addr: &u64, data: &u64) -> Result<(), u64>;
+    fn read_u64(&self, addr: &u64, data: &mut u64) -> Result<(), u64>;
+}
+
+pub trait NonCoBus:Bus {
+    fn acquire(&self, _addr: &u64, _len: usize, _who: usize) -> bool {
+        panic!("acquire is not supported!")
+    }
+    fn lock_holder(&self, _addr: &u64, _len: usize) -> Option<usize> {
+        panic!("lock_holder is not supported!")
+    }
+    fn invalid_lock(&self, _addr: &u64, _len: usize, _who: usize){
+        panic!("invalid_lock is not supported!")
+    }
+    fn release(&self, _who: usize) {
+        panic!("release is not supported!")
+    }
+}
+
+pub struct TerminusBus {
     space: RefCell<Space>,
     lock_table: RefCell<Vec<LockEntry>>,
 }
 
-impl Bus {
-    pub fn new() -> Bus {
-        Bus {
+impl TerminusBus {
+    pub fn new() -> TerminusBus {
+        TerminusBus {
             space: RefCell::new(Space::new()),
             lock_table: RefCell::new(vec![]),
         }
     }
+    pub fn space(&self) -> Ref<'_, Space> {
+        self.space.borrow()
+    }
+
+    pub fn space_mut(&self) -> RefMut<'_, Space> {
+        self.space.borrow_mut()
+    }
+}
+
+impl Bus for TerminusBus {
     #[cfg_attr(feature = "no-inline", inline(never))]
-    pub fn acquire(&self, addr: &u64, len: usize, who: usize) -> bool {
+    fn acquire(&self, addr: &u64, len: usize, who: usize) -> bool {
         let mut lock_table = self.lock_table.borrow_mut();
         if lock_table
             .iter()
@@ -69,7 +109,7 @@ impl Bus {
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    pub fn lock_holder(&self, addr: &u64, len: usize) -> Option<usize> {
+    fn lock_holder(&self, addr: &u64, len: usize) -> Option<usize> {
         let lock_table = self.lock_table.borrow();
         if let Some(e) = lock_table
             .iter()
@@ -81,7 +121,7 @@ impl Bus {
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    pub fn invalid_lock(&self, addr: &u64, len: usize, who: usize) {
+    fn invalid_lock(&self, addr: &u64, len: usize, who: usize) {
         let mut lock_table = self.lock_table.borrow_mut();
         if let Some((i, _)) = lock_table.iter().enumerate().find(|(_, entry)| {
             if let Some(lock_owner) = entry.lock_holder(addr, len) {
@@ -100,85 +140,64 @@ impl Bus {
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    pub fn release(&self, who: usize) {
+    fn release(&self, who: usize) {
         let mut lock_table = self.lock_table.borrow_mut();
         lock_table.retain(|e| e.holder != who)
     }
 
-    pub fn amo_u32<F: Fn(u32) -> u32>(&self, addr: &u64, f: F) -> Result<u32, u64> {
-        let mut read: u32 = 0;
-        self.read_u32(addr, &mut read)?;
-        self.write_u32(addr, &f(read))?;
-        Ok(read)
-    }
-    pub fn amo_u64<F: Fn(u64) -> u64>(&self, addr: &u64, f: F) -> Result<u64, u64> {
-        let mut read: u64 = 0;
-        self.read_u64(addr, &mut read)?;
-        self.write_u64(addr, &f(read))?;
-        Ok(read)
-    }
-
-    pub fn write_u8(&self, addr: &u64, data: &u8) -> Result<(), u64> {
+    fn write_u8(&self, addr: &u64, data: &u8) -> Result<(), u64> {
         self.space.borrow().write_bytes(addr, unsafe {
             std::slice::from_raw_parts(data as *const u8, 1)
         })?;
         Ok(())
     }
     #[cfg_attr(feature = "no-inline", inline(never))]
-    pub fn read_u8(&self, addr: &u64, data: &mut u8) -> Result<(), u64> {
+    fn read_u8(&self, addr: &u64, data: &mut u8) -> Result<(), u64> {
         self.space.borrow().read_bytes(addr, unsafe {
             std::slice::from_raw_parts_mut(data as *mut u8, 1)
         })?;
         Ok(())
     }
 
-    pub fn write_u16(&self, addr: &u64, data: &u16) -> Result<(), u64> {
+    fn write_u16(&self, addr: &u64, data: &u16) -> Result<(), u64> {
         self.space.borrow().write_bytes(addr, unsafe {
             std::slice::from_raw_parts((data as *const u16) as *const u8, 2)
         })?;
         Ok(())
     }
 
-    pub fn read_u16(&self, addr: &u64, data: &mut u16) -> Result<(), u64> {
+    fn read_u16(&self, addr: &u64, data: &mut u16) -> Result<(), u64> {
         self.space.borrow().read_bytes(addr, unsafe {
             std::slice::from_raw_parts_mut((data as *mut u16) as *mut u8, 2)
         })?;
         Ok(())
     }
 
-    pub fn write_u32(&self, addr: &u64, data: &u32) -> Result<(), u64> {
+    fn write_u32(&self, addr: &u64, data: &u32) -> Result<(), u64> {
         self.space.borrow().write_bytes(addr, unsafe {
             std::slice::from_raw_parts((data as *const u32) as *const u8, 4)
         })?;
         Ok(())
     }
 
-    pub fn read_u32(&self, addr: &u64, data: &mut u32) -> Result<(), u64> {
+    fn read_u32(&self, addr: &u64, data: &mut u32) -> Result<(), u64> {
         self.space.borrow().read_bytes(addr, unsafe {
             std::slice::from_raw_parts_mut((data as *mut u32) as *mut u8, 4)
         })?;
         Ok(())
     }
 
-    pub fn write_u64(&self, addr: &u64, data: &u64) -> Result<(), u64> {
+    fn write_u64(&self, addr: &u64, data: &u64) -> Result<(), u64> {
         self.space.borrow().write_bytes(addr, unsafe {
             std::slice::from_raw_parts((data as *const u64) as *const u8, 8)
         })?;
         Ok(())
     }
 
-    pub fn read_u64(&self, addr: &u64, data: &mut u64) -> Result<(), u64> {
+    fn read_u64(&self, addr: &u64, data: &mut u64) -> Result<(), u64> {
         self.space.borrow().read_bytes(addr, unsafe {
             std::slice::from_raw_parts_mut((data as *mut u64) as *mut u8, 8)
         })?;
         Ok(())
-    }
-
-    pub fn space(&self) -> Ref<'_, Space> {
-        self.space.borrow()
-    }
-
-    pub fn space_mut(&self) -> RefMut<'_, Space> {
-        self.space.borrow_mut()
     }
 }
