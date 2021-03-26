@@ -92,6 +92,9 @@ Terminus with display supported need "sdl" feature and related dependencise.
   terminus examples/linux/image/br-5-4.disk --image=examples/linux/image/rootfs.ext4 --boot_args="root=/dev/vda console=tty0 earlycon=sbi" --display
 ```
 
+### cosimulation with HDL
+Please refer to [terminus_cosim](https://github.com/shady831213/terminus_cosim/tree/master/terminus_cluster).
+
 ## RoadMap
 - [x] RV32/64I
 - [x] MADFC
@@ -112,6 +115,7 @@ Terminus with display supported need "sdl" feature and related dependencise.
 - [x] framebuffer
 - [x] VirtIO keyboard
 - [x] VirtIO mouse
+- [x] Cosimulation with HDL
 - [ ] debug mode
 - [ ] other extensions(b, v ...)
 
