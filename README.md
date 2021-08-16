@@ -11,6 +11,7 @@ A RISC-V instruction set simulator in Rust.
   git clone https://github.com/shady831213/terminus
   cd terminus
   cargo update -p terminus-spaceport
+  cargo update -p terminus-vault
   cargo install --path .
   terminus examples/linux/image/br-5-4
   //or
