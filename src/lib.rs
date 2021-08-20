@@ -3,7 +3,7 @@ extern crate paste;
 extern crate terminus_spaceport;
 extern crate terminus_vault;
 
-mod prelude;
+pub mod prelude;
 
 pub use prelude::*;
 

@@ -1,7 +1,7 @@
 #![feature(test)]
 extern crate test;
 
-use terminus::processor::decode::*;
+use terminus::prelude::*;
 use test::Bencher;
 
 #[bench]
