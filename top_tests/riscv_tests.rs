@@ -48,7 +48,7 @@ impl RsicvTestRunner {
         if valid {
             if !riscv_test(xlen, name, self.debug, num_cores) {
                 term_exit();
-                assert!(false, format!("{} fail!", name))
+                assert!(false, "{} fail!", name)
             }
             self.tests_cnt += 1;
             println!("{}", format!("{} pass!", name));

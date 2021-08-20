@@ -365,7 +365,7 @@ impl Vaddr {
             PTE_SV32 => Vaddr::Sv32(Sv32Vaddr(addr)),
             PTE_SV39 => Vaddr::Sv39(Sv39Vaddr(addr)),
             PTE_SV48 => Vaddr::Sv48(Sv48Vaddr(addr)),
-            _ => panic!(format!("unsupported PteMode {:?}", mode)),
+            _ => panic!("unsupported PteMode {:?}", mode),
         }
     }
     pt_const_export!(Vaddr, pub offset, RegT);
@@ -415,7 +415,7 @@ impl Pte {
             PTE_SV32 => Pte::Sv32(Sv32Pte(value)),
             PTE_SV39 => Pte::Sv39(Sv39Pte(value)),
             PTE_SV48 => Pte::Sv48(Sv48Pte(value)),
-            _ => panic!(format!("unsupported PteMode {:?}", mode)),
+            _ => panic!("unsupported PteMode {:?}", mode),
         }
     }
     pub fn load(info: &PteInfo, bus: &Rc<dyn Bus>, addr: &u64) -> Result<Pte, u64> {
