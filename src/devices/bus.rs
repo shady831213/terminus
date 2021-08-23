@@ -75,12 +75,12 @@ impl Bus for TerminusBus {
             .find(|entry| {
                 if let Some(lock_owner) = entry.lock_holder(addr, len) {
                     if who == lock_owner {
-                        panic!(format!(
+                        panic!(
                             "master {} try to lock {:#x} - {:#x} twice!",
                             who,
                             *addr,
                             *addr + len as u64
-                        ))
+                        )
                     }
                     true
                 } else {
@@ -119,7 +119,7 @@ impl Bus for TerminusBus {
                 if who == lock_owner {
                     true
                 } else {
-                    panic!(format!("master {} try to release {:#x} - {:#x} but haven't owned the lock! lock_table:{:?}", who, *addr, *addr + len as u64, lock_table))
+                    panic!("master {} try to release {:#x} - {:#x} but haven't owned the lock! lock_table:{:?}", who, *addr, *addr + len as u64, lock_table)
                 }
             } else {
                 false
@@ -127,7 +127,7 @@ impl Bus for TerminusBus {
         }) {
             lock_table.remove(i);
         } else {
-            panic!(format!("master {} try to release {:#x} - {:#x} but haven't owned the lock! lock_table:{:?}", who, addr, *addr + len as u64, lock_table))
+            panic!("master {} try to release {:#x} - {:#x} but haven't owned the lock! lock_table:{:?}", who, addr, *addr + len as u64, lock_table)
         }
     }
     #[cfg_attr(feature = "no-inline", inline(never))]

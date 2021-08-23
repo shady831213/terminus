@@ -267,7 +267,7 @@ impl System {
                     BytesAccess::write(&*region, &addr, head).unwrap();
                     load(space, region.info.base + region.info.size, tails)
                 }
-            };
+            }
             load(&*self.bus.space(), addr, data)
         }) {
             Ok(_) => Ok(()),

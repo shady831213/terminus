@@ -194,7 +194,7 @@ impl U32Access for Plic {
     fn write(&self, addr: &u64, data: u32) {
         assert!(
             (*addr).trailing_zeros() > 1,
-            format!("U32Access:unaligned addr:{:#x}", addr)
+            "U32Access:unaligned addr:{:#x}", addr
         );
         let inner = self.0.inner();
         if *addr >= PLIC_PRI_BASE && *addr + 4 <= PLIC_PRI_BASE + ((inner.num_src as u64) << 2) {
@@ -231,7 +231,7 @@ impl U32Access for Plic {
     fn read(&self, addr: &u64) -> u32 {
         assert!(
             (*addr).trailing_zeros() > 1,
-            format!("U32Access:unaligned addr:{:#x}", addr)
+            "U32Access:unaligned addr:{:#x}", addr
         );
         let inner = self.0.inner();
         if *addr >= PLIC_PRI_BASE && *addr + 4 <= PLIC_PRI_BASE + ((inner.num_src as u64) << 2) {
@@ -275,7 +275,7 @@ impl U64Access for Plic {
     fn write(&self, addr: &u64, data: u64) {
         assert!(
             (*addr).trailing_zeros() > 2,
-            format!("U64Access:unaligned addr:{:#x}", addr)
+            "U64Access:unaligned addr:{:#x}", addr
         );
         U32Access::write(self, addr, data as u32);
         U32Access::write(self, &(*addr + 4), (data >> 32) as u32);
@@ -284,7 +284,7 @@ impl U64Access for Plic {
     fn read(&self, addr: &u64) -> u64 {
         assert!(
             (*addr).trailing_zeros() > 2,
-            format!("U64Access:unaligned addr:{:#x}", addr)
+            "U64Access:unaligned addr:{:#x}", addr
         );
         U32Access::read(self, addr) as u64 | ((U32Access::read(self, &(*addr + 4)) as u64) << 32)
     }

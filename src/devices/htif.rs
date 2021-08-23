@@ -58,7 +58,7 @@ impl HTIF {
         } else if desp.tohost_device() == 1 && desp.tohost_cmd() == 0 {
             desp.tohost = 0;
         } else {
-            panic!(format!("unsupported cmd:{:#x}", *desp.tohost.borrow()))
+            panic!("unsupported cmd:{:#x}", *desp.tohost.borrow())
         }
     }
 

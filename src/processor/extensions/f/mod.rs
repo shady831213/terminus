@@ -112,7 +112,7 @@ impl ExtensionF {
                     }
                 });
             };
-        };
+        }
         macro_rules! deleg_fcsr_get {
             ($src:ident, $getter:ident, $transform:ident) => {
                 e.csrs.$src().$transform({
@@ -120,13 +120,13 @@ impl ExtensionF {
                     move |_| csrs.fcsr().$getter()
                 });
             };
-        };
+        }
         macro_rules! deleg_fcsr {
             ($src:ident, $getter:ident, $get_transform:ident, $setter:ident, $set_transform:ident) => {
                 deleg_fcsr_get!($src, $getter, $get_transform);
                 deleg_fcsr_set!($src, $setter, $set_transform);
             };
-        };
+        }
         deleg_fcsr!(frm_mut, frm, frm_transform, set_frm, set_frm_transform);
         deleg_fcsr!(fflags_mut, nx, nx_transform, set_nx, set_nx_transform);
         deleg_fcsr!(fflags_mut, uf, uf_transform, set_uf, set_uf_transform);

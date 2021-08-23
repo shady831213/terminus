@@ -34,7 +34,7 @@ impl PrivS {
                     });
                 }
             };
-        };
+        }
         deleg_sstatus!(upie);
         deleg_sstatus!(sie);
         deleg_sstatus!(upie);
@@ -59,7 +59,7 @@ impl PrivS {
                     });
                 }
             };
-        };
+        }
         s.csrs.sip_mut().set_ssip_transform({
             let csrs = (*m).clone();
             move |field| {
@@ -98,7 +98,7 @@ impl PrivS {
                     });
                 }
             };
-        };
+        }
         deleg_sie!(usip, usie);
         deleg_sie!(ssip, ssie);
         deleg_sie!(utip, utie);

@@ -133,7 +133,7 @@ impl U32Access for Clint {
     fn write(&self, addr: &u64, data: u32) {
         assert!(
             (*addr).trailing_zeros() > 1,
-            format!("U32Access:unaligned addr:{:#x}", addr)
+            "U32Access:unaligned addr:{:#x}", addr
         );
         let mut timer = self.0.inner_mut();
         if *addr >= MSIP_BASE && *addr + 4 <= MSIP_BASE + timer.sints.len() as u64 * MSIP_SIZE {
@@ -163,13 +163,13 @@ impl U32Access for Clint {
             };
         }
 
-        panic!("clint:U32Access Invalid addr!".to_string());
+        panic!("clint:U32Access Invalid addr!");
     }
 
     fn read(&self, addr: &u64) -> u32 {
         assert!(
             (*addr).trailing_zeros() > 1,
-            format!("U32Access:unaligned addr:{:#x}", addr)
+            "U32Access:unaligned addr:{:#x}", addr
         );
         let timer = self.0.inner();
         if *addr >= MSIP_BASE && *addr + 4 <= MSIP_BASE + timer.sint_status.len() as u64 * MSIP_SIZE
@@ -193,7 +193,7 @@ impl U32Access for Clint {
             } as u32;
         }
 
-        panic!("clint:U32Access Invalid addr!".to_string());
+        panic!("clint:U32Access Invalid addr!");
     }
 }
 
@@ -201,7 +201,7 @@ impl U64Access for Clint {
     fn write(&self, addr: &u64, data: u64) {
         assert!(
             (*addr).trailing_zeros() > 2,
-            format!("U64Access:unaligned addr:{:#x}", addr)
+            "U64Access:unaligned addr:{:#x}", addr
         );
 
         let mut timer = self.0.inner_mut();
@@ -229,13 +229,13 @@ impl U64Access for Clint {
             return timer.cnt = data;
         }
 
-        panic!("clint:U64Access Invalid addr!".to_string());
+        panic!("clint:U64Access Invalid addr!");
     }
 
     fn read(&self, addr: &u64) -> u64 {
         assert!(
             (*addr).trailing_zeros() > 2,
-            format!("U64Access:unaligned addr:{:#x}", addr)
+            "U64Access:unaligned addr:{:#x}", addr
         );
 
         let timer = self.0.inner();
@@ -253,6 +253,6 @@ impl U64Access for Clint {
             return timer.cnt;
         }
 
-        panic!("clint:U64Access Invalid addr!".to_string());
+        panic!("clint:U64Access Invalid addr!");
     }
 }
