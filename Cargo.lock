@@ -779,7 +779,7 @@ dependencies = [
 [[package]]
 name = "terminus-macros"
 version = "0.1.0"
-source = "git+https://github.com/shady831213/terminus_vault?branch=mig2021#7581b90f4042b0fff2b0ee1cf1837182e481e139"
+source = "git+https://github.com/shady831213/terminus_vault#7581b90f4042b0fff2b0ee1cf1837182e481e139"
 dependencies = [
  "bitfield",
  "lazy_static",
@@ -789,7 +789,7 @@ dependencies = [
 [[package]]
 name = "terminus-proc-macros"
 version = "0.1.0"
-source = "git+https://github.com/shady831213/terminus_vault?branch=mig2021#7581b90f4042b0fff2b0ee1cf1837182e481e139"
+source = "git+https://github.com/shady831213/terminus_vault#7581b90f4042b0fff2b0ee1cf1837182e481e139"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -801,7 +801,7 @@ dependencies = [
 [[package]]
 name = "terminus-spaceport"
 version = "0.1.0"
-source = "git+https://github.com/shady831213/terminus_spaceport?branch=mig2021#895cc1eef145149ca3e6fa0bf21799252a9bc947"
+source = "git+https://github.com/shady831213/terminus_spaceport#895cc1eef145149ca3e6fa0bf21799252a9bc947"
 dependencies = [
  "cc",
  "ctrlc",
@@ -818,7 +818,7 @@ dependencies = [
 [[package]]
 name = "terminus-spaceport-proc-macros"
 version = "0.1.0"
-source = "git+https://github.com/shady831213/terminus_spaceport?branch=mig2021#895cc1eef145149ca3e6fa0bf21799252a9bc947"
+source = "git+https://github.com/shady831213/terminus_spaceport#895cc1eef145149ca3e6fa0bf21799252a9bc947"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -828,7 +828,7 @@ dependencies = [
 [[package]]
 name = "terminus-vault"
 version = "0.1.0"
-source = "git+https://github.com/shady831213/terminus_vault?branch=mig2021#7581b90f4042b0fff2b0ee1cf1837182e481e139"
+source = "git+https://github.com/shady831213/terminus_vault#7581b90f4042b0fff2b0ee1cf1837182e481e139"
 dependencies = [
  "terminus-macros",
  "terminus-proc-macros",
