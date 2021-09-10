@@ -10,8 +10,8 @@ name = "terminus"
 crate-type = ["rlib","staticlib", "cdylib"]
 
 [dependencies]
-terminus-spaceport={git = "https://github.com/shady831213/terminus_spaceport"}
-terminus-vault={git = "https://github.com/shady831213/terminus_vault"}
+terminus-spaceport={git = "https://github.com/shady831213/terminus_spaceport", branch="edition2018"}
+terminus-vault={git = "https://github.com/shady831213/terminus_vault", branch="edition2018"}
 
 paste = "1"
 linkme = "0.1"
