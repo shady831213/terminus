@@ -150,7 +150,7 @@ dependencies = [
  "crossbeam-utils",
  "lazy_static",
  "maybe-uninit",
- "memoffset 0.5.6",
+ "memoffset",
  "scopeguard",
 ]
 
@@ -178,9 +178,9 @@ dependencies = [
 
 [[package]]
 name = "ctrlc"
-version = "3.2.0"
+version = "3.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "377c9b002a72a0b2c1a18c62e2f3864bdfea4a015e3683a96e24aa45dd6c02d1"
+checksum = "b37feaa84e6861e00a1f5e5aa8da3ee56d605c9992d33e082786754828e20865"
 dependencies = [
  "nix",
  "winapi 0.3.9",
@@ -252,7 +252,7 @@ version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb4ed164b4cf1c6bd6e18c097490331a0e58fbb0f39e8f6b5ac7f168006511cd"
 dependencies = [
- "memoffset 0.5.6",
+ "memoffset",
 ]
 
 [[package]]
@@ -282,9 +282,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.101"
+version = "0.2.126"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3cb00336871be5ed2c8ed44b60ae9959dc5b9f08539422ed43f09e34ecaeba21"
+checksum = "349d5a591cd28b49e1d1037471617a32ddcda5731b99419008085f72d5a53836"
 
 [[package]]
 name = "linkme"
@@ -346,15 +346,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "memoffset"
-version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59accc507f1338036a0477ef61afdae33cde60840f4dfe481319ce3ad116ddf9"
-dependencies = [
- "autocfg 1.0.1",
-]
-
-[[package]]
 name = "mio"
 version = "0.6.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -409,15 +400,13 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.22.3"
+version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4916f159ed8e5de0082076562152a76b7a1f64a01fd9d1e0fea002c37624faf"
+checksum = "8f17df307904acd05aa8e32e97bb20f2a0df1728bbc2d771ae8f9a90463441e9"
 dependencies = [
  "bitflags",
- "cc",
  "cfg-if 1.0.0",
  "libc",
- "memoffset 0.6.4",
 ]
 
 [[package]]
@@ -779,7 +768,7 @@ dependencies = [
 [[package]]
 name = "terminus-macros"
 version = "0.1.0"
-source = "git+https://github.com/shady831213/terminus_vault#7581b90f4042b0fff2b0ee1cf1837182e481e139"
+source = "git+https://github.com/shady831213/terminus_vault#9f8619548a52eedf7faad0d1a395cd49c0c73b11"
 dependencies = [
  "bitfield",
  "lazy_static",
@@ -789,7 +778,7 @@ dependencies = [
 [[package]]
 name = "terminus-proc-macros"
 version = "0.1.0"
-source = "git+https://github.com/shady831213/terminus_vault#7581b90f4042b0fff2b0ee1cf1837182e481e139"
+source = "git+https://github.com/shady831213/terminus_vault#9f8619548a52eedf7faad0d1a395cd49c0c73b11"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -801,7 +790,7 @@ dependencies = [
 [[package]]
 name = "terminus-spaceport"
 version = "0.1.0"
-source = "git+https://github.com/shady831213/terminus_spaceport#895cc1eef145149ca3e6fa0bf21799252a9bc947"
+source = "git+https://github.com/shady831213/terminus_spaceport#bb8ae54019b61b279eda2825bc112d63c0403930"
 dependencies = [
  "cc",
  "ctrlc",
@@ -818,7 +807,7 @@ dependencies = [
 [[package]]
 name = "terminus-spaceport-proc-macros"
 version = "0.1.0"
-source = "git+https://github.com/shady831213/terminus_spaceport#895cc1eef145149ca3e6fa0bf21799252a9bc947"
+source = "git+https://github.com/shady831213/terminus_spaceport#bb8ae54019b61b279eda2825bc112d63c0403930"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -828,7 +817,7 @@ dependencies = [
 [[package]]
 name = "terminus-vault"
 version = "0.1.0"
-source = "git+https://github.com/shady831213/terminus_vault#7581b90f4042b0fff2b0ee1cf1837182e481e139"
+source = "git+https://github.com/shady831213/terminus_vault#9f8619548a52eedf7faad0d1a395cd49c0c73b11"
 dependencies = [
  "terminus-macros",
  "terminus-proc-macros",
