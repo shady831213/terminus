@@ -330,16 +330,6 @@ macro_rules! pt_const_export {
 }
 
 macro_rules! pt_export {
-    ($name:ident, $vis:vis $method:ident, $rt:ty, $($args:ident : $ty:ty),*) => {
-        #[cfg_attr(feature = "no-inline", inline(never))]
-       $vis fn $method(&self, $($args : $ty,)*) -> $rt {
-            match self {
-                $name::Sv32(addr) => addr.$method($($args),*),
-                $name::Sv39(addr)  => addr.$method($($args),*),
-                $name::Sv48(addr) => addr.$method($($args),*),
-            }
-        }
-    };
     ($name:ident, $vis:vis $method:ident, $rt:ty) => {
         #[cfg_attr(feature = "no-inline", inline(never))]
         $vis fn $method(&self) -> $rt {
