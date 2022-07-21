@@ -7,8 +7,8 @@ A RISC-V instruction set simulator in Rust.
 ```
 2018 edition is move to 'eidtion2018' branch
 
-## Boot Linux in 30s
-![Boot Linux in 30s](video/linux_boot.gif)
+## Boot Linux in 20s
+![Boot Linux in 20s](video/linux_boot.gif)
 
 ## Getting Started
 
