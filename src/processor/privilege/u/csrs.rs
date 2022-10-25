@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::processor::privilege::m::csrs::{Cycle, Instret};
+use crate::processor::privilege::m::csrs::*;
 csr_map! {
 pub UCsrs(0x0, 0xfff) {
     cycle(RO):Cycle, 0xC00;
