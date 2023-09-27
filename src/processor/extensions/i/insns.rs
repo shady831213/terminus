@@ -1325,6 +1325,7 @@ impl Execution for WFI {
             p.state_mut().set_pc(pc);
             p.state_mut().set_wfi(false);
         } else {
+            p.load_store().release(p.state());
             p.state_mut().set_wfi(true);
         }
         Ok(())

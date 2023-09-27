@@ -1,4 +1,4 @@
-use std::borrow::{Borrow, BorrowMut};
+use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::io::{ErrorKind, Read, Write};
 use terminus_spaceport::devices::TERM;
@@ -58,7 +58,7 @@ impl HTIF {
         } else if desp.tohost_device() == 1 && desp.tohost_cmd() == 0 {
             desp.tohost = 0;
         } else {
-            panic!("unsupported cmd:{:#x}", *desp.tohost.borrow())
+            panic!("unsupported cmd:{:#x}", desp.tohost)
         }
     }
 
