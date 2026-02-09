@@ -18,7 +18,7 @@ linkme = "0.1"
 xmas-elf = "0.7.0"
 num_enum = "0.4.3"
 num = "0.2.1"
-simple-soft-float = "0.1.0"
+simple-soft-float = {git = "https://github.com/shady831213/simple-soft-float", branch="v0.1.0-fix"}
 clap = "2"
 
 [dev-dependencies]
