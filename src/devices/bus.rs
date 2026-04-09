@@ -31,7 +31,7 @@ pub trait Bus {
     fn lock_holder(&self, _addr: &u64, _len: usize) -> Option<usize> {
         panic!("lock_holder is not supported!")
     }
-    fn invalid_lock(&self, _addr: &u64, _len: usize, _who: usize){
+    fn invalid_lock(&self, _addr: &u64, _len: usize, _who: usize) {
         panic!("invalid_lock is not supported!")
     }
     fn release(&self, _who: usize) {}
@@ -134,7 +134,7 @@ impl Bus for TerminusBus {
     fn release(&self, who: usize) {
         let mut lock_table = self.lock_table.borrow_mut();
         lock_table.retain(|e| e.holder != who)
-    }    
+    }
     fn write_u8(&self, addr: &u64, data: &u8) -> Result<(), u64> {
         self.space.borrow().write_bytes(addr, unsafe {
             std::slice::from_raw_parts(data as *const u8, 1)
