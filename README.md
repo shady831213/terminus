@@ -130,3 +130,31 @@ Please refer to [terminus_cosim](https://github.com/shady831213/terminus_cosim/t
 - [ ] other extensions(b, v ...)
 
 
+## GDB Debugging
+
+Terminus supports GDB remote debugging via the `--gdb-port` option (RV64, single-core only).
+
+Start the simulator with a GDB port:
+
+```
+  terminus examples/linux/image/br-5-4 --gdb-port 1234
+  // Waiting for GDB connection on port 1234...
+```
+
+Connect with GDB in another terminal:
+
+```
+  riscv64-unknown-elf-gdb
+  (gdb) target remote localhost:1234
+  (gdb) info registers
+  (gdb) x/4i $pc
+  (gdb) stepi
+  (gdb) break *0x80000000
+  (gdb) continue
+```
+
+**Requirements:**
+- Single core only (`-p 1`, which is the default)
+- RV64 only (`-l 64`, which is the default)
+- Software breakpoints only (`break *<addr>`)
+

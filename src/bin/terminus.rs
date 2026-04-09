@@ -1,8 +1,14 @@
 extern crate clap;
 
 use clap::{App, Arg};
+use gdbstub::common::Signal;
+use gdbstub::conn::ConnectionExt;
+use gdbstub::stub::SingleThreadStopReason;
+use gdbstub::stub::{run_blocking, DisconnectReason, GdbStub};
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::marker::PhantomData;
+use std::net::TcpListener;
 use std::path::Path;
 use std::rc::Rc;
 use std::str::FromStr;
@@ -19,8 +25,10 @@ use terminus::devices::virtio_input::{VirtIOKb, VirtIOKbDevice};
 #[cfg(feature = "sdl")]
 use terminus::devices::virtio_input::{VirtIOMouse, VirtIOMouseDevice};
 use terminus::devices::virtio_net::{VirtIONet, VirtIONetDevice};
+use terminus::gdb::{SimContext, TerminusTarget};
 use terminus::global::XLen;
 use terminus::processor::ProcessorCfg;
+use terminus::processor::StepResult;
 #[cfg(feature = "sdl")]
 use terminus::system::fdt::FdtProp;
 use terminus::system::System;
@@ -31,6 +39,90 @@ use terminus_spaceport::devices::SDL;
 use terminus_spaceport::devices::{FrameBuffer, PixelFormat};
 use terminus_spaceport::memory::region::{Region, GHEAP};
 use terminus_spaceport::EXIT_CTRL;
+
+enum GdbEventLoop<'a> {
+    _Marker(PhantomData<&'a mut ()>),
+}
+
+impl<'a> run_blocking::BlockingEventLoop for GdbEventLoop<'a> {
+    type Target = TerminusTarget<'a>;
+    type Connection = std::net::TcpStream;
+    type StopReason = SingleThreadStopReason<u64>;
+
+    fn wait_for_stop_reason(
+        target: &mut TerminusTarget<'a>,
+        conn: &mut Self::Connection,
+    ) -> Result<
+        run_blocking::Event<Self::StopReason>,
+        run_blocking::WaitForStopReasonError<
+            <Self::Target as gdbstub::target::Target>::Error,
+            <Self::Connection as gdbstub::conn::Connection>::Error,
+        >,
+    > {
+        const STEP: usize = 500;
+        const STEP_TH: usize = 500;
+        const TIMER_STEP: u64 = 50;
+
+        loop {
+            match conn.peek() {
+                Ok(Some(_)) => {
+                    let byte = conn
+                        .read()
+                        .map_err(run_blocking::WaitForStopReasonError::Connection)?;
+                    return Ok(run_blocking::Event::IncomingData(byte));
+                }
+                Ok(None) => {}
+                Err(e) => return Err(run_blocking::WaitForStopReasonError::Connection(e)),
+            }
+
+            let n = if target.ctx.single_step { 1 } else { STEP };
+            let bp_addrs = target.breakpoint_addrs();
+            let result = target
+                .sys
+                .processor(0)
+                .expect("hart 0 not found")
+                .step_gdb(n, &bp_addrs);
+
+            match result {
+                StepResult::Breakpoint => {
+                    return Ok(run_blocking::Event::TargetStopped(
+                        SingleThreadStopReason::SwBreak(()),
+                    ));
+                }
+                StepResult::Exit(msg) => {
+                    eprintln!("{}", msg);
+                    return Ok(run_blocking::Event::TargetStopped(
+                        SingleThreadStopReason::Exited(0),
+                    ));
+                }
+                StepResult::Ok => {
+                    if target.ctx.single_step {
+                        return Ok(run_blocking::Event::TargetStopped(
+                            SingleThreadStopReason::DoneStep,
+                        ));
+                    }
+                }
+            }
+
+            target.ctx.step_cnt += n;
+            if target.ctx.step_cnt >= STEP_TH {
+                target.ctx.virtio_console.console_read();
+                if let Some(ref net) = target.ctx.virtio_net {
+                    net.net_read();
+                }
+                target.sys.timer().tick(TIMER_STEP);
+                target.ctx.step_cnt -= STEP_TH;
+            }
+        }
+    }
+
+    fn on_interrupt(
+        target: &mut TerminusTarget<'a>,
+    ) -> Result<Option<Self::StopReason>, <Self::Target as gdbstub::target::Target>::Error> {
+        let _ = target;
+        Ok(Some(SingleThreadStopReason::Signal(Signal::SIGINT)))
+    }
+}
 
 fn main() {
     const CORE_FREQ: usize = 100000000;
@@ -217,6 +309,13 @@ fn main() {
                 .long("trace_all")
                 .help("trace states of all processors every instruction, results is in terminus.trace")
         )
+        .arg(
+            Arg::with_name("gdb_port")
+                .long("gdb-port")
+                .value_name("PORT")
+                .takes_value(true)
+                .help("Enable GDB stub on TCP port (RV64, single-core only, e.g. 1234)")
+        )
         .get_matches();
 
     let core_num = usize::from_str(matches.value_of("core_num").unwrap_or_default())
@@ -278,6 +377,20 @@ fn main() {
         s => s,
     };
     let trace_all = matches.is_present("trace_all");
+    let gdb_port: Option<u16> = matches
+        .value_of("gdb_port")
+        .map(|s| s.parse().expect("--gdb-port expects a valid port number"));
+
+    if gdb_port.is_some() {
+        if core_num != 1 {
+            eprintln!("--gdb-port requires single-core mode (-p 1)");
+            std::process::exit(1);
+        }
+        if xlen != XLen::X64 {
+            eprintln!("--gdb-port requires RV64 mode (-l 64)");
+            std::process::exit(1);
+        }
+    }
     let mut trace_file = if matches.is_present("trace") || trace_all {
         Some(
             OpenOptions::new()
@@ -404,6 +517,36 @@ fn main() {
         .unwrap();
     sys.load_elf().unwrap();
     sys.reset(vec![-1i64 as u64; core_num]).unwrap();
+    if let Some(port) = gdb_port {
+        eprintln!("Waiting for GDB connection on port {}...", port);
+        let listener =
+            TcpListener::bind(format!("127.0.0.1:{}", port)).expect("Failed to bind GDB port");
+        let (stream, addr) = listener.accept().expect("Failed to accept GDB connection");
+        eprintln!("GDB connected from {}", addr);
+
+        let ctx = SimContext {
+            virtio_console: virtio_console_device.clone(),
+            virtio_net: virtio_net_device.clone(),
+            step_cnt: 0,
+            single_step: false,
+        };
+        let mut target = TerminusTarget::new(&mut sys, ctx);
+        let gdb = GdbStub::new(stream);
+
+        match gdb.run_blocking::<GdbEventLoop<'_>>(&mut target) {
+            Ok(DisconnectReason::Disconnect) => eprintln!("GDB client disconnected"),
+            Ok(DisconnectReason::TargetExited(code)) => {
+                eprintln!("Target exited with code {}", code)
+            }
+            Ok(DisconnectReason::TargetTerminated(sig)) => {
+                eprintln!("Target terminated with signal {}", sig)
+            }
+            Ok(DisconnectReason::Kill) => eprintln!("GDB sent kill command"),
+            Err(e) => eprintln!("GDB error: {}", e),
+        }
+        term_exit();
+        return;
+    }
     #[cfg(feature = "sdl")]
     let mut real_timer = if display_en {
         Some(std::time::Instant::now())

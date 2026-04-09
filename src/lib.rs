@@ -13,6 +13,8 @@ pub mod processor;
 
 pub mod devices;
 
+pub mod gdb;
+
 pub mod system;
 
 pub mod global;

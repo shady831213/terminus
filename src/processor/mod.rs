@@ -6,6 +6,7 @@ use std::io::Write;
 use std::mem::MaybeUninit;
 use std::rc::Rc;
 use terminus_spaceport::irq::IrqVec;
+use terminus_spaceport::EXIT_CTRL;
 
 pub mod privilege;
 use privilege::*;
@@ -341,6 +342,12 @@ pub struct Processor {
     load_store: LoadStore,
 }
 
+pub enum StepResult {
+    Ok,
+    Breakpoint,
+    Exit(String),
+}
+
 impl Processor {
     pub fn new<B>(
         hartid: usize,
@@ -348,7 +355,10 @@ impl Processor {
         bus: &Rc<B>,
         clint: Option<IrqVec>,
         plic: Option<IrqVec>,
-    ) -> Processor where B:Bus+'static {
+    ) -> Processor
+    where
+        B: Bus + 'static,
+    {
         let state = ProcessorState::new(hartid, config, clint, plic);
         let mmu = Mmu::new(bus);
         let fetcher = Fetcher::new(bus);
@@ -387,6 +397,44 @@ impl Processor {
 
     pub fn state_mut(&mut self) -> &mut ProcessorState {
         &mut self.state
+    }
+
+    pub fn read_mem_physical(&self, paddr: u64, buf: &mut [u8]) -> Result<(), String> {
+        for (i, byte) in buf.iter_mut().enumerate() {
+            self.load_store()
+                .bus()
+                .read_u8(&(paddr + i as u64), byte)
+                .map_err(|e| {
+                    format!(
+                        "read_mem_physical failed at {:#x}: {:#x}",
+                        paddr + i as u64,
+                        e
+                    )
+                })?;
+        }
+        Ok(())
+    }
+
+    pub fn write_mem_physical(&self, paddr: u64, data: &[u8]) -> Result<(), String> {
+        for (i, byte) in data.iter().enumerate() {
+            self.load_store()
+                .bus()
+                .write_u8(&(paddr + i as u64), byte)
+                .map_err(|e| {
+                    format!(
+                        "write_mem_physical failed at {:#x}: {:#x}",
+                        paddr + i as u64,
+                        e
+                    )
+                })?;
+        }
+        Ok(())
+    }
+
+    pub fn translate_vaddr(&self, vaddr: u64) -> Result<u64, String> {
+        self.mmu
+            .ls_translate(self.state(), &vaddr, 1, crate::processor::mmu::MmuOpt::Load)
+            .map_err(|e| format!("translate_vaddr {:#x} failed: {:?}", vaddr, e))
     }
 
     fn one_insn(&mut self) -> Result<(), Exception> {
@@ -478,6 +526,52 @@ impl Processor {
         for ext in self.state().extensions().iter() {
             ext.step_cb(self)
         }
+    }
+
+    pub fn step_gdb(
+        &mut self,
+        n: usize,
+        gdb_breakpoints: &std::collections::HashSet<u64>,
+    ) -> StepResult {
+        assert!(n > 0);
+
+        for _ in 0..n {
+            if self.state().wfi() {
+                let m = self.state().priv_m();
+                if m.mip().get() & m.mie().get() == 0 {
+                    continue;
+                } else {
+                    self.state_mut().set_wfi(false);
+                }
+            }
+
+            if let Ok(msg) = EXIT_CTRL.poll() {
+                return StepResult::Exit(msg);
+            }
+
+            match self.execute_one() {
+                Ok(()) => {}
+                Err(crate::processor::trap::Trap::Exception(
+                    crate::processor::trap::Exception::Breakpoint,
+                )) => {
+                    if gdb_breakpoints.contains(self.state().pc()) {
+                        return StepResult::Breakpoint;
+                    } else {
+                        self.handle_trap(crate::processor::trap::Trap::Exception(
+                            crate::processor::trap::Exception::Breakpoint,
+                        ));
+                    }
+                }
+                Err(trap) => {
+                    self.handle_trap(trap);
+                }
+            }
+        }
+
+        for ext in self.state().extensions().iter() {
+            ext.step_cb(self);
+        }
+        StepResult::Ok
     }
 
     pub fn step_with_debug<O: Write>(

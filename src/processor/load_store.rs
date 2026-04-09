@@ -10,9 +10,14 @@ pub struct LoadStore {
 }
 
 impl LoadStore {
-    pub fn new<B:Bus+'static>(bus: &Rc<B>) -> LoadStore {
+    pub fn new<B: Bus + 'static>(bus: &Rc<B>) -> LoadStore {
         LoadStore { bus: bus.clone() }
     }
+
+    pub fn bus(&self) -> &Rc<dyn Bus> {
+        &self.bus
+    }
+
     #[cfg_attr(feature = "no-inline", inline(never))]
     pub fn load_byte(
         &self,
