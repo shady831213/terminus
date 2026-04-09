@@ -130,7 +130,7 @@ Please refer to [terminus_cosim](https://github.com/shady831213/terminus_cosim/t
 - [ ] other extensions(b, v ...)
 
 
-## GDB Debugging
+## GDB Debugging(implemented by [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent))
 
 Terminus supports GDB remote debugging via the `--gdb-port` option (RV64, single-core only).
 
