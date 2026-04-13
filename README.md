@@ -105,6 +105,41 @@ Terminus with display supported needs the "sdl" operating system packages and re
 ### Cosimulation with HDL
 Please refer to [terminus_cosim](https://github.com/shady831213/terminus_cosim/tree/master/terminus_cluster).
 
+### GDB Remote Debugging Support
+
+Terminus supports remote debugging via the GDB remote serial protocol (RSP), allowing you to debug RISC-V ELF binaries with standard GDB.
+
+#### Usage
+
+Start the simulator with GDB server enabled:
+
+```
+  terminus <elf> --gdb :1234
+```
+
+Then connect with your RISC-V GDB:
+
+```
+  riscv64-unknown-elf-gdb <elf> -ex "target remote :1234"
+```
+
+Enable verbose GDB protocol logging for debugging:
+
+```
+  terminus <elf> --gdb :1234 --gdb-verbose
+```
+
+#### Supported Features
+
+- Register read/write (x0-x31, PC, FPU registers, CSRs)
+- Memory read/write
+- Single-step execution (stepi)
+- Continue execution
+- Software breakpoints
+- Ctrl-C interrupt support
+
+*Note: This feature was implemented by OhMyOpenAgent using KIMI-K2.5 and GLM5.1 models.*
+
 ## RoadMap
 - [x] RV32/64I
 - [x] MADFC
