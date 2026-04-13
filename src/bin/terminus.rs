@@ -552,6 +552,11 @@ fn run_gdb_session(
         }
     };
 
+    // Set listener to non-blocking so we can check EXIT_CTRL for SIGINT
+    listener
+        .set_nonblocking(true)
+        .expect("Cannot set non-blocking");
+
     loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
             eprintln!("{}", msg);
@@ -559,14 +564,25 @@ fn run_gdb_session(
         }
 
         eprintln!("Waiting for GDB connection on {}...", gdb_addr);
-        let (stream, _peer) = match listener.accept() {
-            Ok((conn, addr)) => {
-                eprintln!("GDB connected from {}", addr);
-                (conn, addr)
+        let stream = loop {
+            if let Ok(msg) = EXIT_CTRL.poll() {
+                eprintln!("{}", msg);
+                return;
             }
-            Err(e) => {
-                eprintln!("Failed to accept connection: {}", e);
-                continue;
+            match listener.accept() {
+                Ok((conn, addr)) => {
+                    eprintln!("GDB connected from {}", addr);
+                    break conn;
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    // No connection yet, sleep a bit and retry
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    continue;
+                }
+                Err(e) => {
+                    eprintln!("Failed to accept connection: {}", e);
+                    continue;
+                }
             }
         };
 
@@ -582,7 +598,8 @@ fn run_gdb_session(
         match gdb.run_blocking::<GdbEventLoop>(&mut target) {
             Ok(disconnect_reason) => match disconnect_reason {
                 DisconnectReason::Disconnect => {
-                    eprintln!("GDB client disconnected. Pausing simulation...");
+                    eprintln!("GDB client disconnected. Exiting...");
+                    break;
                 }
                 DisconnectReason::TargetExited(code) => {
                     eprintln!("Target exited with code {}!", code);
@@ -607,14 +624,13 @@ fn run_gdb_session(
                 } else if e.is_connection_error() {
                     let (err, kind) = e.into_connection_error().unwrap();
                     eprintln!("Connection error: {:?} - {}", kind, err);
-                    eprintln!("GDB client disconnected. Pausing simulation...");
+                    eprintln!("GDB client disconnected. Exiting...");
+                    break;
                 } else {
                     eprintln!("gdbstub encountered a fatal error: {}", e);
                     break;
                 }
             }
         }
-
-        eprintln!("Waiting for GDB reconnection...");
     }
 }
