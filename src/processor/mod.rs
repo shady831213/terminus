@@ -1,6 +1,7 @@
 use crate::devices::bus::Bus;
 use crate::prelude::*;
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::mem::MaybeUninit;
@@ -52,6 +53,13 @@ pub struct ProcessorCfg {
     pub freq: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DebugStopReason {
+    Breakpoint(u64),
+    StepComplete,
+    Halted,
+}
+
 pub struct ProcessorState {
     hartid: usize,
     config: ProcessorCfg,
@@ -65,6 +73,8 @@ pub struct ProcessorState {
     clint: Option<IrqVec>,
     plic: Option<IrqVec>,
     wfi: bool,
+    debug_mode: bool,
+    sw_breakpoints: HashSet<u64>,
 }
 
 impl ProcessorState {
@@ -125,6 +135,8 @@ impl ProcessorState {
             clint,
             plic,
             wfi: false,
+            debug_mode: false,
+            sw_breakpoints: HashSet::new(),
         };
         state.add_extension().expect("add extension error!");
         state.privilege.delegate_insns_cnt(state.insns_cnt());
@@ -201,6 +213,26 @@ impl ProcessorState {
         self.wfi = value
     }
 
+    pub const fn debug_mode(&self) -> bool {
+        self.debug_mode
+    }
+
+    pub fn set_debug_mode(&mut self, val: bool) {
+        self.debug_mode = val
+    }
+
+    pub fn sw_breakpoints(&self) -> &HashSet<u64> {
+        &self.sw_breakpoints
+    }
+
+    pub fn add_sw_breakpoint(&mut self, addr: u64) {
+        self.sw_breakpoints.insert(addr);
+    }
+
+    pub fn remove_sw_breakpoint(&mut self, addr: u64) {
+        self.sw_breakpoints.remove(&addr);
+    }
+
     pub fn isa_string(&self) -> String {
         let exts: String = self.config().extensions.iter().collect();
         format!("rv{}{}", self.config().xlen.len(), exts)
@@ -248,6 +280,39 @@ impl ProcessorState {
             Some(_) => Ok(()),
             None => Err(Exception::IllegalInsn(*self.ir())),
         }
+    }
+
+    pub fn csr_debug(&self, addr: u64) -> u64 {
+        let trip_id = (addr & 0xfff) as InsnT;
+        if let Some(v) = self.privilege.csr_read(self, trip_id) {
+            return v;
+        }
+        if let Some(v) = self
+            .extensions()
+            .iter()
+            .find_map(|e| e.csr_read(self, trip_id))
+        {
+            return v;
+        }
+        0
+    }
+
+    pub fn set_csr_debug(&mut self, addr: u64, val: u64) {
+        let trip_id = (addr & 0xfff) as InsnT;
+        if self.privilege.csr_write(self, trip_id, val).is_some() {
+            return;
+        }
+        if let Some(_) = self
+            .extensions()
+            .iter()
+            .find_map(|e| e.csr_write(self, trip_id, val))
+        {
+            return;
+        }
+    }
+
+    pub fn privilege_to_u8(&self) -> u8 {
+        (*self.privilege.cur_privilege()).into()
     }
 
     pub fn check_extension(&self, ext: char) -> Result<(), Exception> {
@@ -348,7 +413,10 @@ impl Processor {
         bus: &Rc<B>,
         clint: Option<IrqVec>,
         plic: Option<IrqVec>,
-    ) -> Processor where B:Bus+'static {
+    ) -> Processor
+    where
+        B: Bus + 'static,
+    {
         let state = ProcessorState::new(hartid, config, clint, plic);
         let mmu = Mmu::new(bus);
         let fetcher = Fetcher::new(bus);
@@ -454,30 +522,46 @@ impl Processor {
         Ok(())
     }
 
-    fn one_step(&mut self) {
+    fn one_step(&mut self) -> Option<DebugStopReason> {
         if self.state().wfi() {
             let m = self.state().priv_m();
             if m.mip().get() & m.mie().get() == 0 {
-                return;
+                return None;
             } else {
                 self.state_mut().set_wfi(false)
             }
         }
+        if self.state().debug_mode {
+            let next_pc = *self.state().next_pc();
+            if self.state().sw_breakpoints.contains(&next_pc) {
+                self.state_mut().pc = next_pc;
+                return Some(DebugStopReason::Breakpoint(next_pc));
+            }
+        }
         if let Err(trap) = self.execute_one() {
+            if self.state().debug_mode {
+                if let Trap::Exception(Exception::Breakpoint) = trap {
+                    return Some(DebugStopReason::Breakpoint(self.state.pc));
+                }
+            }
             self.handle_trap(trap)
         }
+        None
     }
 
-    pub fn step(&mut self, n: usize) {
+    pub fn step(&mut self, n: usize) -> Option<DebugStopReason> {
         assert!(n > 0);
 
         for _ in 0..n {
-            self.one_step()
+            if let Some(reason) = self.one_step() {
+                return Some(reason);
+            }
         }
 
         for ext in self.state().extensions().iter() {
             ext.step_cb(self)
         }
+        None
     }
 
     pub fn step_with_debug<O: Write>(
@@ -485,14 +569,17 @@ impl Processor {
         n: usize,
         log: &mut O,
         trace_all: bool,
-    ) -> Result<(), String> {
+    ) -> Result<Option<DebugStopReason>, String> {
         assert!(n > 0);
 
         for _ in 0..n {
-            self.one_step();
+            let reason = self.one_step();
             if trace_all {
                 log.write_all((self.state.trace() + "\n").as_bytes())
                     .map_err(|e| e.to_string())?;
+            }
+            if let Some(r) = reason {
+                return Ok(Some(r));
             }
         }
 
@@ -504,6 +591,72 @@ impl Processor {
                 .map_err(|e| e.to_string())?;
         }
         log.write_all(self.state.to_string().as_bytes())
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+        Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::devices::bus::TerminusBus;
+
+    fn make_processor() -> Processor {
+        let config = ProcessorCfg {
+            xlen: XLen::X64,
+            enable_dirty: true,
+            extensions: Box::new(['i']),
+            freq: 10000000,
+        };
+        let bus = Rc::new(TerminusBus::new());
+        Processor::new(0, config, &bus, None, None)
+    }
+
+    #[test]
+    fn test_debug_mode_default_false() {
+        let p = make_processor();
+        assert!(!p.state().debug_mode());
+        assert!(p.state().sw_breakpoints().is_empty());
+    }
+
+    #[test]
+    fn test_debug_mode_setter() {
+        let mut p = make_processor();
+        assert!(!p.state().debug_mode());
+        p.state_mut().set_debug_mode(true);
+        assert!(p.state().debug_mode());
+        p.state_mut().set_debug_mode(false);
+        assert!(!p.state().debug_mode());
+    }
+
+    #[test]
+    fn test_sw_breakpoints_add_remove() {
+        let mut p = make_processor();
+        assert!(!p.state().sw_breakpoints().contains(&0x1000));
+        p.state_mut().add_sw_breakpoint(0x1000);
+        assert!(p.state().sw_breakpoints().contains(&0x1000));
+        p.state_mut().add_sw_breakpoint(0x2000);
+        assert!(p.state().sw_breakpoints().contains(&0x2000));
+        assert_eq!(p.state().sw_breakpoints().len(), 2);
+        p.state_mut().remove_sw_breakpoint(0x1000);
+        assert!(!p.state().sw_breakpoints().contains(&0x1000));
+        assert_eq!(p.state().sw_breakpoints().len(), 1);
+    }
+
+    #[test]
+    fn test_debug_stop_reason_variants() {
+        let bp = DebugStopReason::Breakpoint(0x1000);
+        assert_eq!(bp, DebugStopReason::Breakpoint(0x1000));
+        assert_ne!(bp, DebugStopReason::Breakpoint(0x2000));
+        assert_ne!(bp, DebugStopReason::StepComplete);
+        assert_ne!(bp, DebugStopReason::Halted);
+    }
+
+    #[test]
+    fn test_step_returns_none_when_no_debug_mode() {
+        let mut p = make_processor();
+        p.reset(0x1000).unwrap();
+        let result = p.step(1);
+        assert!(result.is_none());
     }
 }

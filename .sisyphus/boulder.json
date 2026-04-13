@@ -1,0 +1,23 @@
+{
+  "active_plan": "/home/yli/work/terminus-problem/.sisyphus/plans/gdb-support.md",
+  "started_at": "2026-04-13T03:10:49.281Z",
+  "session_ids": [
+    "ses_27b23e4e1ffeny3q0vDmkS4lYe"
+  ],
+  "plan_name": "gdb-support",
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Add gdbstub dependency + create module skeleton",
+      "session_id": "ses_27b20209fffeYfN66FbifUxCGw",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-13T03:32:51.942Z"
+    }
+  },
+  "session_origins": {
+    "ses_27b23e4e1ffeny3q0vDmkS4lYe": "direct"
+  }
+}

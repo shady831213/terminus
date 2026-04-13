@@ -1,0 +1,27 @@
+=== TASK 1 BUILD SUCCESS EVIDENCE ===
+
+=== cargo build output ===
+Finished `dev` profile [unoptimized + debuginfo] target(s) in 21.27s
+
+=== grep for pub mod gdb ===
+pub mod gdb;
+
+=== ls -la src/gdb/ ===
+total 0
+-rw-r--r-- 1 yli yli  89 Apr 13 20:00 mod.rs
+-rw-r--r-- 1 yli yli  22 Apr 13 19:59 target.rs
+-rw-r--r-- 1 yli yli  25 Apr 13 19:59 event_loop.rs
+-rw-r--r-- 1 yli yli  47 Apr 13 19:59 reg_id.rs
+-rw-r--r-- 1 yli yli  50 Apr 13 19:59 target_desc.rs
+
+=== Files created ===
+- src/gdb/mod.rs
+- src/gdb/target.rs
+- src/gdb/event_loop.rs
+- src/gdb/reg_id.rs
+- src/gdb/target_desc.rs
+
+=== Verification ===
+- cargo build: PASSED (exit code 0)
+- pub mod gdb export: PRESENT in src/lib.rs
+- Dependencies added: gdbstub = "0.7", gdbstub_arch = "0.3"

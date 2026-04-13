@@ -1,0 +1,84 @@
+# Task 4 Evidence: RegId Mapping and Target Description
+
+## Date: 2026-04-13
+
+## QA Scenario 1: RegId Mapping Correctness
+
+### Test Results
+
+```
+$ cargo test --lib reg_id
+
+running 8 tests
+test gdb::reg_id::tests::test_csr_addr_to_regnum ... ok
+test gdb::reg_id::tests::test_fcsr_mapping ... ok
+test gdb::reg_id::tests::test_csr_mapping ... ok
+test gdb::reg_id::tests::test_fpr_mapping ... ok
+test gdb::reg_id::tests::test_gpr_mapping ... ok
+test gdb::reg_id::tests::test_invalid_ids ... ok
+test gdb::reg_id::tests::test_pc_mapping ... ok
+test gdb::reg_id::tests::test_priv_mapping ... ok
+
+test result: ok. 8 passed; 0 failed
+```
+
+### Mapping Verification
+
+| Raw ID | Expected Variant | Result |
+|--------|-----------------|--------|
+| 0      | Gpr(0)         | PASS   |
+| 31     | Gpr(31)        | PASS   |
+| 32     | Pc             | PASS   |
+| 33     | Fpr(0)         | PASS   |
+| 64     | Fpr(31)        | PASS   |
+| 65     | Fcsr           | PASS   |
+| 66     | Csr(0x100)     | PASS (sstatus) |
+| 91     | Csr(0xF14)     | PASS (mhartid) |
+| 132    | Priv           | PASS   |
+| 9999   | None           | PASS   |
+| 92     | None           | PASS   |
+| 133    | None           | PASS   |
+
+## QA Scenario 2: Target Description XML
+
+### Validation Results
+
+```
+XML structure valid with all 4 features
+Total length: 5464 chars
+```
+
+### Features Present
+
+- [x] org.gnu.gdb.riscv.cpu (x0-x31 + pc)
+- [x] org.gnu.gdb.riscv.fpu (f0-f31 + fflags + frm + fcsr)
+- [x] org.gnu.gdb.riscv.csr (26 common CSRs)
+- [x] org.gnu.gdb.riscv.virtual (priv)
+
+### Build Status
+
+```
+$ cargo build
+warning: fields `debug_mode` and `sw_breakpoints` are never read
+  --> src/processor/mod.rs:69:5
+   = note: `#[warn(dead_code)]` on by default
+
+warning: `terminus` (lib) generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.76s
+```
+
+## Files Created/Modified
+
+- `src/gdb/reg_id.rs` - RiscvRegId enum with RegId trait impl
+- `src/gdb/target_desc.rs` - TARGET_DESCRIPTION_XML constant
+
+## Summary
+
+- [x] from_raw_id(0) → Gpr(0)
+- [x] from_raw_id(32) → Pc
+- [x] from_raw_id(33) → Fpr(0)
+- [x] from_raw_id(65) → Fcsr
+- [x] from_raw_id(9999) → None
+- [x] XML contains all 4 features
+- [x] cargo build passes
+- [x] All 8 unit tests pass

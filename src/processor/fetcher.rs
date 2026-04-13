@@ -162,7 +162,7 @@ pub struct Fetcher {
 }
 
 impl Fetcher {
-    pub fn new<B:Bus+'static>(bus: &Rc<B>) -> Fetcher {
+    pub fn new<B: Bus + 'static>(bus: &Rc<B>) -> Fetcher {
         Fetcher {
             bus: bus.clone(),
             icache: RefCell::new(ICache::new(1024)),

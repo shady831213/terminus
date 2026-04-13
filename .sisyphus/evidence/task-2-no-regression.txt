@@ -1,0 +1,31 @@
+Task 2: Debug-mode hooks - No Regression Evidence
+Date: 2026-04-13
+
+Build: PASS
+Test: 17/17 PASS (12 original + 5 new)
+
+Original tests still passing:
+- gdb::reg_id::tests::test_csr_mapping
+- gdb::reg_id::tests::test_csr_addr_to_regnum
+- gdb::reg_id::tests::test_fcsr_mapping
+- gdb::reg_id::tests::test_fpr_mapping
+- gdb::reg_id::tests::test_gpr_mapping
+- gdb::reg_id::tests::test_invalid_ids
+- gdb::reg_id::tests::test_pc_mapping
+- gdb::reg_id::tests::test_priv_mapping
+- processor::mmu::pmp_basic_test
+- processor::privilege::m::csrs::test_status
+- system::fdt::test::fdt_build_test
+- system::fdt::test::fdt_compile_test
+
+New tests added:
+- processor::tests::test_debug_mode_default_false
+- processor::tests::test_debug_mode_setter
+- processor::tests::test_sw_breakpoints_add_remove
+- processor::tests::test_debug_stop_reason_variants
+- processor::tests::test_step_returns_none_when_no_debug_mode
+
+Behavior when debug_mode=false is unchanged:
+- one_step() returns None (equivalent to previous unit return)
+- step() returns None (callers that ignore return value unaffected)
+- step_with_debug() returns Ok(None) (callers using .unwrap() unaffected)

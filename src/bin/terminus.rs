@@ -424,7 +424,7 @@ fn main() {
         }
         for p in sys.processors() {
             if let Some(ref mut f) = trace_file {
-                p.step_with_debug(step, f, trace_all).unwrap()
+                p.step_with_debug(step, f, trace_all).unwrap();
             } else {
                 p.step(step);
             }

@@ -1,0 +1,43 @@
+Task 2: Debug-mode hooks - EBREAK Interception Evidence
+Date: 2026-04-13
+
+Implementation details:
+
+1. DebugStopReason enum (src/processor/mod.rs:56-61):
+   - Breakpoint(u64): Software breakpoint or EBREAK hit, contains PC address
+   - StepComplete: Single step completed normally
+   - Halted: Processor halted (WFI)
+
+2. ProcessorState new fields:
+   - debug_mode: bool (default: false)
+   - sw_breakpoints: HashSet<u64> (default: empty)
+
+3. Accessor methods added to ProcessorState:
+   - debug_mode() -> bool
+   - set_debug_mode(val: bool)
+   - sw_breakpoints() -> &HashSet<u64>
+   - add_sw_breakpoint(addr: u64)
+   - remove_sw_breakpoint(addr: u64)
+
+4. one_step() interception logic (lines 525-549):
+   - Returns Option<DebugStopReason> instead of ()
+   - When debug_mode=true AND next_pc is in sw_breakpoints:
+     Sets pc = next_pc, returns Some(DebugStopReason::Breakpoint(next_pc))
+     BEFORE executing the instruction
+   - When debug_mode=true AND Exception::Breakpoint (EBREAK) occurs:
+     Returns Some(DebugStopReason::Breakpoint(self.state.pc))
+     INSTEAD of calling handle_trap()
+   - When debug_mode=false: returns None (behavior identical to before)
+
+5. step() updated (lines 552-564):
+   - Returns Option<DebugStopReason>
+   - Breaks early from loop if one_step() returns Some(reason)
+   - Returns None when no debug stop occurred
+
+6. step_with_debug() updated (lines 567-596):
+   - Returns Result<Option<DebugStopReason>, String>
+   - Breaks early from loop if one_step() returns Some(reason)
+   - Returns Ok(None) when no debug stop occurred
+
+7. Caller fix in src/bin/terminus.rs:
+   - Added semicolon after .unwrap() to discard new return type
