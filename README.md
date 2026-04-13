@@ -114,19 +114,19 @@ Terminus supports remote debugging via the GDB remote serial protocol (RSP), all
 Start the simulator with GDB server enabled:
 
 ```
-  terminus <elf> --gdb :1234
+  terminus <elf> --gdb localhost:1234
 ```
 
 Then connect with your RISC-V GDB:
 
 ```
-  riscv64-unknown-elf-gdb <elf> -ex "target remote :1234"
+  riscv64-unknown-elf-gdb <elf> -ex "target remote localhost:1234"
 ```
 
 Enable verbose GDB protocol logging for debugging:
 
 ```
-  terminus <elf> --gdb :1234 --gdb-verbose
+  terminus <elf> --gdb localhost:1234 --gdb-verbose
 ```
 
 #### Supported Features
@@ -138,7 +138,7 @@ Enable verbose GDB protocol logging for debugging:
 - Software breakpoints
 - Ctrl-C interrupt support
 
-*Note: This feature was implemented by OhMyOpenAgent using KIMI-K2.5 and GLM5.1 models.*
+*Note: This feature was implemented by [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent) using KIMI-K2.5 and GLM5.1 models.*
 
 ## RoadMap
 - [x] RV32/64I
