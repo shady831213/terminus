@@ -78,7 +78,7 @@ impl SingleThreadBase for GdbTarget {
             regs.x[i] = *state.xreg(i as u32);
         }
         regs.x[0] = 0;
-        regs.pc = *state.pc();
+        regs.pc = *state.next_pc();
         Ok(())
     }
 
@@ -150,7 +150,7 @@ impl SingleRegisterAccess<()> for GdbTarget {
                 Ok(8)
             }
             RiscvRegId::Pc => {
-                let val: u64 = *self.processor().state().pc();
+                let val: u64 = *self.processor().state().next_pc();
                 buf[..8].copy_from_slice(&val.to_le_bytes());
                 Ok(8)
             }
@@ -319,8 +319,8 @@ mod tests {
 
         // x0 is always 0
         assert_eq!(regs.x[0], 0);
-        // PC is 0 before first instruction (next_pc is the reset vector)
-        assert_eq!(regs.pc, 0);
+        // PC should be next_pc (reset vector) since GDB needs to see where execution will resume
+        assert_eq!(regs.pc, 0x80000000);
     }
 
     #[test]
