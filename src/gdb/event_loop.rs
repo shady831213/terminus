@@ -20,6 +20,62 @@ pub fn wait_for_gdb_connection(addr: &str) -> Result<TcpStream, std::io::Error> 
 
 const BATCH_SIZE: usize = 1024;
 
+struct PacketLogState {
+    buf: Vec<u8>,
+    in_packet: bool,
+}
+
+impl PacketLogState {
+    fn new() -> Self {
+        PacketLogState {
+            buf: Vec::new(),
+            in_packet: false,
+        }
+    }
+
+    fn flush(&mut self, verbose: bool, label: &str) {
+        if !verbose || self.buf.is_empty() {
+            self.buf.clear();
+            self.in_packet = false;
+            return;
+        }
+        let s = String::from_utf8_lossy(&self.buf);
+        eprintln!("[GDB {}] {}", label, s);
+        self.buf.clear();
+        self.in_packet = false;
+    }
+
+    fn log_byte(&mut self, byte: u8, verbose: bool, label: &str) {
+        if !verbose {
+            return;
+        }
+        match byte {
+            b'$' => {
+                self.flush(verbose, label);
+                self.buf.push(byte);
+                self.in_packet = true;
+            }
+            b'#' if self.in_packet => {
+                self.buf.push(byte);
+            }
+            b'+' | b'-' if !self.in_packet => {
+                self.flush(verbose, label);
+                eprintln!("[GDB {}] {}", label, byte as char);
+            }
+            0x03 if !self.in_packet => {
+                self.flush(verbose, label);
+                eprintln!("[GDB {}] <Ctrl-C>", label);
+            }
+            _ => {
+                self.buf.push(byte);
+                if self.in_packet && self.buf.len() >= 3 && self.buf[self.buf.len() - 3] == b'#' {
+                    self.flush(verbose, label);
+                }
+            }
+        }
+    }
+}
+
 /// A wrapper around TcpStream that logs all GDB RSP packet data to stderr.
 ///
 /// This enables packet-level debugging of the GDB Remote Serial Protocol
@@ -28,15 +84,8 @@ const BATCH_SIZE: usize = 1024;
 /// what packets are being sent/received.
 pub struct LoggingConnection {
     inner: TcpStream,
-    /// Buffer for accumulating outgoing packet data for logging.
-    tx_buf: Vec<u8>,
-    /// Whether we're currently inside a packet being written.
-    in_tx_packet: bool,
-    /// Buffer for accumulating incoming packet data for logging.
-    rx_buf: Vec<u8>,
-    /// Whether we're currently inside a packet being read.
-    in_rx_packet: bool,
-    /// Whether to actually log the packets (verbose mode)
+    tx: PacketLogState,
+    rx: PacketLogState,
     verbose: bool,
 }
 
@@ -44,10 +93,8 @@ impl LoggingConnection {
     pub fn new(stream: TcpStream) -> Self {
         LoggingConnection {
             inner: stream,
-            tx_buf: Vec::new(),
-            in_tx_packet: false,
-            rx_buf: Vec::new(),
-            in_rx_packet: false,
+            tx: PacketLogState::new(),
+            rx: PacketLogState::new(),
             verbose: false,
         }
     }
@@ -55,102 +102,18 @@ impl LoggingConnection {
     pub fn with_verbose(stream: TcpStream, verbose: bool) -> Self {
         LoggingConnection {
             inner: stream,
-            tx_buf: Vec::new(),
-            in_tx_packet: false,
-            rx_buf: Vec::new(),
-            in_rx_packet: false,
+            tx: PacketLogState::new(),
+            rx: PacketLogState::new(),
             verbose,
         }
     }
 
-    fn flush_tx_log(&mut self) {
-        if !self.verbose || self.tx_buf.is_empty() {
-            self.tx_buf.clear();
-            self.in_tx_packet = false;
-            return;
-        }
-        let s = String::from_utf8_lossy(&self.tx_buf);
-        eprintln!("[GDB TX] {}", s);
-        self.tx_buf.clear();
-        self.in_tx_packet = false;
-    }
-
-    fn flush_rx_log(&mut self) {
-        if !self.verbose || self.rx_buf.is_empty() {
-            self.rx_buf.clear();
-            self.in_rx_packet = false;
-            return;
-        }
-        let s = String::from_utf8_lossy(&self.rx_buf);
-        eprintln!("[GDB RX] {}", s);
-        self.rx_buf.clear();
-        self.in_rx_packet = false;
-    }
-
     fn log_tx_byte(&mut self, byte: u8) {
-        if !self.verbose {
-            return;
-        }
-        match byte {
-            b'$' => {
-                self.flush_tx_log();
-                self.tx_buf.push(byte);
-                self.in_tx_packet = true;
-            }
-            b'#' if self.in_tx_packet => {
-                self.tx_buf.push(byte);
-            }
-            b'+' | b'-' if !self.in_tx_packet => {
-                self.flush_tx_log();
-                eprintln!("[GDB TX] {}", byte as char);
-            }
-            0x03 if !self.in_tx_packet => {
-                self.flush_tx_log();
-                eprintln!("[GDB TX] <Ctrl-C>");
-            }
-            _ => {
-                self.tx_buf.push(byte);
-                if self.in_tx_packet
-                    && self.tx_buf.len() >= 3
-                    && self.tx_buf[self.tx_buf.len() - 3] == b'#'
-                {
-                    self.flush_tx_log();
-                }
-            }
-        }
+        self.tx.log_byte(byte, self.verbose, "TX");
     }
 
     fn log_rx_byte(&mut self, byte: u8) {
-        if !self.verbose {
-            return;
-        }
-        match byte {
-            b'$' => {
-                self.flush_rx_log();
-                self.rx_buf.push(byte);
-                self.in_rx_packet = true;
-            }
-            b'#' if self.in_rx_packet => {
-                self.rx_buf.push(byte);
-            }
-            b'+' | b'-' if !self.in_rx_packet => {
-                self.flush_rx_log();
-                eprintln!("[GDB RX] {}", byte as char);
-            }
-            0x03 if !self.in_rx_packet => {
-                self.flush_rx_log();
-                eprintln!("[GDB RX] <Ctrl-C>");
-            }
-            _ => {
-                self.rx_buf.push(byte);
-                if self.in_rx_packet
-                    && self.rx_buf.len() >= 3
-                    && self.rx_buf[self.rx_buf.len() - 3] == b'#'
-                {
-                    self.flush_rx_log();
-                }
-            }
-        }
+        self.rx.log_byte(byte, self.verbose, "RX");
     }
 }
 
@@ -170,7 +133,7 @@ impl Connection for LoggingConnection {
     }
 
     fn flush(&mut self) -> Result<(), Self::Error> {
-        self.flush_tx_log();
+        self.tx.flush(self.verbose, "TX");
         Write::flush(&mut self.inner)
     }
 
@@ -227,19 +190,50 @@ impl ConnectionExt for LoggingConnection {
     }
 }
 
-pub struct GdbEventLoop<C, const VERBOSE: bool>(std::marker::PhantomData<C>);
+fn map_debug_stop_reason(
+    reason: Option<DebugStopReason>,
+    pc: u64,
+    context: &str,
+    verbose: bool,
+) -> SingleThreadStopReason<u64> {
+    match reason {
+        Some(DebugStopReason::Breakpoint(addr)) => {
+            if verbose {
+                eprintln!("[GDB {}] Hit breakpoint at 0x{:016x}", context, addr);
+            }
+            SingleThreadStopReason::SwBreak(())
+        }
+        Some(DebugStopReason::StepComplete) | None => {
+            if verbose {
+                eprintln!(
+                    "[GDB {}] Sending DoneStep (S05 SIGTRAP) for PC 0x{:016x}",
+                    context, pc
+                );
+            }
+            SingleThreadStopReason::DoneStep
+        }
+        Some(DebugStopReason::Halted) => {
+            if verbose {
+                eprintln!("[GDB {}] Target halted at PC 0x{:016x}", context, pc);
+            }
+            SingleThreadStopReason::Terminated(Signal::SIGSTOP)
+        }
+    }
+}
 
-impl<C, const VERBOSE: bool> GdbEventLoop<C, VERBOSE> {
+pub struct GdbEventLoop<'a, C, const VERBOSE: bool>(std::marker::PhantomData<(&'a (), C)>);
+
+impl<'a, C, const VERBOSE: bool> GdbEventLoop<'a, C, VERBOSE> {
     pub fn new() -> Self {
         GdbEventLoop(std::marker::PhantomData)
     }
 }
 
-impl<C, const VERBOSE: bool> run_blocking::BlockingEventLoop for GdbEventLoop<C, VERBOSE>
+impl<'a, C, const VERBOSE: bool> run_blocking::BlockingEventLoop for GdbEventLoop<'a, C, VERBOSE>
 where
     C: Connection<Error = std::io::Error> + ConnectionExt<Error = std::io::Error>,
 {
-    type Target = GdbTarget;
+    type Target = GdbTarget<'a>;
     type Connection = C;
     type StopReason = SingleThreadStopReason<u64>;
 
@@ -269,29 +263,7 @@ where
                         pc_before, pc_after, reason
                     );
                 }
-                let stop_reason = match reason {
-                    Some(DebugStopReason::Breakpoint(addr)) => {
-                        if VERBOSE {
-                            eprintln!("[GDB stepi] Hit breakpoint at 0x{:016x}", addr);
-                        }
-                        SingleThreadStopReason::SwBreak(())
-                    }
-                    Some(DebugStopReason::StepComplete) | None => {
-                        if VERBOSE {
-                            eprintln!(
-                                "[GDB stepi] Sending DoneStep (S05 SIGTRAP) for PC 0x{:016x}",
-                                pc_after
-                            );
-                        }
-                        SingleThreadStopReason::DoneStep
-                    }
-                    Some(DebugStopReason::Halted) => {
-                        if VERBOSE {
-                            eprintln!("[GDB stepi] Target halted at PC 0x{:016x}", pc_after);
-                        }
-                        SingleThreadStopReason::Terminated(Signal::SIGSTOP)
-                    }
-                };
+                let stop_reason = map_debug_stop_reason(reason, pc_after, "stepi", VERBOSE);
                 if VERBOSE {
                     eprintln!("[GDB stepi] Stop reply: {:?}", stop_reason);
                 }
@@ -340,29 +312,8 @@ where
                                 pc, debug_reason
                             );
                         }
-                        let stop_reason = match debug_reason {
-                            DebugStopReason::Breakpoint(addr) => {
-                                if VERBOSE {
-                                    eprintln!("[GDB continue] Hit breakpoint at 0x{:016x}", addr);
-                                }
-                                SingleThreadStopReason::SwBreak(())
-                            }
-                            DebugStopReason::StepComplete => {
-                                if VERBOSE {
-                                    eprintln!(
-                                        "[GDB continue] Sending DoneStep (S05 SIGTRAP) for PC 0x{:016x}",
-                                        pc
-                                    );
-                                }
-                                SingleThreadStopReason::DoneStep
-                            }
-                            DebugStopReason::Halted => {
-                                if VERBOSE {
-                                    eprintln!("[GDB continue] Target halted at PC 0x{:016x}", pc);
-                                }
-                                SingleThreadStopReason::Terminated(Signal::SIGSTOP)
-                            }
-                        };
+                        let stop_reason =
+                            map_debug_stop_reason(Some(debug_reason), pc, "continue", VERBOSE);
                         if VERBOSE {
                             eprintln!("[GDB continue] Stop reply: {:?}", stop_reason);
                         }

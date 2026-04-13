@@ -16,24 +16,27 @@ use gdbstub_arch::riscv::reg::RiscvCoreRegs;
 use gdbstub_arch::riscv::Riscv64;
 use std::convert::TryFrom;
 
+fn bytes_to_u64(val: &[u8]) -> u64 {
+    u64::from_le_bytes([
+        val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7],
+    ])
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExecMode {
     Continue,
     Step,
 }
 
-pub struct GdbTarget {
-    processor: *mut Processor,
+pub struct GdbTarget<'a> {
+    processor: &'a mut Processor,
     exec_mode: ExecMode,
 }
 
-unsafe impl Send for GdbTarget {}
-unsafe impl Sync for GdbTarget {}
-
-impl GdbTarget {
-    pub fn new(processor: &mut Processor) -> Self {
+impl<'a> GdbTarget<'a> {
+    pub fn new(processor: &'a mut Processor) -> Self {
         GdbTarget {
-            processor: processor as *mut Processor,
+            processor,
             exec_mode: ExecMode::Continue,
         }
     }
@@ -43,15 +46,15 @@ impl GdbTarget {
     }
 
     pub fn processor(&self) -> &Processor {
-        unsafe { &*self.processor }
+        self.processor
     }
 
     pub fn processor_mut(&mut self) -> &mut Processor {
-        unsafe { &mut *self.processor }
+        self.processor
     }
 }
 
-impl Target for GdbTarget {
+impl<'a> Target for GdbTarget<'a> {
     type Arch = Riscv64;
     type Error = String;
 
@@ -71,7 +74,7 @@ impl Target for GdbTarget {
     }
 }
 
-impl SingleThreadBase for GdbTarget {
+impl<'a> SingleThreadBase for GdbTarget<'a> {
     fn read_registers(&mut self, regs: &mut RiscvCoreRegs<u64>) -> TargetResult<(), Self> {
         let state = self.processor().state();
         for i in 0..32 {
@@ -136,7 +139,7 @@ impl SingleThreadBase for GdbTarget {
     }
 }
 
-impl SingleRegisterAccess<()> for GdbTarget {
+impl<'a> SingleRegisterAccess<()> for GdbTarget<'a> {
     fn read_register(
         &mut self,
         _tid: (),
@@ -184,27 +187,23 @@ impl SingleRegisterAccess<()> for GdbTarget {
         match reg_id {
             RiscvRegId::Gpr(n) => {
                 if val.len() >= 8 {
-                    let v = u64::from_le_bytes([
-                        val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7],
-                    ]);
-                    self.processor_mut().state_mut().set_xreg(n as u32, v);
+                    self.processor_mut()
+                        .state_mut()
+                        .set_xreg(n as u32, bytes_to_u64(val));
                 }
                 Ok(())
             }
             RiscvRegId::Pc => {
                 if val.len() >= 8 {
-                    let v = u64::from_le_bytes([
-                        val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7],
-                    ]);
-                    self.processor_mut().state_mut().set_pc_direct(v);
+                    self.processor_mut()
+                        .state_mut()
+                        .set_pc_direct(bytes_to_u64(val));
                 }
                 Ok(())
             }
             RiscvRegId::Fpr(n) => {
                 if val.len() >= 8 {
-                    let lo = u64::from_le_bytes([
-                        val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7],
-                    ]);
+                    let lo = bytes_to_u64(val);
                     match self
                         .processor_mut()
                         .state_mut()
@@ -219,12 +218,9 @@ impl SingleRegisterAccess<()> for GdbTarget {
             }
             RiscvRegId::Csr(addr) => {
                 if val.len() >= 8 {
-                    let v = u64::from_le_bytes([
-                        val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7],
-                    ]);
                     self.processor_mut()
                         .state_mut()
-                        .set_csr_debug(addr as u64, v);
+                        .set_csr_debug(addr as u64, bytes_to_u64(val));
                 }
                 Ok(())
             }
@@ -241,7 +237,7 @@ impl SingleRegisterAccess<()> for GdbTarget {
     }
 }
 
-impl SingleThreadResume for GdbTarget {
+impl<'a> SingleThreadResume for GdbTarget<'a> {
     fn resume(&mut self, _signal: Option<Signal>) -> Result<(), Self::Error> {
         self.exec_mode = ExecMode::Continue;
         Ok(())
@@ -253,21 +249,21 @@ impl SingleThreadResume for GdbTarget {
     }
 }
 
-impl SingleThreadSingleStep for GdbTarget {
+impl<'a> SingleThreadSingleStep for GdbTarget<'a> {
     fn step(&mut self, _signal: Option<Signal>) -> Result<(), Self::Error> {
         self.exec_mode = ExecMode::Step;
         Ok(())
     }
 }
 
-impl Breakpoints for GdbTarget {
+impl<'a> Breakpoints for GdbTarget<'a> {
     #[inline(always)]
     fn support_sw_breakpoint(&mut self) -> Option<SwBreakpointOps<'_, Self>> {
         Some(self)
     }
 }
 
-impl SwBreakpoint for GdbTarget {
+impl<'a> SwBreakpoint for GdbTarget<'a> {
     fn add_sw_breakpoint(&mut self, addr: u64, _kind: usize) -> TargetResult<bool, Self> {
         self.processor_mut().state_mut().add_sw_breakpoint(addr);
         Ok(true)
@@ -338,10 +334,10 @@ mod tests {
         assert!(result.is_ok());
 
         // Verify GPRs were written
-        assert_eq!(*processor.state().xreg(1), 0x12345678);
-        assert_eq!(*processor.state().xreg(10), 0xDEADBEEF);
+        assert_eq!(*target.processor().state().xreg(1), 0x12345678);
+        assert_eq!(*target.processor().state().xreg(10), 0xDEADBEEF);
         // write_registers now sets both pc and next_pc via set_pc_direct
-        assert_eq!(*processor.state().pc(), 0x80001000);
+        assert_eq!(*target.processor().state().pc(), 0x80001000);
     }
 
     #[test]
@@ -361,8 +357,8 @@ mod tests {
         assert!(target.write_registers(&regs_in).is_ok());
 
         // Verify GPRs were written correctly
-        assert_eq!(*processor.state().xreg(5), 0xAAAAAAAA);
-        assert_eq!(*processor.state().xreg(6), 0x55555555);
+        assert_eq!(*target.processor().state().xreg(5), 0xAAAAAAAA);
+        assert_eq!(*target.processor().state().xreg(6), 0x55555555);
     }
 
     #[test]
@@ -388,18 +384,30 @@ mod tests {
         processor.reset(0x80000000).unwrap();
         let mut target = GdbTarget::new(&mut processor);
 
-        assert!(!processor.state().sw_breakpoints().contains(&0x1000));
+        assert!(!target
+            .processor()
+            .state()
+            .sw_breakpoints()
+            .contains(&0x1000));
 
         use gdbstub::target::ext::breakpoints::SwBreakpoint;
         let add_result = target.add_sw_breakpoint(0x1000, 0);
         assert!(add_result.is_ok());
         assert_eq!(add_result.map_err(|_| ()), Ok(true));
-        assert!(processor.state().sw_breakpoints().contains(&0x1000));
+        assert!(target
+            .processor()
+            .state()
+            .sw_breakpoints()
+            .contains(&0x1000));
 
         let remove_result = target.remove_sw_breakpoint(0x1000, 0);
         assert!(remove_result.is_ok());
         assert_eq!(remove_result.map_err(|_| ()), Ok(true));
-        assert!(!processor.state().sw_breakpoints().contains(&0x1000));
+        assert!(!target
+            .processor()
+            .state()
+            .sw_breakpoints()
+            .contains(&0x1000));
     }
 
     #[test]
@@ -414,15 +422,39 @@ mod tests {
         assert!(target.add_sw_breakpoint(0x2000, 0).is_ok());
         assert!(target.add_sw_breakpoint(0x3000, 0).is_ok());
 
-        assert!(processor.state().sw_breakpoints().contains(&0x1000));
-        assert!(processor.state().sw_breakpoints().contains(&0x2000));
-        assert!(processor.state().sw_breakpoints().contains(&0x3000));
-        assert_eq!(processor.state().sw_breakpoints().len(), 3);
+        assert!(target
+            .processor()
+            .state()
+            .sw_breakpoints()
+            .contains(&0x1000));
+        assert!(target
+            .processor()
+            .state()
+            .sw_breakpoints()
+            .contains(&0x2000));
+        assert!(target
+            .processor()
+            .state()
+            .sw_breakpoints()
+            .contains(&0x3000));
+        assert_eq!(target.processor().state().sw_breakpoints().len(), 3);
 
         assert!(target.remove_sw_breakpoint(0x2000, 0).is_ok());
-        assert!(processor.state().sw_breakpoints().contains(&0x1000));
-        assert!(!processor.state().sw_breakpoints().contains(&0x2000));
-        assert!(processor.state().sw_breakpoints().contains(&0x3000));
+        assert!(target
+            .processor()
+            .state()
+            .sw_breakpoints()
+            .contains(&0x1000));
+        assert!(!target
+            .processor()
+            .state()
+            .sw_breakpoints()
+            .contains(&0x2000));
+        assert!(target
+            .processor()
+            .state()
+            .sw_breakpoints()
+            .contains(&0x3000));
     }
 
     #[test]
@@ -442,7 +474,7 @@ mod tests {
         let val = 0x12345678u64.to_le_bytes();
         let result = target.write_register((), RiscvRegId::Gpr(1), &val);
         assert!(result.is_ok());
-        assert_eq!(*processor.state().xreg(1), 0x12345678);
+        assert_eq!(*target.processor().state().xreg(1), 0x12345678);
 
         // Read back
         let result = target.read_register((), RiscvRegId::Gpr(1), &mut buf);
@@ -466,7 +498,7 @@ mod tests {
         let val = 0xDEADu64.to_le_bytes();
         let result = target.write_register((), RiscvRegId::Gpr(0), &val);
         assert!(result.is_ok());
-        assert_eq!(*processor.state().xreg(0), 0);
+        assert_eq!(*target.processor().state().xreg(0), 0);
     }
 
     #[test]
@@ -485,7 +517,7 @@ mod tests {
         let val = 0x80005000u64.to_le_bytes();
         let result = target.write_register((), RiscvRegId::Pc, &val);
         assert!(result.is_ok());
-        assert_eq!(*processor.state().pc(), 0x80005000);
+        assert_eq!(*target.processor().state().pc(), 0x80005000);
     }
 
     #[test]
@@ -537,6 +569,6 @@ mod tests {
 
         assert!(target.write_registers(&regs).is_ok());
         // Both pc and next_pc should be set
-        assert_eq!(*processor.state().pc(), 0x8000ABCD);
+        assert_eq!(*target.processor().state().pc(), 0x8000ABCD);
     }
 }

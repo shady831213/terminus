@@ -604,9 +604,9 @@ fn run_gdb_session(
         let connection = LoggingConnection::with_verbose(stream, gdb_verbose);
         let gdb = GdbStub::new(connection);
         let result = if gdb_verbose {
-            gdb.run_blocking::<GdbEventLoop<LoggingConnection, true>>(&mut target)
+            gdb.run_blocking::<GdbEventLoop<'_, LoggingConnection, true>>(&mut target)
         } else {
-            gdb.run_blocking::<GdbEventLoop<LoggingConnection, false>>(&mut target)
+            gdb.run_blocking::<GdbEventLoop<'_, LoggingConnection, false>>(&mut target)
         };
 
         match result {
