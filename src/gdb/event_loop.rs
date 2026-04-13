@@ -29,7 +29,6 @@ const BATCH_SIZE: usize = 1024;
 pub struct LoggingConnection {
     inner: TcpStream,
     /// Buffer for accumulating outgoing packet data for logging.
-    /// GDB RSP packets start with '$' and end with '#XX' (checksum).
     tx_buf: Vec<u8>,
     /// Whether we're currently inside a packet being written.
     in_tx_packet: bool,
@@ -37,6 +36,8 @@ pub struct LoggingConnection {
     rx_buf: Vec<u8>,
     /// Whether we're currently inside a packet being read.
     in_rx_packet: bool,
+    /// Whether to actually log the packets (verbose mode)
+    verbose: bool,
 }
 
 impl LoggingConnection {
@@ -47,93 +48,101 @@ impl LoggingConnection {
             in_tx_packet: false,
             rx_buf: Vec::new(),
             in_rx_packet: false,
+            verbose: false,
         }
     }
 
-    /// Flush and log any accumulated outgoing packet data.
+    pub fn with_verbose(stream: TcpStream, verbose: bool) -> Self {
+        LoggingConnection {
+            inner: stream,
+            tx_buf: Vec::new(),
+            in_tx_packet: false,
+            rx_buf: Vec::new(),
+            in_rx_packet: false,
+            verbose,
+        }
+    }
+
     fn flush_tx_log(&mut self) {
-        if !self.tx_buf.is_empty() {
-            let s = String::from_utf8_lossy(&self.tx_buf);
-            eprintln!("[GDB TX] {}", s);
+        if !self.verbose || self.tx_buf.is_empty() {
             self.tx_buf.clear();
             self.in_tx_packet = false;
+            return;
         }
+        let s = String::from_utf8_lossy(&self.tx_buf);
+        eprintln!("[GDB TX] {}", s);
+        self.tx_buf.clear();
+        self.in_tx_packet = false;
     }
 
-    /// Flush and log any accumulated incoming packet data.
     fn flush_rx_log(&mut self) {
-        if !self.rx_buf.is_empty() {
-            let s = String::from_utf8_lossy(&self.rx_buf);
-            eprintln!("[GDB RX] {}", s);
+        if !self.verbose || self.rx_buf.is_empty() {
             self.rx_buf.clear();
             self.in_rx_packet = false;
+            return;
         }
+        let s = String::from_utf8_lossy(&self.rx_buf);
+        eprintln!("[GDB RX] {}", s);
+        self.rx_buf.clear();
+        self.in_rx_packet = false;
     }
 
-    /// Process an outgoing byte for logging purposes.
     fn log_tx_byte(&mut self, byte: u8) {
+        if !self.verbose {
+            return;
+        }
         match byte {
             b'$' => {
-                // Start of a new packet - flush any previous incomplete data
                 self.flush_tx_log();
                 self.tx_buf.push(byte);
                 self.in_tx_packet = true;
             }
             b'#' if self.in_tx_packet => {
-                // End of packet data, checksum follows
                 self.tx_buf.push(byte);
-                // Don't flush yet - checksum bytes follow
             }
             b'+' | b'-' if !self.in_tx_packet => {
-                // Ack/Nack outside of a packet
                 self.flush_tx_log();
                 eprintln!("[GDB TX] {}", byte as char);
             }
             0x03 if !self.in_tx_packet => {
-                // Ctrl-C interrupt outside of a packet
                 self.flush_tx_log();
                 eprintln!("[GDB TX] <Ctrl-C>");
             }
             _ => {
                 self.tx_buf.push(byte);
-                // If we see a checksum (2 hex chars after '#'), flush
                 if self.in_tx_packet
                     && self.tx_buf.len() >= 3
                     && self.tx_buf[self.tx_buf.len() - 3] == b'#'
                 {
-                    // We have '#' + 2 hex chars = complete packet
                     self.flush_tx_log();
                 }
             }
         }
     }
 
-    /// Process an incoming byte for logging purposes.
     fn log_rx_byte(&mut self, byte: u8) {
+        if !self.verbose {
+            return;
+        }
         match byte {
             b'$' => {
-                // Start of a new packet - flush any previous incomplete data
                 self.flush_rx_log();
                 self.rx_buf.push(byte);
                 self.in_rx_packet = true;
             }
             b'#' if self.in_rx_packet => {
-                // End of packet data, checksum follows
                 self.rx_buf.push(byte);
             }
             b'+' | b'-' if !self.in_rx_packet => {
-                // Ack/Nack outside of a packet
                 self.flush_rx_log();
                 eprintln!("[GDB RX] {}", byte as char);
             }
             0x03 if !self.in_rx_packet => {
-                // Ctrl-C interrupt outside of a packet
                 self.flush_rx_log();
                 eprintln!("[GDB RX] <Ctrl-C>");
             }
             _ => {
                 self.rx_buf.push(byte);
-                // If we see a checksum (2 hex chars after '#'), flush
                 if self.in_rx_packet
                     && self.rx_buf.len() >= 3
                     && self.rx_buf[self.rx_buf.len() - 3] == b'#'

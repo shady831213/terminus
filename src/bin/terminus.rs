@@ -601,15 +601,11 @@ fn run_gdb_session(
 
         let mut target = GdbTarget::new(&mut sys.processors()[0]);
 
-        // Run GDB session with or without verbose logging
-        let result = if gdb_verbose {
-            let connection = LoggingConnection::new(stream);
-            let gdb = GdbStub::new(connection);
-            gdb.run_blocking::<GdbEventLoop<LoggingConnection>>(&mut target)
-        } else {
-            let gdb = GdbStub::new(stream);
-            gdb.run_blocking::<GdbEventLoop<std::net::TcpStream>>(&mut target)
-        };
+        // Always use LoggingConnection for proper non-blocking handling,
+        // but only log when verbose mode is enabled
+        let connection = LoggingConnection::with_verbose(stream, gdb_verbose);
+        let gdb = GdbStub::new(connection);
+        let result = gdb.run_blocking::<GdbEventLoop<LoggingConnection>>(&mut target);
 
         match result {
             Ok(disconnect_reason) => match disconnect_reason {
