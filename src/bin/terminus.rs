@@ -601,11 +601,13 @@ fn run_gdb_session(
 
         let mut target = GdbTarget::new(&mut sys.processors()[0]);
 
-        // Always use LoggingConnection for proper non-blocking handling,
-        // but only log when verbose mode is enabled
         let connection = LoggingConnection::with_verbose(stream, gdb_verbose);
         let gdb = GdbStub::new(connection);
-        let result = gdb.run_blocking::<GdbEventLoop<LoggingConnection>>(&mut target);
+        let result = if gdb_verbose {
+            gdb.run_blocking::<GdbEventLoop<LoggingConnection, true>>(&mut target)
+        } else {
+            gdb.run_blocking::<GdbEventLoop<LoggingConnection, false>>(&mut target)
+        };
 
         match result {
             Ok(disconnect_reason) => match disconnect_reason {

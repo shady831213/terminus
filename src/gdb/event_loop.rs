@@ -227,15 +227,15 @@ impl ConnectionExt for LoggingConnection {
     }
 }
 
-pub struct GdbEventLoop<C>(std::marker::PhantomData<C>);
+pub struct GdbEventLoop<C, const VERBOSE: bool>(std::marker::PhantomData<C>);
 
-impl<C> GdbEventLoop<C> {
+impl<C, const VERBOSE: bool> GdbEventLoop<C, VERBOSE> {
     pub fn new() -> Self {
         GdbEventLoop(std::marker::PhantomData)
     }
 }
 
-impl<C> run_blocking::BlockingEventLoop for GdbEventLoop<C>
+impl<C, const VERBOSE: bool> run_blocking::BlockingEventLoop for GdbEventLoop<C, VERBOSE>
 where
     C: Connection<Error = std::io::Error> + ConnectionExt<Error = std::io::Error>,
 {
@@ -258,55 +258,73 @@ where
         match target.exec_mode() {
             ExecMode::Step => {
                 let pc_before = *target.processor().state().next_pc();
-                eprintln!("[GDB stepi] PC before step: 0x{:016x}", pc_before);
+                if VERBOSE {
+                    eprintln!("[GDB stepi] PC before step: 0x{:016x}", pc_before);
+                }
                 let reason = target.processor_mut().step(1);
                 let pc_after = *target.processor().state().next_pc();
-                eprintln!(
-                    "[GDB stepi] Step completed: PC 0x{:016x} -> 0x{:016x}, reason: {:?}",
-                    pc_before, pc_after, reason
-                );
+                if VERBOSE {
+                    eprintln!(
+                        "[GDB stepi] Step completed: PC 0x{:016x} -> 0x{:016x}, reason: {:?}",
+                        pc_before, pc_after, reason
+                    );
+                }
                 let stop_reason = match reason {
                     Some(DebugStopReason::Breakpoint(addr)) => {
-                        eprintln!("[GDB stepi] Hit breakpoint at 0x{:016x}", addr);
+                        if VERBOSE {
+                            eprintln!("[GDB stepi] Hit breakpoint at 0x{:016x}", addr);
+                        }
                         SingleThreadStopReason::SwBreak(())
                     }
                     Some(DebugStopReason::StepComplete) | None => {
-                        eprintln!(
-                            "[GDB stepi] Sending DoneStep (S05 SIGTRAP) for PC 0x{:016x}",
-                            pc_after
-                        );
+                        if VERBOSE {
+                            eprintln!(
+                                "[GDB stepi] Sending DoneStep (S05 SIGTRAP) for PC 0x{:016x}",
+                                pc_after
+                            );
+                        }
                         SingleThreadStopReason::DoneStep
                     }
                     Some(DebugStopReason::Halted) => {
-                        eprintln!("[GDB stepi] Target halted at PC 0x{:016x}", pc_after);
+                        if VERBOSE {
+                            eprintln!("[GDB stepi] Target halted at PC 0x{:016x}", pc_after);
+                        }
                         SingleThreadStopReason::Terminated(Signal::SIGSTOP)
                     }
                 };
-                eprintln!("[GDB stepi] Stop reply: {:?}", stop_reason);
+                if VERBOSE {
+                    eprintln!("[GDB stepi] Stop reply: {:?}", stop_reason);
+                }
                 let _ = conn.flush();
                 Ok(run_blocking::Event::TargetStopped(stop_reason))
             }
             ExecMode::Continue => {
-                eprintln!("[GDB continue] Starting continue mode...");
+                if VERBOSE {
+                    eprintln!("[GDB continue] Starting continue mode...");
+                }
                 let mut cycles = 0;
                 loop {
                     if cycles % BATCH_SIZE == 0 {
                         match ConnectionExt::peek(conn) {
                             Ok(Some(byte)) => {
-                                eprintln!(
-                                    "[GDB continue] Incoming data byte: 0x{:02x} ('{}')",
-                                    byte,
-                                    if byte.is_ascii_graphic() {
-                                        byte as char
-                                    } else {
-                                        '.'
-                                    }
-                                );
+                                if VERBOSE {
+                                    eprintln!(
+                                        "[GDB continue] Incoming data byte: 0x{:02x} ('{}')",
+                                        byte,
+                                        if byte.is_ascii_graphic() {
+                                            byte as char
+                                        } else {
+                                            '.'
+                                        }
+                                    );
+                                }
                                 return Ok(run_blocking::Event::IncomingData(byte));
                             }
                             Ok(None) => {}
                             Err(e) => {
-                                eprintln!("[GDB continue] Connection peek error: {}", e);
+                                if VERBOSE {
+                                    eprintln!("[GDB continue] Connection peek error: {}", e);
+                                }
                                 return Err(run_blocking::WaitForStopReasonError::Connection(e));
                             }
                         }
@@ -316,32 +334,42 @@ where
                     let reason = target.processor_mut().step(1);
                     if let Some(debug_reason) = reason {
                         let pc = *target.processor().state().next_pc();
-                        eprintln!(
-                            "[GDB continue] Stopped at PC 0x{:016x}, reason: {:?}",
-                            pc, debug_reason
-                        );
+                        if VERBOSE {
+                            eprintln!(
+                                "[GDB continue] Stopped at PC 0x{:016x}, reason: {:?}",
+                                pc, debug_reason
+                            );
+                        }
                         let stop_reason = match debug_reason {
                             DebugStopReason::Breakpoint(addr) => {
-                                eprintln!("[GDB continue] Hit breakpoint at 0x{:016x}", addr);
+                                if VERBOSE {
+                                    eprintln!("[GDB continue] Hit breakpoint at 0x{:016x}", addr);
+                                }
                                 SingleThreadStopReason::SwBreak(())
                             }
                             DebugStopReason::StepComplete => {
-                                eprintln!(
-                                    "[GDB continue] Sending DoneStep (S05 SIGTRAP) for PC 0x{:016x}",
-                                    pc
-                                );
+                                if VERBOSE {
+                                    eprintln!(
+                                        "[GDB continue] Sending DoneStep (S05 SIGTRAP) for PC 0x{:016x}",
+                                        pc
+                                    );
+                                }
                                 SingleThreadStopReason::DoneStep
                             }
                             DebugStopReason::Halted => {
-                                eprintln!("[GDB continue] Target halted at PC 0x{:016x}", pc);
+                                if VERBOSE {
+                                    eprintln!("[GDB continue] Target halted at PC 0x{:016x}", pc);
+                                }
                                 SingleThreadStopReason::Terminated(Signal::SIGSTOP)
                             }
                         };
-                        eprintln!("[GDB continue] Stop reply: {:?}", stop_reason);
+                        if VERBOSE {
+                            eprintln!("[GDB continue] Stop reply: {:?}", stop_reason);
+                        }
                         let _ = conn.flush();
                         return Ok(run_blocking::Event::TargetStopped(stop_reason));
                     }
-                    if cycles % 100000 == 0 {
+                    if cycles % 100000 == 0 && VERBOSE {
                         eprintln!("[GDB continue] cycles={}", cycles);
                     }
                 }
@@ -352,7 +380,6 @@ where
     fn on_interrupt(
         _target: &mut Self::Target,
     ) -> Result<Option<Self::StopReason>, <Self::Target as Target>::Error> {
-        eprintln!("[GDB] Ctrl-C interrupt received, sending SIGINT");
         Ok(Some(SingleThreadStopReason::Signal(Signal::SIGINT)))
     }
 }

@@ -1,0 +1,320 @@
+
+./target/release/terminus --gdb localhost:1234 examples/linux/image/br-5-4
+GDB server listening on localhost:1234
+Waiting for GDB connection on localhost:1234...
+GDB connected from 127.0.0.1:57626
+[GDB] Session started - packet tracing enabled
+[GDB stepi] PC before step: 0x0000000020000000
+[GDB stepi] Step completed: PC 0x0000000020000000 -> 0x0000000020000004, reason: None
+[GDB stepi] Sending DoneStep (S05 SIGTRAP) for PC 0x0000000020000004
+[GDB stepi] Stop reply: DoneStep
+[GDB continue] Starting continue mode...
+[GDB continue] Stopped at PC 0x0000000080000000, reason: Breakpoint(2147483648)
+[GDB continue] Hit breakpoint at 0x0000000080000000
+[GDB continue] Stop reply: SwBreak(())
+[GDB stepi] PC before step: 0x0000000080000000
+[GDB stepi] Step completed: PC 0x0000000080000000 -> 0x00000000800001f8, reason: None
+[GDB stepi] Sending DoneStep (S05 SIGTRAP) for PC 0x00000000800001f8
+[GDB stepi] Stop reply: DoneStep
+[GDB continue] Starting continue mode...
+bbl loader
+[GDB continue] cycles=100000
+[GDB continue] cycles=200000
+[GDB continue] cycles=300000
+[GDB continue] cycles=400000
+[    0.000000] OF: fdt: Ignoring memory range 0x80000000 - 0x80200000
+[    0.000000] Linux version 5.4.23 (yli@ubuntu) (g[GDB continue] cycles=500000
+cc version 7.2.0 (GCC)) #2 SMP Thu Apr 30 02:23:13 PDT 2020
+[    0.000000] earlycon: sbi0 at I/O port 0x0 (options '')
+[    0.000000] printk: bootconsole [sbi0] enabled
+[    0.000000] initrd not found or empty - disabling initrd
+[GDB continue] cycles=600000
+[    0.000000] Zone ranges:
+[GDB continue] cycles=700000
+[    0.000000]   DMA32    [mem 0x0000000080200000-0x00000000ffffffff]
+[    0.000000]   Normal   empty
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x0000000080200000-0x00000000ffffffff]
+[    0.000000] Initmem setup node 0 [mem 0x0000000080200000-0x00000000ffffffff]
+[GDB continue] cycles=800000
+[GDB continue] cycles=900000
+[GDB continue] cycles=1000000
+[GDB continue] cycles=1100000
+[GDB continue] cycles=1200000
+[GDB continue] cycles=1300000
+[GDB continue] cycles=1400000
+[GDB continue] cycles=1500000
+[GDB continue] cycles=1600000
+[GDB continue] cycles=1700000
+[GDB continue] cycles=1800000
+[GDB continue] cycles=1900000
+[GDB continue] cycles=2000000
+[GDB continue] cycles=2100000
+[GDB continue] cycles=2200000
+[GDB continue] cycles=2300000
+[GDB continue] cycles=2400000
+[GDB continue] cycles=2500000
+[GDB continue] cycles=2600000
+[GDB continue] cycles=2700000
+[GDB continue] cycles=2800000
+[GDB continue] cycles=2900000
+[GDB continue] cycles=3000000
+[GDB continue] cycles=3100000
+[GDB continue] cycles=3200000
+[GDB continue] cycles=3300000
+[GDB continue] cycles=3400000
+[GDB continue] cycles=3500000
+[GDB continue] cycles=3600000
+[GDB continue] cycles=3700000
+[GDB continue] cycles=3800000
+[GDB continue] cycles=3900000
+[GDB continue] cycles=4000000
+[GDB continue] cycles=4100000
+[GDB continue] cycles=4200000
+[GDB continue] cycles=4300000
+[GDB continue] cycles=4400000
+[GDB continue] cycles=4500000
+[GDB continue] cycles=4600000
+[GDB continue] cycles=4700000
+[GDB continue] cycles=4800000
+[GDB continue] cycles=4900000
+[GDB continue] cycles=5000000
+[GDB continue] cycles=5100000
+[GDB continue] cycles=5200000
+[GDB continue] cycles=5300000
+[GDB continue] cycles=5400000
+[GDB continue] cycles=5500000
+[GDB continue] cycles=5600000
+[GDB continue] cycles=5700000
+[GDB continue] cycles=5800000
+[GDB continue] cycles=5900000
+[GDB continue] cycles=6000000
+[GDB continue] cycles=6100000
+[GDB continue] cycles=6200000
+[GDB continue] cycles=6300000
+[GDB continue] cycles=6400000
+[GDB continue] cycles=6500000
+[GDB continue] cycles=6600000
+[GDB continue] cycles=6700000
+[GDB continue] cycles=6800000
+[GDB continue] cycles=6900000
+[GDB continue] cycles=7000000
+[GDB continue] cycles=7100000
+[GDB continue] cycles=7200000
+[GDB continue] cycles=7300000
+[GDB continue] cycles=7400000
+[GDB continue] cycles=7500000
+[GDB continue] cycles=7600000
+[GDB continue] cycles=7700000
+[GDB continue] cycles=7800000
+[GDB continue] cycles=7900000
+[GDB continue] cycles=8000000
+[GDB continue] cycles=8100000
+[GDB continue] cycles=8200000
+[GDB continue] cycles=8300000
+[GDB continue] cycles=8400000
+[GDB continue] cycles=8500000
+[GDB continue] cycles=8600000
+[GDB continue] cycles=8700000
+[GDB continue] cycles=8800000
+[GDB continue] cycles=8900000
+[GDB continue] cycles=9000000
+[GDB continue] cycles=9100000
+[GDB continue] cycles=9200000
+[GDB continue] cycles=9300000
+[GDB continue] cycles=9400000
+[GDB continue] cycles=9500000
+[GDB continue] cycles=9600000
+[GDB continue] cycles=9700000
+[GDB continue] cycles=9800000
+[GDB continue] cycles=9900000
+[GDB continue] cycles=10000000
+[GDB continue] cycles=10100000
+[GDB continue] cycles=10200000
+[GDB continue] cycles=10300000
+[GDB continue] cycles=10400000
+[GDB continue] cycles=10500000
+[GDB continue] cycles=10600000
+[GDB continue] cycles=10700000
+[GDB continue] cycles=10800000
+[GDB continue] cycles=10900000
+[GDB continue] cycles=11000000
+[GDB continue] cycles=11100000
+[GDB continue] cycles=11200000
+[GDB continue] cycles=11300000
+[GDB continue] cycles=11400000
+[GDB continue] cycles=11500000
+[GDB continue] cycles=11600000
+[GDB continue] cycles=11700000
+[GDB continue] cycles=11800000
+[GDB continue] cycles=11900000
+[GDB continue] cycles=12000000
+[GDB continue] cycles=12100000
+[GDB continue] cycles=12200000
+[GDB continue] cycles=12300000
+[GDB continue] cycles=12400000
+[GDB continue] cycles=12500000
+[GDB continue] cycles=12600000
+[GDB continue] cycles=12700000
+[GDB continue] cycles=12800000
+[GDB continue] cycles=12900000
+[GDB continue] cycles=13000000
+[GDB continue] cycles=13100000
+[GDB continue] cycles=13200000
+[GDB continue] cycles=13300000
+[GDB continue] cycles=13400000
+[GDB continue] cycles=13500000
+[GDB continue] cycles=13600000
+[GDB continue] cycles=13700000
+[GDB continue] cycles=13800000
+[GDB continue] cycles=13900000
+[GDB continue] cycles=14000000
+[GDB continue] cycles=14100000
+[GDB continue] cycles=14200000
+[GDB continue] cycles=14300000
+[GDB continue] cycles=14400000
+[GDB continue] cycles=14500000
+[GDB continue] cycles=14600000
+[GDB continue] cycles=14700000
+[GDB continue] cycles=14800000
+[GDB continue] cycles=14900000
+[GDB continue] cycles=15000000
+[GDB continue] cycles=15100000
+[GDB continue] cycles=15200000
+[GDB continue] cycles=15300000
+[GDB continue] cycles=15400000
+[GDB continue] cycles=15500000
+[GDB continue] cycles=15600000
+[GDB continue] cycles=15700000
+[GDB continue] cycles=15800000
+[GDB continue] cycles=15900000
+[GDB continue] cycles=16000000
+[GDB continue] cycles=16100000
+[GDB continue] cycles=16200000
+[GDB continue] cycles=16300000
+[GDB continue] cycles=16400000
+[GDB continue] cycles=16500000
+[GDB continue] cycles=16600000
+[GDB continue] cycles=16700000
+[GDB continue] cycles=16800000
+[GDB continue] cycles=16900000
+[GDB continue] cycles=17000000
+[GDB continue] cycles=17100000
+[GDB continue] cycles=17200000
+[GDB continue] cycles=17300000
+[GDB continue] cycles=17400000
+[GDB continue] cycles=17500000
+[GDB continue] cycles=17600000
+[GDB continue] cycles=17700000
+[GDB continue] cycles=17800000
+[GDB continue] cycles=17900000
+[GDB continue] cycles=18000000
+[GDB continue] cycles=18100000
+[GDB continue] cycles=18200000
+[GDB continue] cycles=18300000
+[GDB continue] cycles=18400000
+[GDB continue] cycles=18500000
+[GDB continue] cycles=18600000
+[GDB continue] cycles=18700000
+[GDB continue] cycles=18800000
+[GDB continue] cycles=18900000
+[GDB continue] cycles=19000000
+[GDB continue] cycles=19100000
+[GDB continue] cycles=19200000
+[GDB continue] cycles=19300000
+[GDB continue] cycles=19400000
+[GDB continue] cycles=19500000
+[GDB continue] cycles=19600000
+[GDB continue] cycles=19700000
+[GDB continue] cycles=19800000
+[GDB continue] cycles=19900000
+[GDB continue] cycles=20000000
+[GDB continue] cycles=20100000
+[GDB continue] cycles=20200000
+[GDB continue] cycles=20300000
+[GDB continue] cycles=20400000
+[GDB continue] cycles=20500000
+[GDB continue] cycles=20600000
+[GDB continue] cycles=20700000
+[GDB continue] cycles=20800000
+[GDB continue] cycles=20900000
+[GDB continue] cycles=21000000
+[GDB continue] cycles=21100000
+[GDB continue] cycles=21200000
+[GDB continue] cycles=21300000
+[GDB continue] cycles=21400000
+[GDB continue] cycles=21500000
+[GDB continue] cycles=21600000
+[GDB continue] cycles=21700000
+[GDB continue] cycles=21800000
+[GDB continue] cycles=21900000
+[GDB continue] cycles=22000000
+[GDB continue] cycles=22100000
+[GDB continue] cycles=22200000
+[GDB continue] cycles=22300000
+[GDB continue] cycles=22400000
+[GDB continue] cycles=22500000
+[GDB continue] cycles=22600000
+[GDB continue] cycles=22700000
+[GDB continue] cycles=22800000
+[GDB continue] cycles=22900000
+[GDB continue] cycles=23000000
+[GDB continue] cycles=23100000
+[GDB continue] cycles=23200000
+[GDB continue] cycles=23300000
+[GDB continue] cycles=23400000
+[GDB continue] cycles=23500000
+[GDB continue] cycles=23600000
+[GDB continue] cycles=23700000
+[GDB continue] cycles=23800000
+[GDB continue] cycles=23900000
+[GDB continue] cycles=24000000
+[GDB continue] cycles=24100000
+[GDB continue] cycles=24200000
+[GDB continue] cycles=24300000
+[GDB continue] cycles=24400000
+[GDB continue] cycles=24500000
+[GDB continue] cycles=24600000
+[GDB continue] cycles=24700000
+[GDB continue] cycles=24800000
+[GDB continue] cycles=24900000
+[GDB continue] cycles=25000000
+[GDB continue] cycles=25100000
+[GDB continue] cycles=25200000
+[GDB continue] cycles=25300000
+[GDB continue] cycles=25400000
+[GDB continue] cycles=25500000
+[GDB continue] cycles=25600000
+[GDB continue] cycles=25700000
+[GDB continue] cycles=25800000
+[GDB continue] cycles=25900000
+[GDB continue] cycles=26000000
+[GDB continue] cycles=26100000
+[GDB continue] cycles=26200000
+[GDB continue] cycles=26300000
+[GDB continue] cycles=26400000
+[GDB continue] cycles=26500000
+[GDB continue] cycles=26600000
+[GDB continue] cycles=26700000
+[GDB continue] cycles=26800000
+[GDB continue] cycles=26900000
+[GDB continue] cycles=27000000
+[GDB continue] cycles=27100000
+[GDB continue] cycles=27200000
+[GDB continue] cycles=27300000
+[GDB continue] cycles=27400000
+[GDB continue] cycles=27500000
+[GDB continue] cycles=27600000
+[GDB continue] cycles=27700000
+[GDB continue] cycles=27800000
+[    0.000000] software IO TLB: mapped [m[GDB continue] cycles=27900000
+em 0xfa3fc000-0xfe3fc000] (64MB)
+[    0.000000] elf_hwcap is 0x112d
+[    0.000000] percpu: Embedded 17 pages/cpu s30680 r8192 d30760 u69632
+[GDB continue] cycles=28000000
+[GDB continue] Incoming data byte: 0x03 ('.')
+[GDB] Ctrl-C interrupt received, sending SIGINT
+[GDB] Ctrl-C interrupt received, sending SIGINT
+GDB client disconnected. Exiting...
+
