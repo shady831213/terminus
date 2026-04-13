@@ -39,7 +39,9 @@ impl run_blocking::BlockingEventLoop for GdbEventLoop {
 
         match target.exec_mode() {
             ExecMode::Step => {
+                eprintln!("Executing step...");
                 let reason = target.processor_mut().step(1);
+                eprintln!("Step completed with reason: {:?}", reason);
                 let stop_reason = match reason {
                     Some(DebugStopReason::Breakpoint(_addr)) => SingleThreadStopReason::SwBreak(()),
                     Some(DebugStopReason::StepComplete) | None => SingleThreadStopReason::DoneStep,
@@ -47,18 +49,22 @@ impl run_blocking::BlockingEventLoop for GdbEventLoop {
                         SingleThreadStopReason::Terminated(Signal::SIGSTOP)
                     }
                 };
+                eprintln!("Converted to stop_reason: {:?}", stop_reason);
                 Ok(run_blocking::Event::TargetStopped(stop_reason))
             }
             ExecMode::Continue => {
+                eprintln!("Starting continue mode...");
                 let mut cycles = 0;
                 loop {
                     if cycles % BATCH_SIZE == 0 {
                         match gdbstub::conn::ConnectionExt::peek(conn) {
                             Ok(Some(byte)) => {
+                                eprintln!("Continue loop: incoming data byte: {}", byte);
                                 return Ok(run_blocking::Event::IncomingData(byte));
                             }
                             Ok(None) => {}
                             Err(e) => {
+                                eprintln!("Continue loop: connection error: {}", e);
                                 return Err(run_blocking::WaitForStopReasonError::Connection(e));
                             }
                         }
@@ -67,6 +73,10 @@ impl run_blocking::BlockingEventLoop for GdbEventLoop {
 
                     let reason = target.processor_mut().step(1);
                     if let Some(debug_reason) = reason {
+                        eprintln!(
+                            "Continue loop: step returned debug_reason: {:?}",
+                            debug_reason
+                        );
                         let stop_reason = match debug_reason {
                             DebugStopReason::Breakpoint(_addr) => {
                                 SingleThreadStopReason::SwBreak(())
@@ -76,7 +86,11 @@ impl run_blocking::BlockingEventLoop for GdbEventLoop {
                                 SingleThreadStopReason::Terminated(Signal::SIGSTOP)
                             }
                         };
+                        eprintln!("Continue loop: converted to stop_reason: {:?}", stop_reason);
                         return Ok(run_blocking::Event::TargetStopped(stop_reason));
+                    }
+                    if cycles % 10000 == 0 {
+                        eprintln!("Continue loop: cycles={}", cycles);
                     }
                 }
             }
