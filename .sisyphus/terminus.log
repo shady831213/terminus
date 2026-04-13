@@ -1,0 +1,92 @@
+RUST_BACKTRACE=1 ./target/release/terminus --gdb localhost:1234 examples/linux/image/br-5-4
+GDB server listening on localhost:1234
+Waiting for GDB connection on localhost:1234...
+GDB connected from 127.0.0.1:55548
+[GDB] Session started - packet tracing enabled
+[GDB RX] +
+[GDB RX] $qSupported:multiprocess+;swbreak+;hwbreak+;qRelocInsn+;fork-events+;vfork-events+;exec-events+;vContSupported+;QThreadEvents+;no-resumed+;memory-tagging+#ec
+[GDB TX] +
+[GDB TX] $PacketSize=1000;vContSupported+;multiprocess+;QStartNoAckMode+;fork-events+;vfork-events+;vforkdone-events+;swbreak+;qXfer:features:read+#1d
+[GDB RX] +
+[GDB RX] $vMustReplyEmpty#3a
+[GDB TX] +
+[GDB TX] $#00
+[GDB RX] +
+[GDB RX] $QStartNoAckMode#b0
+[GDB TX] +
+[GDB TX] $OK#9a
+[GDB RX] +
+[GDB RX] $Hgp0.0#ad
+[GDB TX] $OK#9a
+[GDB RX] $qXfer:features:read:target.xml:0,ffb#79
+[GDB TX] $m<?xml version="1.0"?>
+<!-- Copyright (C) 2018-2024 Free Software Foundation, Inc.
+
+ *!Copying and distribution of this file, with or without modification,
+ *!are permitted in any medium without royalty provided the copyright
+ *!notice and this notice are preserved.  -->
+
+<!-- Register numbers are hard-coded in order to maintain backward
+ *!compatibility with older versions of tools that didn't use xml
+ *!register descriptions.  -->
+
+<!DOCTYPE feature SYSTEM "gdb-target.dtd">
+<feature name="org.gnu.gdb.riscv.cpu">
+  <reg name="zero" bitsize="64" type="int" regnum="0"/>
+  <reg name="ra" bitsize="64" type="code_ptr"/>
+  <reg name="sp" bitsize="64" type="data_ptr"/>
+  <reg name="gp" bitsize="64" type="data_ptr"/>
+  <reg name="tp" bitsize="64" type="data_ptr"/>
+  <reg name="t0" bitsize="64" type="int"/>
+  <reg name="t1" bitsize="64" type="int"/>
+  <reg name="t2" bitsize="64" type="int"/>
+  <reg name="fp" bitsize="64" type="data_ptr"/>
+  <reg name="s1" bitsize="64" type="int"/>
+  <reg name="a0" bitsize="64" type="int"/>
+  <reg name="a1" bitsize="64" type="int"/>
+  <reg name="a2" bitsize="64" type="int"/>
+  <reg name="a3" bitsize="64" type="int"/>
+  <reg name="a4" bitsize="64" type="int"/>
+  <reg name="a5" bitsize="64" type="int"/>
+  <reg name="a6" bitsize="64" type="int"/>
+  <reg name="a7" bitsize="64" type="int"/>
+  <reg name="s2" bitsize="64" type="int"/>
+  <reg name="s3" bitsize="64" type="int"/>
+  <reg name="s4" bitsize="64" type="int"/>
+  <reg name="s5" bitsize="64" type="int"/>
+  <reg name="s6" bitsize="64" type="int"/>
+  <reg name="s7" bitsize="64" type="int"/>
+  <reg name="s8" bitsize="64" type="int"/>
+  <reg name="s9" bitsize="64" type="int"/>
+  <reg name="s10" bitsize="64" type="int"/>
+  <reg name="s11" bitsize="64" type="int"/>
+  <reg name="t3" bitsize="64" type="int"/>
+  <reg name="t4" bitsize="64" type="int"/>
+  <reg name="t5" bitsize="64" type="int"/>
+  <reg name="t6" bitsize="64" type="int"/>
+  <reg name="pc" bitsize="64" type="code_ptr"/>
+</feature>#27
+[GDB RX] $qXfer:features:read:target.xml:7d3,ffb#17
+[GDB TX] $l#6c
+[GDB RX] $qTStatus#49
+[GDB TX] $#00
+[GDB RX] $?#3f
+[GDB TX] $T05thread:p01.01;#06
+[GDB RX] $qfThreadInfo#bb
+[GDB TX] $mp01.01#cd
+[GDB RX] $qsThreadInfo#c8
+[GDB TX] $l#6c
+[GDB RX] $qAttached:1#fa
+[GDB TX] $1#31
+[GDB RX] $Hc-1#09
+[GDB TX] $OK#9a
+[GDB RX] $g#67
+[GDB TX] $0*~0*~0*~0*~0*~0*820*%#7b
+[GDB RX] $qfThreadInfo#bb
+[GDB TX] $mp01.01#cd
+[GDB RX] $qsThreadInfo#c8
+[GDB TX] $l#6c
+Connection error: Read - Resource temporarily unavailable (os error 11)
+GDB client disconnected. Pausing simulation...
+Waiting for GDB reconnection...
+Waiting for GDB connection on localhost:1234...
