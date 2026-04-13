@@ -218,11 +218,20 @@ impl ConnectionExt for LoggingConnection {
     }
 }
 
-pub struct GdbEventLoop;
+pub struct GdbEventLoop<C>(std::marker::PhantomData<C>);
 
-impl run_blocking::BlockingEventLoop for GdbEventLoop {
+impl<C> GdbEventLoop<C> {
+    pub fn new() -> Self {
+        GdbEventLoop(std::marker::PhantomData)
+    }
+}
+
+impl<C> run_blocking::BlockingEventLoop for GdbEventLoop<C>
+where
+    C: Connection<Error = std::io::Error> + ConnectionExt<Error = std::io::Error>,
+{
     type Target = GdbTarget;
-    type Connection = LoggingConnection;
+    type Connection = C;
     type StopReason = SingleThreadStopReason<u64>;
 
     fn wait_for_stop_reason(
@@ -265,7 +274,7 @@ impl run_blocking::BlockingEventLoop for GdbEventLoop {
                     }
                 };
                 eprintln!("[GDB stepi] Stop reply: {:?}", stop_reason);
-                conn.flush_tx_log(); // Ensure any pending log is flushed
+                let _ = conn.flush();
                 Ok(run_blocking::Event::TargetStopped(stop_reason))
             }
             ExecMode::Continue => {
@@ -284,7 +293,6 @@ impl run_blocking::BlockingEventLoop for GdbEventLoop {
                                         '.'
                                     }
                                 );
-                                conn.flush_rx_log();
                                 return Ok(run_blocking::Event::IncomingData(byte));
                             }
                             Ok(None) => {}
@@ -321,7 +329,7 @@ impl run_blocking::BlockingEventLoop for GdbEventLoop {
                             }
                         };
                         eprintln!("[GDB continue] Stop reply: {:?}", stop_reason);
-                        conn.flush_tx_log();
+                        let _ = conn.flush();
                         return Ok(run_blocking::Event::TargetStopped(stop_reason));
                     }
                     if cycles % 100000 == 0 {

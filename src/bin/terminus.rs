@@ -293,6 +293,11 @@ fn main() {
                 .value_name("GDB_ADDR")
                 .help("enable GDB remote debugging, optionally specify listen address (default: 0.0.0.0:1234)")
         )
+        .arg(
+            Arg::with_name("gdb_verbose")
+                .long("gdb-verbose")
+                .help("enable verbose GDB packet logging (for debugging)")
+        )
         .get_matches();
 
     let core_num = usize::from_str(matches.value_of("core_num").unwrap_or_default())
@@ -364,6 +369,7 @@ fn main() {
     } else {
         None
     };
+    let gdb_verbose = matches.is_present("gdb_verbose");
     let mut trace_file = if matches.is_present("trace") || trace_all {
         Some(
             OpenOptions::new()
@@ -495,6 +501,7 @@ fn main() {
         run_gdb_session(
             &mut sys,
             addr,
+            gdb_verbose,
             step,
             virtio_input_en,
             &virtio_console_device,
@@ -532,6 +539,7 @@ fn main() {
 fn run_gdb_session(
     sys: &mut System,
     gdb_addr: &str,
+    gdb_verbose: bool,
     _step: usize,
     _virtio_input_en: bool,
     _virtio_console_device: &Rc<VirtIOConsoleDevice>,
@@ -591,11 +599,19 @@ fn run_gdb_session(
             continue;
         }
 
-        let connection = LoggingConnection::new(stream);
         let mut target = GdbTarget::new(&mut sys.processors()[0]);
-        let gdb = GdbStub::new(connection);
 
-        match gdb.run_blocking::<GdbEventLoop>(&mut target) {
+        // Run GDB session with or without verbose logging
+        let result = if gdb_verbose {
+            let connection = LoggingConnection::new(stream);
+            let gdb = GdbStub::new(connection);
+            gdb.run_blocking::<GdbEventLoop<LoggingConnection>>(&mut target)
+        } else {
+            let gdb = GdbStub::new(stream);
+            gdb.run_blocking::<GdbEventLoop<std::net::TcpStream>>(&mut target)
+        };
+
+        match result {
             Ok(disconnect_reason) => match disconnect_reason {
                 DisconnectReason::Disconnect => {
                     eprintln!("GDB client disconnected. Exiting...");
