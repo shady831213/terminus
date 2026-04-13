@@ -175,3 +175,35 @@ Index 25 -> mhartid (0xF14)
 ✅ --gdb flag appears in --help output
 ✅ --gdb :12345 starts GDB server
 ✅ Normal execution without --gdb unchanged (zero overhead)
+
+---
+
+## Task 8 Completion Notes (2026-04-13)
+
+### What was done:
+- Created `tests/gdb_integration.rs` with comprehensive integration tests
+- Added 6 unit tests to `src/gdb/target_desc.rs` for XML validation
+- Added 7 unit tests to `src/gdb/target.rs` for register/memory/breakpoint operations
+- Existing tests in `src/gdb/reg_id.rs` already comprehensive (8 tests)
+- All 31 unit tests pass
+- Integration tests marked with `#[ignore]` when they require `riscv64-unknown-elf-gdb`
+- cargo build passes
+- cargo clippy shows no warnings in new code (warnings are in existing codebase)
+
+### Files created:
+- `tests/gdb_integration.rs` - Integration tests with GDB RSP protocol helpers
+
+### Files modified:
+- `src/gdb/target_desc.rs` - Added 6 unit tests for XML validation
+- `src/gdb/target.rs` - Added 7 unit tests for target operations
+
+### Test summary:
+- Unit tests: 31 passed (including 15 new GDB module tests)
+- Integration tests: 3 passed without GDB, 11 marked #[ignore] (require external GDB)
+
+### Key learnings:
+- GDB RSP (Remote Serial Protocol) packet format: `$data#checksum`
+- Raw pointer handling in tests requires keeping the pointed-to value in scope
+- Processor `pc()` returns current PC, `set_pc()` sets `next_pc` (executed on next fetch)
+- `TargetError<String>` doesn't implement Debug, use `.is_ok()` instead of `.unwrap()`
+

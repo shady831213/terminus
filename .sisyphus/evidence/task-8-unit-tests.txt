@@ -1,0 +1,38 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (target/debug/deps/terminus-6ab4e5e08c792891)
+
+running 31 tests
+test gdb::reg_id::tests::test_csr_addr_to_regnum ... ok
+test gdb::reg_id::tests::test_csr_mapping ... ok
+test gdb::reg_id::tests::test_fpr_mapping ... ok
+test gdb::reg_id::tests::test_fcsr_mapping ... ok
+test gdb::reg_id::tests::test_gpr_mapping ... ok
+test gdb::reg_id::tests::test_invalid_ids ... ok
+test gdb::reg_id::tests::test_priv_mapping ... ok
+test gdb::reg_id::tests::test_pc_mapping ... ok
+test gdb::target::tests::test_gdb_target_creation ... ok
+test gdb::target::tests::test_read_registers ... ok
+test gdb::target::tests::test_sw_breakpoint_operations ... ok
+test gdb::target::tests::test_write_registers ... ok
+test gdb::target::tests::test_exec_mode_changes ... ok
+test gdb::target::tests::test_read_write_registers_roundtrip ... ok
+test gdb::target_desc::tests::test_target_description_architecture ... ok
+test gdb::target_desc::tests::test_target_description_has_cpu_feature ... ok
+test gdb::target_desc::tests::test_target_description_has_csr_feature ... ok
+test gdb::target::tests::test_sw_breakpoint_multiple ... ok
+test gdb::target_desc::tests::test_target_description_has_fpu_feature ... ok
+test gdb::target_desc::tests::test_xml_well_formed ... ok
+test gdb::target_desc::tests::test_target_description_has_virtual_feature ... ok
+test gdb::target_desc::tests::test_target_description_valid_xml ... ok
+test processor::mmu::pmp_basic_test ... ok
+test processor::tests::test_debug_mode_setter ... ok
+test processor::tests::test_debug_stop_reason_variants ... ok
+test processor::tests::test_debug_mode_default_false ... ok
+test processor::privilege::m::csrs::test_status ... ok
+test processor::tests::test_step_returns_none_when_no_debug_mode ... ok
+test system::fdt::test::fdt_build_test ... ok
+test system::fdt::test::fdt_compile_test ... ok
+test processor::tests::test_sw_breakpoints_add_remove ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

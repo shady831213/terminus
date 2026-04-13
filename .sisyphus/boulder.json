@@ -33,6 +33,15 @@
       "agent": "Sisyphus-Junior",
       "category": "unspecified-high",
       "updated_at": "2026-04-13T04:23:57.525Z"
+    },
+    "todo:8": {
+      "task_key": "todo:8",
+      "task_label": "8",
+      "task_title": "Integration tests + end-to-end QA",
+      "session_id": "ses_27aea35aaffeqZs0kmeO4PkYk0",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-04-13T04:37:09.613Z"
     }
   },
   "session_origins": {

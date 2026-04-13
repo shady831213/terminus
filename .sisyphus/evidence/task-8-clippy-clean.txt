@@ -1,0 +1,2 @@
+Clippy check for gdb module - no warnings in new code
+No warnings in gdb module

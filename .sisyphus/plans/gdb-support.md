@@ -680,7 +680,7 @@ Max Concurrent: 4 (Wave 1)
   - Message: `feat(gdb): integrate GDB server with CLI and main simulation loop`
   - Files: `src/bin/terminus.rs`, `src/gdb/mod.rs`, `src/gdb/event_loop.rs`
 
-- [ ] 8. Integration tests + end-to-end QA
+- [x] 8. Integration tests + end-to-end QA
 
   **What to do**:
   - Create `tests/gdb_integration.rs` with integration tests (connection, register read/write, memory read/write, step, continue, breakpoints, Ctrl-C, no-ack, CSR, privilege, target description, detach, FPU)

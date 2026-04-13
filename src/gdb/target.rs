@@ -173,3 +173,150 @@ impl SwBreakpoint for GdbTarget {
         Ok(true)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::devices::bus::TerminusBus;
+    use crate::global::XLen;
+    use crate::processor::{Processor, ProcessorCfg};
+    use gdbstub_arch::riscv::reg::RiscvCoreRegs;
+    use std::rc::Rc;
+
+    fn make_processor() -> Processor {
+        let config = ProcessorCfg {
+            xlen: XLen::X64,
+            enable_dirty: true,
+            extensions: Box::new(['i', 'm', 'a', 'f', 'd', 'c']),
+            freq: 10000000,
+        };
+        let bus = Rc::new(TerminusBus::new());
+        Processor::new(0, config, &bus, None, None)
+    }
+
+    #[test]
+    fn test_gdb_target_creation() {
+        let mut processor = make_processor();
+        processor.reset(0x80000000).unwrap();
+        let target = GdbTarget::new(&mut processor);
+        assert_eq!(target.exec_mode(), ExecMode::Continue);
+    }
+
+    #[test]
+    fn test_read_registers() {
+        let mut processor = make_processor();
+        processor.reset(0x80000000).unwrap();
+        let mut target = GdbTarget::new(&mut processor);
+        let mut regs = RiscvCoreRegs::<u64>::default();
+
+        let result = target.read_registers(&mut regs);
+        assert!(result.is_ok());
+
+        // x0 is always 0
+        assert_eq!(regs.x[0], 0);
+        // PC is 0 before first instruction (next_pc is the reset vector)
+        assert_eq!(regs.pc, 0);
+    }
+
+    #[test]
+    fn test_write_registers() {
+        let mut processor = make_processor();
+        processor.reset(0x80000000).unwrap();
+        let mut target = GdbTarget::new(&mut processor);
+        let mut regs = RiscvCoreRegs::<u64>::default();
+
+        regs.x[1] = 0x12345678;
+        regs.x[10] = 0xDEADBEEF;
+        regs.pc = 0x80001000;
+
+        let result = target.write_registers(&regs);
+        assert!(result.is_ok());
+
+        // Verify GPRs were written
+        assert_eq!(*processor.state().xreg(1), 0x12345678);
+        assert_eq!(*processor.state().xreg(10), 0xDEADBEEF);
+        // Note: write_registers sets next_pc, so current pc() may still be 0
+        // The PC will be updated on next instruction fetch
+    }
+
+    #[test]
+    fn test_read_write_registers_roundtrip() {
+        let mut processor = make_processor();
+        processor.reset(0x80000000).unwrap();
+        let mut target = GdbTarget::new(&mut processor);
+        let mut regs_out = RiscvCoreRegs::<u64>::default();
+
+        assert!(target.read_registers(&mut regs_out).is_ok());
+
+        let mut regs_in = regs_out.clone();
+        regs_in.x[5] = 0xAAAAAAAA;
+        regs_in.x[6] = 0x55555555;
+        regs_in.pc = 0x80002000;
+
+        assert!(target.write_registers(&regs_in).is_ok());
+
+        // Verify GPRs were written correctly
+        assert_eq!(*processor.state().xreg(5), 0xAAAAAAAA);
+        assert_eq!(*processor.state().xreg(6), 0x55555555);
+    }
+
+    #[test]
+    fn test_exec_mode_changes() {
+        let mut processor = make_processor();
+        processor.reset(0x80000000).unwrap();
+        let mut target = GdbTarget::new(&mut processor);
+
+        assert_eq!(target.exec_mode(), ExecMode::Continue);
+
+        use gdbstub::target::ext::base::singlethread::SingleThreadResume;
+        target.resume(None).unwrap();
+        assert_eq!(target.exec_mode(), ExecMode::Continue);
+
+        use gdbstub::target::ext::base::singlethread::SingleThreadSingleStep;
+        target.step(None).unwrap();
+        assert_eq!(target.exec_mode(), ExecMode::Step);
+    }
+
+    #[test]
+    fn test_sw_breakpoint_operations() {
+        let mut processor = make_processor();
+        processor.reset(0x80000000).unwrap();
+        let mut target = GdbTarget::new(&mut processor);
+
+        assert!(!processor.state().sw_breakpoints().contains(&0x1000));
+
+        use gdbstub::target::ext::breakpoints::SwBreakpoint;
+        let add_result = target.add_sw_breakpoint(0x1000, 0);
+        assert!(add_result.is_ok());
+        assert_eq!(add_result.map_err(|_| ()), Ok(true));
+        assert!(processor.state().sw_breakpoints().contains(&0x1000));
+
+        let remove_result = target.remove_sw_breakpoint(0x1000, 0);
+        assert!(remove_result.is_ok());
+        assert_eq!(remove_result.map_err(|_| ()), Ok(true));
+        assert!(!processor.state().sw_breakpoints().contains(&0x1000));
+    }
+
+    #[test]
+    fn test_sw_breakpoint_multiple() {
+        let mut processor = make_processor();
+        processor.reset(0x80000000).unwrap();
+        let mut target = GdbTarget::new(&mut processor);
+
+        use gdbstub::target::ext::breakpoints::SwBreakpoint;
+
+        assert!(target.add_sw_breakpoint(0x1000, 0).is_ok());
+        assert!(target.add_sw_breakpoint(0x2000, 0).is_ok());
+        assert!(target.add_sw_breakpoint(0x3000, 0).is_ok());
+
+        assert!(processor.state().sw_breakpoints().contains(&0x1000));
+        assert!(processor.state().sw_breakpoints().contains(&0x2000));
+        assert!(processor.state().sw_breakpoints().contains(&0x3000));
+        assert_eq!(processor.state().sw_breakpoints().len(), 3);
+
+        assert!(target.remove_sw_breakpoint(0x2000, 0).is_ok());
+        assert!(processor.state().sw_breakpoints().contains(&0x1000));
+        assert!(!processor.state().sw_breakpoints().contains(&0x2000));
+        assert!(processor.state().sw_breakpoints().contains(&0x3000));
+    }
+}

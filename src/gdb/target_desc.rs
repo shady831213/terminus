@@ -106,3 +106,82 @@ pub const TARGET_DESCRIPTION_XML: &str = r#"<?xml version="1.0"?>
     <reg name="priv" bitsize="8" type="int" regnum="132"/>
   </feature>
 </target>"#;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_target_description_valid_xml() {
+        // Verify the XML starts with proper declaration
+        assert!(TARGET_DESCRIPTION_XML.starts_with(r#"<?xml version="1.0"?>"#));
+        assert!(TARGET_DESCRIPTION_XML.contains("<!DOCTYPE target SYSTEM \"gdb-target.dtd\">"));
+        assert!(TARGET_DESCRIPTION_XML.contains("<target>"));
+        assert!(TARGET_DESCRIPTION_XML.contains("</target>"));
+    }
+
+    #[test]
+    fn test_target_description_has_cpu_feature() {
+        assert!(TARGET_DESCRIPTION_XML.contains(r#"<feature name="org.gnu.gdb.riscv.cpu">"#));
+        // Check for some GPR registers
+        assert!(TARGET_DESCRIPTION_XML.contains(r#"<reg name="x0" bitsize="64" type="int" />"#));
+        assert!(TARGET_DESCRIPTION_XML.contains(r#"<reg name="x31" bitsize="64" type="int" />"#));
+        assert!(TARGET_DESCRIPTION_XML
+            .contains(r#"<reg name="pc" bitsize="64" type="code_ptr" regnum="32"/>"#));
+    }
+
+    #[test]
+    fn test_target_description_has_fpu_feature() {
+        assert!(TARGET_DESCRIPTION_XML.contains(r#"<feature name="org.gnu.gdb.riscv.fpu">"#));
+        // Check for FPR registers
+        assert!(
+            TARGET_DESCRIPTION_XML.contains(r#"<reg name="f0" bitsize="64" type="ieee_double" />"#)
+        );
+        assert!(TARGET_DESCRIPTION_XML
+            .contains(r#"<reg name="f31" bitsize="64" type="ieee_double" />"#));
+        assert!(TARGET_DESCRIPTION_XML
+            .contains(r#"<reg name="fcsr" bitsize="32" type="int" regnum="67"/>"#));
+    }
+
+    #[test]
+    fn test_target_description_has_csr_feature() {
+        assert!(TARGET_DESCRIPTION_XML.contains(r#"<feature name="org.gnu.gdb.riscv.csr">"#));
+        // Check for some CSRs
+        assert!(TARGET_DESCRIPTION_XML
+            .contains(r#"<reg name="sstatus" bitsize="64" type="int" regnum="66"/>"#));
+        assert!(TARGET_DESCRIPTION_XML
+            .contains(r#"<reg name="mstatus" bitsize="64" type="int" regnum="75"/>"#));
+        assert!(TARGET_DESCRIPTION_XML
+            .contains(r#"<reg name="mhartid" bitsize="64" type="int" regnum="91"/>"#));
+    }
+
+    #[test]
+    fn test_target_description_has_virtual_feature() {
+        assert!(TARGET_DESCRIPTION_XML.contains(r#"<feature name="org.gnu.gdb.riscv.virtual">"#));
+        assert!(TARGET_DESCRIPTION_XML
+            .contains(r#"<reg name="priv" bitsize="8" type="int" regnum="132"/>"#));
+    }
+
+    #[test]
+    fn test_target_description_architecture() {
+        assert!(TARGET_DESCRIPTION_XML.contains("<architecture>riscv:rv64</architecture>"));
+    }
+
+    #[test]
+    fn test_xml_well_formed() {
+        // Basic well-formedness check - every opening tag should have a closing tag
+        // Count feature tags
+        let open_features = TARGET_DESCRIPTION_XML.matches("<feature").count();
+        let close_features = TARGET_DESCRIPTION_XML.matches("</feature>").count();
+        assert_eq!(open_features, close_features, "Mismatched feature tags");
+
+        // Count reg tags (self-closing)
+        let reg_count = TARGET_DESCRIPTION_XML.matches("<reg ").count();
+        let reg_self_close = TARGET_DESCRIPTION_XML.matches("/>").count();
+        assert!(reg_count > 0, "Should have register definitions");
+        assert!(
+            reg_self_close >= reg_count,
+            "Registers should be self-closing"
+        );
+    }
+}
