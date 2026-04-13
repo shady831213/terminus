@@ -539,7 +539,7 @@ fn run_gdb_session(
 ) {
     use gdbstub::stub::{DisconnectReason, GdbStub};
     use std::net::TcpListener;
-    use terminus::gdb::{GdbEventLoop, GdbTarget};
+    use terminus::gdb::{GdbEventLoop, GdbTarget, LoggingConnection};
 
     let listener = match TcpListener::bind(gdb_addr) {
         Ok(l) => {
@@ -559,7 +559,7 @@ fn run_gdb_session(
         }
 
         eprintln!("Waiting for GDB connection on {}...", gdb_addr);
-        let (connection, _peer) = match listener.accept() {
+        let (stream, _peer) = match listener.accept() {
             Ok((conn, addr)) => {
                 eprintln!("GDB connected from {}", addr);
                 (conn, addr)
@@ -570,11 +570,12 @@ fn run_gdb_session(
             }
         };
 
-        if let Err(e) = connection.set_read_timeout(Some(std::time::Duration::from_millis(10))) {
+        if let Err(e) = stream.set_read_timeout(Some(std::time::Duration::from_millis(10))) {
             eprintln!("Failed to set read timeout: {}", e);
             continue;
         }
 
+        let connection = LoggingConnection::new(stream);
         let mut target = GdbTarget::new(&mut sys.processors()[0]);
         let gdb = GdbStub::new(connection);
 
