@@ -175,26 +175,46 @@ impl ConnectionExt for LoggingConnection {
     fn read(&mut self) -> Result<u8, Self::Error> {
         self.inner.set_nonblocking(false)?;
         let mut buf = [0u8];
-        match Read::read_exact(&mut self.inner, &mut buf) {
-            Ok(_) => {
-                self.log_rx_byte(buf[0]);
-                Ok(buf[0])
+        loop {
+            match Read::read_exact(&mut self.inner, &mut buf) {
+                Ok(_) => {
+                    self.log_rx_byte(buf[0]);
+                    return Ok(buf[0]);
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    // EAGAIN: Socket may still be in non-blocking mode from a
+                    // prior peek() call. Yield and retry — set_nonblocking(false)
+                    // should take effect on the next attempt.
+                    std::thread::yield_now();
+                    continue;
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                    // Read timeout (10ms): No data available yet, retry.
+                    continue;
+                }
+                Err(e) => {
+                    return Err(e);
+                }
             }
-            Err(e) => Err(e),
         }
     }
 
     fn peek(&mut self) -> Result<Option<u8>, Self::Error> {
         self.inner.set_nonblocking(true)?;
         let mut buf = [0u8];
-        match TcpStream::peek(&self.inner, &mut buf) {
+        let result = match TcpStream::peek(&self.inner, &mut buf) {
             Ok(_) => {
                 // Don't log peeked bytes - they'll be logged when actually read
                 Ok(Some(buf[0]))
             }
             Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => Ok(None),
             Err(e) => Err(e),
-        }
+        };
+        // Reset to blocking mode so subsequent read() calls don't hit EAGAIN.
+        // Ignore the error here — read() will also set_nonblocking(false) and
+        // handle any remaining EAGAIN via its retry loop.
+        let _ = self.inner.set_nonblocking(false);
+        result
     }
 }
 
