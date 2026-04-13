@@ -1,0 +1,10 @@
+=== Task 3: CSR Methods Verification ===
+
+1. csr_debug() method exists:
+285:    pub fn csr_debug(&self, addr: u64) -> u64 {
+
+2. set_csr_debug() method exists:
+300:    pub fn set_csr_debug(&mut self, addr: u64, val: u64) {
+
+3. privilege_to_u8() method exists:
+314:    pub fn privilege_to_u8(&self) -> u8 {

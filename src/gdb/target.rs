@@ -1,6 +1,8 @@
+use crate::processor::privilege::Privilege;
 use crate::processor::Processor;
 use gdbstub::common::Signal;
 use gdbstub::target;
+use gdbstub::target::ext::base::single_register_access::SingleRegisterAccess;
 use gdbstub::target::ext::base::singlethread::{
     SingleThreadBase, SingleThreadResume, SingleThreadResumeOps, SingleThreadSingleStep,
     SingleThreadSingleStepOps,
@@ -9,8 +11,10 @@ use gdbstub::target::ext::breakpoints::{
     Breakpoints, BreakpointsOps, SwBreakpoint, SwBreakpointOps,
 };
 use gdbstub::target::{Target, TargetError, TargetResult};
+use gdbstub_arch::riscv::reg::id::RiscvRegId;
 use gdbstub_arch::riscv::reg::RiscvCoreRegs;
 use gdbstub_arch::riscv::Riscv64;
+use std::convert::TryFrom;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExecMode {
@@ -73,6 +77,7 @@ impl SingleThreadBase for GdbTarget {
         for i in 0..32 {
             regs.x[i] = *state.xreg(i as u32);
         }
+        regs.x[0] = 0;
         regs.pc = *state.pc();
         Ok(())
     }
@@ -82,20 +87,16 @@ impl SingleThreadBase for GdbTarget {
         for i in 0..32 {
             state.set_xreg(i as u32, regs.x[i]);
         }
-        state.set_pc(regs.pc);
+        state.set_pc_direct(regs.pc);
         Ok(())
     }
 
     fn read_addrs(&mut self, start_addr: u64, data: &mut [u8]) -> TargetResult<usize, Self> {
-        let proc = self.processor();
-        let ls = proc.load_store();
-        let mmu = proc.mmu();
-        let state = proc.state();
+        let bus = self.processor().bus();
         for (i, byte) in data.iter_mut().enumerate() {
             let addr = start_addr.wrapping_add(i as u64);
-            let mut val: u8 = 0;
-            match ls.load_byte(state, &addr, &mut val, mmu) {
-                Ok(()) => *byte = val,
+            match bus.read_u8(&addr, byte) {
+                Ok(()) => {}
                 Err(_) => {
                     if i == 0 {
                         return Err(TargetError::NonFatal);
@@ -108,17 +109,16 @@ impl SingleThreadBase for GdbTarget {
     }
 
     fn write_addrs(&mut self, start_addr: u64, data: &[u8]) -> TargetResult<(), Self> {
-        let proc = self.processor();
-        let ls = proc.load_store();
-        let mmu = proc.mmu();
-        let state = proc.state();
+        let bus = self.processor().bus();
         for (i, byte) in data.iter().enumerate() {
             let addr = start_addr.wrapping_add(i as u64);
-            match ls.store_byte(state, &addr, byte, mmu) {
+            match bus.write_u8(&addr, byte) {
                 Ok(()) => {}
                 Err(_) => return Err(TargetError::NonFatal),
             }
         }
+        self.processor().mmu().flush_tlb();
+        self.processor().fetcher().flush_icache();
         Ok(())
     }
 
@@ -132,7 +132,112 @@ impl SingleThreadBase for GdbTarget {
         &mut self,
     ) -> Option<target::ext::base::single_register_access::SingleRegisterAccessOps<'_, (), Self>>
     {
-        None
+        Some(self)
+    }
+}
+
+impl SingleRegisterAccess<()> for GdbTarget {
+    fn read_register(
+        &mut self,
+        _tid: (),
+        reg_id: RiscvRegId<u64>,
+        buf: &mut [u8],
+    ) -> TargetResult<usize, Self> {
+        match reg_id {
+            RiscvRegId::Gpr(n) => {
+                let val: u64 = *self.processor().state().xreg(n as u32);
+                buf[..8].copy_from_slice(&val.to_le_bytes());
+                Ok(8)
+            }
+            RiscvRegId::Pc => {
+                let val: u64 = *self.processor().state().pc();
+                buf[..8].copy_from_slice(&val.to_le_bytes());
+                Ok(8)
+            }
+            RiscvRegId::Fpr(n) => match self.processor().state().freg(n as u32) {
+                Some(val) => {
+                    let lo = val as u64;
+                    buf[..8].copy_from_slice(&lo.to_le_bytes());
+                    Ok(8)
+                }
+                None => Err(TargetError::NonFatal),
+            },
+            RiscvRegId::Csr(addr) => {
+                let val: u64 = self.processor().state().csr_debug(addr as u64);
+                buf[..8].copy_from_slice(&val.to_le_bytes());
+                Ok(8)
+            }
+            RiscvRegId::Priv => {
+                buf[0] = self.processor().state().privilege_to_u8();
+                Ok(1)
+            }
+            RiscvRegId::_Marker(_) | _ => Err(TargetError::NonFatal),
+        }
+    }
+
+    fn write_register(
+        &mut self,
+        _tid: (),
+        reg_id: RiscvRegId<u64>,
+        val: &[u8],
+    ) -> TargetResult<(), Self> {
+        match reg_id {
+            RiscvRegId::Gpr(n) => {
+                if val.len() >= 8 {
+                    let v = u64::from_le_bytes([
+                        val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7],
+                    ]);
+                    self.processor_mut().state_mut().set_xreg(n as u32, v);
+                }
+                Ok(())
+            }
+            RiscvRegId::Pc => {
+                if val.len() >= 8 {
+                    let v = u64::from_le_bytes([
+                        val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7],
+                    ]);
+                    self.processor_mut().state_mut().set_pc_direct(v);
+                }
+                Ok(())
+            }
+            RiscvRegId::Fpr(n) => {
+                if val.len() >= 8 {
+                    let lo = u64::from_le_bytes([
+                        val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7],
+                    ]);
+                    match self
+                        .processor_mut()
+                        .state_mut()
+                        .set_freg(n as u32, lo as u128)
+                    {
+                        Some(_) => Ok(()),
+                        None => Err(TargetError::NonFatal),
+                    }
+                } else {
+                    Ok(())
+                }
+            }
+            RiscvRegId::Csr(addr) => {
+                if val.len() >= 8 {
+                    let v = u64::from_le_bytes([
+                        val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7],
+                    ]);
+                    self.processor_mut()
+                        .state_mut()
+                        .set_csr_debug(addr as u64, v);
+                }
+                Ok(())
+            }
+            RiscvRegId::Priv => {
+                if !val.is_empty() {
+                    if let Ok(priv_level) = Privilege::try_from(val[0]) {
+                        self.processor_mut().state_mut().set_privilege(priv_level);
+                    }
+                }
+                Ok(())
+            }
+            RiscvRegId::_Marker(_) | _ => Err(TargetError::NonFatal),
+        }
     }
 }
 
@@ -235,8 +340,8 @@ mod tests {
         // Verify GPRs were written
         assert_eq!(*processor.state().xreg(1), 0x12345678);
         assert_eq!(*processor.state().xreg(10), 0xDEADBEEF);
-        // Note: write_registers sets next_pc, so current pc() may still be 0
-        // The PC will be updated on next instruction fetch
+        // write_registers now sets both pc and next_pc via set_pc_direct
+        assert_eq!(*processor.state().pc(), 0x80001000);
     }
 
     #[test]
@@ -318,5 +423,120 @@ mod tests {
         assert!(processor.state().sw_breakpoints().contains(&0x1000));
         assert!(!processor.state().sw_breakpoints().contains(&0x2000));
         assert!(processor.state().sw_breakpoints().contains(&0x3000));
+    }
+
+    #[test]
+    fn test_single_register_access_gpr() {
+        let mut processor = make_processor();
+        processor.reset(0x80000000).unwrap();
+        let mut target = GdbTarget::new(&mut processor);
+
+        // Read GPR 1 (should be 0 after reset)
+        let mut buf = [0u8; 8];
+        let result = target.read_register((), RiscvRegId::Gpr(1), &mut buf);
+        assert!(result.is_ok());
+        assert_eq!(result.ok().unwrap(), 8);
+        assert_eq!(u64::from_le_bytes(buf), 0);
+
+        // Write GPR 1
+        let val = 0x12345678u64.to_le_bytes();
+        let result = target.write_register((), RiscvRegId::Gpr(1), &val);
+        assert!(result.is_ok());
+        assert_eq!(*processor.state().xreg(1), 0x12345678);
+
+        // Read back
+        let result = target.read_register((), RiscvRegId::Gpr(1), &mut buf);
+        assert!(result.is_ok());
+        assert_eq!(u64::from_le_bytes(buf), 0x12345678);
+    }
+
+    #[test]
+    fn test_single_register_access_gpr_x0_always_zero() {
+        let mut processor = make_processor();
+        processor.reset(0x80000000).unwrap();
+        let mut target = GdbTarget::new(&mut processor);
+
+        // Read x0 (should always be 0)
+        let mut buf = [0u8; 8];
+        let result = target.read_register((), RiscvRegId::Gpr(0), &mut buf);
+        assert!(result.is_ok());
+        assert_eq!(u64::from_le_bytes(buf), 0);
+
+        // Write to x0 should be a no-op (x0 is hardwired to 0)
+        let val = 0xDEADu64.to_le_bytes();
+        let result = target.write_register((), RiscvRegId::Gpr(0), &val);
+        assert!(result.is_ok());
+        assert_eq!(*processor.state().xreg(0), 0);
+    }
+
+    #[test]
+    fn test_single_register_access_pc() {
+        let mut processor = make_processor();
+        processor.reset(0x80000000).unwrap();
+        let mut target = GdbTarget::new(&mut processor);
+
+        // Read PC
+        let mut buf = [0u8; 8];
+        let result = target.read_register((), RiscvRegId::Pc, &mut buf);
+        assert!(result.is_ok());
+        assert_eq!(result.ok().unwrap(), 8);
+
+        // Write PC
+        let val = 0x80005000u64.to_le_bytes();
+        let result = target.write_register((), RiscvRegId::Pc, &val);
+        assert!(result.is_ok());
+        assert_eq!(*processor.state().pc(), 0x80005000);
+    }
+
+    #[test]
+    fn test_single_register_access_priv() {
+        let mut processor = make_processor();
+        processor.reset(0x80000000).unwrap();
+        let mut target = GdbTarget::new(&mut processor);
+
+        // Read privilege (should be M=3 after reset)
+        let mut buf = [0u8; 1];
+        let result = target.read_register((), RiscvRegId::Priv, &mut buf);
+        assert!(result.is_ok());
+        assert_eq!(result.ok().unwrap(), 1);
+        assert_eq!(buf[0], 3); // M mode
+    }
+
+    #[test]
+    fn test_single_register_access_csr() {
+        let mut processor = make_processor();
+        processor.reset(0x80000000).unwrap();
+        let mut target = GdbTarget::new(&mut processor);
+
+        // Read mstatus CSR (address 0x300)
+        let mut buf = [0u8; 8];
+        let result = target.read_register((), RiscvRegId::Csr(0x300), &mut buf);
+        assert!(result.is_ok());
+        assert_eq!(result.ok().unwrap(), 8);
+    }
+
+    #[test]
+    fn test_x0_zeroed_after_read_registers() {
+        let mut processor = make_processor();
+        processor.reset(0x80000000).unwrap();
+        let mut target = GdbTarget::new(&mut processor);
+        let mut regs = RiscvCoreRegs::<u64>::default();
+
+        assert!(target.read_registers(&mut regs).is_ok());
+        assert_eq!(regs.x[0], 0);
+    }
+
+    #[test]
+    fn test_write_registers_sets_pc_directly() {
+        let mut processor = make_processor();
+        processor.reset(0x80000000).unwrap();
+        let mut target = GdbTarget::new(&mut processor);
+        let mut regs = RiscvCoreRegs::<u64>::default();
+
+        regs.pc = 0x8000ABCD;
+
+        assert!(target.write_registers(&regs).is_ok());
+        // Both pc and next_pc should be set
+        assert_eq!(*processor.state().pc(), 0x8000ABCD);
     }
 }

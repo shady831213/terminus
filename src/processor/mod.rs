@@ -397,6 +397,38 @@ impl ProcessorState {
             // self.xreg[trip_id as usize] = value
         }
     }
+
+    /// Set both pc and next_pc to the same value (used by GDB debugger).
+    /// Unlike set_pc which only sets next_pc, this also updates the current pc
+    /// so the change takes effect immediately.
+    pub fn set_pc_direct(&mut self, pc: RegT) {
+        self.pc = pc;
+        self.next_pc = pc;
+    }
+
+    /// Read a floating-point register. Returns None if the F extension is not enabled.
+    pub fn freg(&self, id: u32) -> Option<u128> {
+        if let Extension::F(ref float) = self.get_extension('f') {
+            Some(*float.freg(id))
+        } else {
+            None
+        }
+    }
+
+    /// Write a floating-point register. Returns None if the F extension is not enabled.
+    pub fn set_freg(&mut self, id: u32, value: u128) -> Option<()> {
+        if let Extension::F(ref mut float) = self.get_extension_mut('f') {
+            float.set_freg(id, value);
+            Some(())
+        } else {
+            None
+        }
+    }
+
+    /// Set the current privilege level.
+    pub fn set_privilege(&mut self, priv_level: Privilege) {
+        self.privilege.set_priv(priv_level);
+    }
 }
 
 pub struct Processor {
@@ -447,6 +479,10 @@ impl Processor {
 
     pub const fn load_store(&self) -> &LoadStore {
         &self.load_store
+    }
+
+    pub fn bus(&self) -> &Rc<dyn Bus> {
+        self.load_store.bus()
     }
 
     pub const fn state(&self) -> &ProcessorState {

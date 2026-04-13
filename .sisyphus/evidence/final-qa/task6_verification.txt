@@ -1,0 +1,23 @@
+=== Task 6: GdbEventLoop and Step/Continue Verification ===
+
+1. GdbEventLoop struct exists:
+21:pub struct GdbEventLoop;
+
+2. BlockingEventLoop implementation:
+23:impl run_blocking::BlockingEventLoop for GdbEventLoop {
+
+3. wait_for_stop_reason method:
+28:    fn wait_for_stop_reason(
+
+4. ExecMode enum (Continue/Step):
+16:pub enum ExecMode {
+17-    Continue,
+18-    Step,
+19-}
+20-
+
+5. SingleThreadResume implementation:
+139:impl SingleThreadResume for GdbTarget {
+
+6. SingleThreadSingleStep implementation:
+151:impl SingleThreadSingleStep for GdbTarget {

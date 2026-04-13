@@ -1,0 +1,25 @@
+=== Task 7: --gdb Flag Verification ===
+
+1. --gdb flag defined in main.rs:
+290:            Arg::with_name("gdb")
+291:                .long("gdb")
+357:    let gdb_addr = if matches.is_present("gdb") {
+360:                .value_of("gdb")
+494:    if let Some(ref addr) = gdb_addr {
+495:        run_gdb_session(
+532:fn run_gdb_session(
+534:    gdb_addr: &str,
+540:    use gdbstub::stub::{DisconnectReason, GdbStub};
+542:    use terminus::gdb::{GdbEventLoop, GdbTarget};
+544:    let listener = match TcpListener::bind(gdb_addr) {
+546:            eprintln!("GDB server listening on {}", gdb_addr);
+550:            eprintln!("Failed to bind to {}: {}", gdb_addr, e);
+561:        eprintln!("Waiting for GDB connection on {}...", gdb_addr);
+579:        let gdb = GdbStub::new(connection);
+
+2. Help text for --gdb:
+        --gdb <GDB_ADDR>                   enable GDB remote debugging, optionally specify listen address (default:
+                                           0.0.0.0:1234)
+        --height <HEIGHT>                  display height, need "sdl" feature [default: 600]
+
+3. Binary recognizes --gdb:
