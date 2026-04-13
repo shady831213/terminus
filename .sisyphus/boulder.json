@@ -24,6 +24,15 @@
       "agent": "Sisyphus-Junior",
       "category": "deep",
       "updated_at": "2026-04-13T04:15:54.245Z"
+    },
+    "todo:7": {
+      "task_key": "todo:7",
+      "task_label": "7",
+      "task_title": "CLI integration --gdb flag + main loop restructuring",
+      "session_id": "ses_27af0d8feffe4mFBp3l6BPD7TL",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-04-13T04:23:57.525Z"
     }
   },
   "session_origins": {

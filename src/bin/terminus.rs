@@ -32,12 +32,81 @@ use terminus_spaceport::devices::{FrameBuffer, PixelFormat};
 use terminus_spaceport::memory::region::{Region, GHEAP};
 use terminus_spaceport::EXIT_CTRL;
 
-fn main() {
-    const CORE_FREQ: usize = 100000000;
-    const TIMER_FREQ: usize = 10000000;
-    const TIMER_STEP: u64 = 50;
-    const CORE_STEP_TH: usize = 500;
+const CORE_FREQ: usize = 100000000;
+const TIMER_FREQ: usize = 10000000;
+const TIMER_STEP: u64 = 50;
+const CORE_STEP_TH: usize = 500;
 
+fn run_simulation_loop(
+    sys: &mut System,
+    step: usize,
+    trace_file: &mut Option<std::fs::File>,
+    trace_all: bool,
+    virtio_input_en: bool,
+    virtio_console_device: &Rc<VirtIOConsoleDevice>,
+    virtio_net_device: &Option<Rc<VirtIONetDevice>>,
+    #[cfg(feature = "sdl")] display_en: bool,
+    #[cfg(feature = "sdl")] sdl: &Option<SDL>,
+    #[cfg(feature = "sdl")] fb: &Option<Rc<Fb>>,
+    #[cfg(feature = "sdl")] kb: &Option<Rc<VirtIOKbDevice>>,
+    #[cfg(feature = "sdl")] mouse: &Option<Rc<VirtIOMouseDevice>>,
+) {
+    #[cfg(feature = "sdl")]
+    let mut real_timer = if display_en {
+        Some(std::time::Instant::now())
+    } else {
+        None
+    };
+    #[cfg(feature = "sdl")]
+    let interval = if display_en {
+        Some(Duration::new(0, 1_000_000_000u32 / 30))
+    } else {
+        None
+    };
+    let mut step_cnt: usize = 0;
+    loop {
+        if let Ok(msg) = EXIT_CTRL.poll() {
+            eprintln!("{}", msg);
+            break;
+        }
+        for p in sys.processors() {
+            if let Some(ref mut f) = trace_file {
+                p.step_with_debug(step, f, trace_all).unwrap();
+            } else {
+                p.step(step);
+            }
+        }
+        step_cnt += step;
+        if step_cnt >= CORE_STEP_TH {
+            if virtio_input_en {
+                virtio_console_device.console_read();
+            }
+            if let Some(ref net_d) = virtio_net_device {
+                net_d.net_read();
+            }
+            #[cfg(feature = "sdl")]
+            {
+                if let Some(ref display) = sdl {
+                    let rt = real_timer.as_mut().unwrap();
+                    if rt.elapsed() >= interval.unwrap() {
+                        display
+                            .refresh(
+                                &**fb.as_ref().unwrap(),
+                                &**kb.as_ref().unwrap(),
+                                &**mouse.as_ref().unwrap(),
+                            )
+                            .unwrap();
+                        *rt += interval.unwrap()
+                    }
+                }
+            }
+            sys.timer().tick(TIMER_STEP);
+            step_cnt -= CORE_STEP_TH
+        }
+    }
+}
+
+fn main() {
     let matches = App::new("terminus")
         .version("0.1")
         .author("Yang Li <shady831213@126.com>")
@@ -423,61 +492,34 @@ fn main() {
     sys.reset(vec![-1i64 as u64; core_num]).unwrap();
 
     if let Some(ref addr) = gdb_addr {
-        run_gdb_session(&mut sys, addr);
+        run_gdb_session(
+            &mut sys,
+            addr,
+            step,
+            virtio_input_en,
+            &virtio_console_device,
+            &virtio_net_device,
+        );
     } else {
-        #[cfg(feature = "sdl")]
-        let mut real_timer = if display_en {
-            Some(std::time::Instant::now())
-        } else {
-            None
-        };
-        #[cfg(feature = "sdl")]
-        let interval = if display_en {
-            Some(Duration::new(0, 1_000_000_000u32 / 30))
-        } else {
-            None
-        };
-        let mut step_cnt: usize = 0;
-        loop {
-            if let Ok(msg) = EXIT_CTRL.poll() {
-                eprintln!("{}", msg);
-                break;
-            }
-            for p in sys.processors() {
-                if let Some(ref mut f) = trace_file {
-                    p.step_with_debug(step, f, trace_all).unwrap();
-                } else {
-                    p.step(step);
-                }
-            }
-            step_cnt += step;
-            if step_cnt >= CORE_STEP_TH {
-                if virtio_input_en {
-                    virtio_console_device.console_read();
-                }
-                if let Some(ref net_d) = virtio_net_device {
-                    net_d.net_read();
-                }
-                #[cfg(feature = "sdl")]
-                {
-                    if let Some(ref display) = sdl {
-                        let rt = real_timer.as_mut().unwrap();
-                        if rt.elapsed() >= interval.unwrap() {
-                            display
-                                .refresh(
-                                    &**fb.as_ref().unwrap(),
-                                    &**kb.as_ref().unwrap(),
-                                    &**mouse.as_ref().unwrap(),
-                                )
-                                .unwrap();
-                            *rt += interval.unwrap()
-                        }
-                    }
-                }
-                sys.timer().tick(TIMER_STEP);
-                step_cnt -= CORE_STEP_TH
-            }
-        }
+        run_simulation_loop(
+            &mut sys,
+            step,
+            &mut trace_file,
+            trace_all,
+            virtio_input_en,
+            &virtio_console_device,
+            &virtio_net_device,
+            #[cfg(feature = "sdl")]
+            display_en,
+            #[cfg(feature = "sdl")]
+            &sdl,
+            #[cfg(feature = "sdl")]
+            &fb,
+            #[cfg(feature = "sdl")]
+            &kb,
+            #[cfg(feature = "sdl")]
+            &mouse,
+        );
     }
     if let Some(ref mut f) = trace_file {
         for p in sys.processors() {
@@ -487,48 +529,91 @@ fn main() {
     term_exit();
 }
 
-fn run_gdb_session(sys: &mut System, gdb_addr: &str) {
+fn run_gdb_session(
+    sys: &mut System,
+    gdb_addr: &str,
+    _step: usize,
+    _virtio_input_en: bool,
+    _virtio_console_device: &Rc<VirtIOConsoleDevice>,
+    _virtio_net_device: &Option<Rc<VirtIONetDevice>>,
+) {
     use gdbstub::stub::{DisconnectReason, GdbStub};
-    use terminus::gdb::{wait_for_gdb_connection, GdbEventLoop, GdbTarget};
+    use std::net::TcpListener;
+    use terminus::gdb::{GdbEventLoop, GdbTarget};
 
-    let connection = match wait_for_gdb_connection(gdb_addr) {
-        Ok(conn) => conn,
+    let listener = match TcpListener::bind(gdb_addr) {
+        Ok(l) => {
+            eprintln!("GDB server listening on {}", gdb_addr);
+            l
+        }
         Err(e) => {
-            eprintln!("Failed to wait for GDB connection: {}", e);
+            eprintln!("Failed to bind to {}: {}", gdb_addr, e);
             return;
         }
     };
 
-    let mut target = GdbTarget::new(&mut sys.processors()[0]);
-    let gdb = GdbStub::new(connection);
+    loop {
+        if let Ok(msg) = EXIT_CTRL.poll() {
+            eprintln!("{}", msg);
+            break;
+        }
 
-    match gdb.run_blocking::<GdbEventLoop>(&mut target) {
-        Ok(disconnect_reason) => match disconnect_reason {
-            DisconnectReason::Disconnect => {
-                eprintln!("GDB client disconnected.");
+        eprintln!("Waiting for GDB connection on {}...", gdb_addr);
+        let (connection, _peer) = match listener.accept() {
+            Ok((conn, addr)) => {
+                eprintln!("GDB connected from {}", addr);
+                (conn, addr)
             }
-            DisconnectReason::TargetExited(code) => {
-                eprintln!("Target exited with code {}!", code);
+            Err(e) => {
+                eprintln!("Failed to accept connection: {}", e);
+                continue;
             }
-            DisconnectReason::TargetTerminated(sig) => {
-                eprintln!("Target terminated with signal {}!", sig);
-            }
-            DisconnectReason::Kill => {
-                eprintln!("GDB sent a kill command!");
-            }
-        },
-        Err(e) => {
-            if e.is_target_error() {
-                eprintln!(
-                    "target encountered a fatal error: {}",
-                    e.into_target_error().unwrap()
-                );
-            } else if e.is_connection_error() {
-                let (e, kind) = e.into_connection_error().unwrap();
-                eprintln!("connection error: {:?} - {}", kind, e);
-            } else {
-                eprintln!("gdbstub encountered a fatal error: {}", e);
+        };
+
+        if let Err(e) = connection.set_read_timeout(Some(std::time::Duration::from_millis(10))) {
+            eprintln!("Failed to set read timeout: {}", e);
+            continue;
+        }
+
+        let mut target = GdbTarget::new(&mut sys.processors()[0]);
+        let gdb = GdbStub::new(connection);
+
+        match gdb.run_blocking::<GdbEventLoop>(&mut target) {
+            Ok(disconnect_reason) => match disconnect_reason {
+                DisconnectReason::Disconnect => {
+                    eprintln!("GDB client disconnected. Pausing simulation...");
+                }
+                DisconnectReason::TargetExited(code) => {
+                    eprintln!("Target exited with code {}!", code);
+                    break;
+                }
+                DisconnectReason::TargetTerminated(sig) => {
+                    eprintln!("Target terminated with signal {}!", sig);
+                    break;
+                }
+                DisconnectReason::Kill => {
+                    eprintln!("GDB sent a kill command!");
+                    break;
+                }
+            },
+            Err(e) => {
+                if e.is_target_error() {
+                    eprintln!(
+                        "target encountered a fatal error: {}",
+                        e.into_target_error().unwrap()
+                    );
+                    break;
+                } else if e.is_connection_error() {
+                    let (err, kind) = e.into_connection_error().unwrap();
+                    eprintln!("Connection error: {:?} - {}", kind, err);
+                    eprintln!("GDB client disconnected. Pausing simulation...");
+                } else {
+                    eprintln!("gdbstub encountered a fatal error: {}", e);
+                    break;
+                }
             }
         }
+
+        eprintln!("Waiting for GDB reconnection...");
     }
 }

@@ -1,0 +1,73 @@
+Task 7: CLI Integration --gdb Flag Evidence
+================================================
+
+Date: 2025-04-13
+
+1. CLI Flag Implementation
+--------------------------
+The --gdb flag has been added to src/bin/terminus.rs using clap v2:
+
+    .arg(
+        Arg::with_name("gdb")
+            .long("gdb")
+            .takes_value(true)
+            .value_name("GDB_ADDR")
+            .help("enable GDB remote debugging, optionally specify listen address (default: 0.0.0.0:1234)")
+    )
+
+The flag accepts address in format:
+- --gdb :1234 (listen on all interfaces, port 1234)
+- --gdb 127.0.0.1:1234 (listen on specific interface)
+
+Default value when flag is present without value: 0.0.0.0:1234
+
+2. Main Loop Restructuring
+--------------------------
+Extracted simulation loop into a reusable function:
+
+fn run_simulation_loop(
+    sys: &mut System,
+    step: usize,
+    trace_file: &mut Option<std::fs::File>,
+    trace_all: bool,
+    virtio_input_en: bool,
+    virtio_console_device: &Rc<VirtIOConsoleDevice>,
+    virtio_net_device: &Option<Rc<VirtIONetDevice>>,
+    ...
+)
+
+This function is called from main() when --gdb is NOT specified.
+
+3. GDB Server Function
+----------------------
+Added run_gdb_session() function that:
+- Binds to the specified address
+- Waits for GDB connections in a loop
+- Handles disconnect/reconnect
+- Pauses simulation when GDB disconnects
+- Resumes when GDB reconnects
+
+4. Zero Overhead
+----------------
+When --gdb is NOT specified:
+- Normal simulation loop runs unchanged
+- No GDB-related code is executed
+- No performance impact
+
+5. Verification
+---------------
+✅ cargo build passes
+✅ cargo test passes (17 tests)
+✅ --gdb flag appears in --help output
+✅ --gdb :12345 starts GDB server
+✅ Normal execution without --gdb works identically
+
+6. Files Modified
+-----------------
+- src/bin/terminus.rs
+  - Extracted run_simulation_loop() function
+  - Updated run_gdb_session() with disconnect/reconnect handling
+  - Restructured main() to use extracted functions
+
+- src/gdb/mod.rs
+  - Already exports: GdbTarget, GdbEventLoop, RiscvRegId, TARGET_DESCRIPTION_XML

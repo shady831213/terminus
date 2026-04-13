@@ -614,7 +614,7 @@ Max Concurrent: 4 (Wave 1)
   - Message: `feat(gdb): implement GdbEventLoop with resume, step, and breakpoints`
   - Files: `src/gdb/event_loop.rs`, `src/gdb/target.rs`
 
-- [ ] 7. CLI integration --gdb flag + main loop restructuring
+- [x] 7. CLI integration --gdb flag + main loop restructuring
 
   **What to do**:
   - Add `--gdb <addr>` CLI flag to `src/bin/terminus.rs` using existing `clap` v2 argument parser

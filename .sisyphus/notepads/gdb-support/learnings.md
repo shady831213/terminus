@@ -1,30 +1,4 @@
-# Task 4 Progress Notes
-
-## Date: 2026-04-13
-
-## Completed
-- Created `src/gdb/reg_id.rs` with `RiscvRegId` enum implementing `gdbstub::arch::RegId`
-- Created `src/gdb/target_desc.rs` with `TARGET_DESCRIPTION_XML` constant
-
-## GDB Register Numbering
-- 0-31: GPR (x0-x31) - 8 bytes each
-- 32: PC - 8 bytes
-- 33-64: FPR (f0-f31) - 8 bytes each
-- 65: FCSR - 8 bytes
-- 66-91: CSRs (mstatus, misa, ..., satp) - 8 bytes each
-- 132: priv (virtual) - 1 byte
-
-## CSR Mapping
-- CSR address 0x100-0x13F maps to GDB registers 66-91
-- `csr_addr_to_regnum()` helper converts CSR addr to GDB regnum
-
-## Blocker
-- Build fails due to Task 2's incomplete changes to `ProcessorState`
-- Task 2 added `debug_mode: bool` and `sw_breakpoints: HashSet<u64>` fields
-- Constructor in `new()` method not updated to initialize these fields
-- Awaiting Task 2 completion to unblock build
-
----
+# GDB Support Implementation Notes
 
 ## Task 1 Completion Notes (2026-04-13)
 
@@ -42,6 +16,33 @@
 ### Pattern observed:
 - Module pattern in src/lib.rs: `pub mod module_name;`
 - Files go directly in src/gdb/ (not nested further)
+
+---
+
+## Task 2 Completion Notes (2026-04-13)
+
+### What was done:
+- Added `use std::collections::HashSet;` import to src/processor/mod.rs
+- Added `debug_mode: bool` and `sw_breakpoints: HashSet<u64>` fields to ProcessorState
+- Initialized both fields in ProcessorState::new() (debug_mode: false, sw_breakpoints: HashSet::new())
+- Added accessor methods: debug_mode(), set_debug_mode(), sw_breakpoints(), add_sw_breakpoint(), remove_sw_breakpoint()
+- Defined DebugStopReason enum with Breakpoint(u64), StepComplete, Halted variants
+- Modified one_step() to return Option<DebugStopReason> with debug interception logic
+- Modified step() to return Option<DebugStopReason> and break early on debug stop
+- Modified step_with_debug() to return Result<Option<DebugStopReason>, String>
+- Fixed caller in src/bin/terminus.rs (added semicolon after .unwrap())
+- Added 5 unit tests, all passing
+
+### Key patterns:
+- Bus is a trait; TerminusBus is the concrete type used in tests
+- Processor::new takes (hartid, config, &Rc<B>, clint, plic) where B: Bus
+- When debug_mode=false, one_step() returns None (equivalent to previous unit return)
+- sw_breakpoints check uses next_pc (the address about to be executed) before execute_one()
+- EBREAK interception checks Trap::Exception(Exception::Breakpoint) after execute_one() fails
+
+### Files modified:
+- src/processor/mod.rs (main changes)
+- src/bin/terminus.rs (caller fix: semicolon after .unwrap())
 
 ---
 
@@ -76,33 +77,6 @@ Index 25 -> mhartid (0xF14)
 ### Files:
 - src/gdb/reg_id.rs - RiscvRegId enum + RegId trait + CSR helpers
 - src/gdb/target_desc.rs - TARGET_DESCRIPTION_XML constant
-
----
-
-## Task 2 Completion Notes (2026-04-13)
-
-### What was done:
-- Added `use std::collections::HashSet;` import to src/processor/mod.rs
-- Added `debug_mode: bool` and `sw_breakpoints: HashSet<u64>` fields to ProcessorState
-- Initialized both fields in ProcessorState::new() (debug_mode: false, sw_breakpoints: HashSet::new())
-- Added accessor methods: debug_mode(), set_debug_mode(), sw_breakpoints(), add_sw_breakpoint(), remove_sw_breakpoint()
-- Defined DebugStopReason enum with Breakpoint(u64), StepComplete, Halted variants
-- Modified one_step() to return Option<DebugStopReason> with debug interception logic
-- Modified step() to return Option<DebugStopReason> and break early on debug stop
-- Modified step_with_debug() to return Result<Option<DebugStopReason>, String>
-- Fixed caller in src/bin/terminus.rs (added semicolon after .unwrap())
-- Added 5 unit tests, all passing
-
-### Key patterns:
-- Bus is a trait; TerminusBus is the concrete type used in tests
-- Processor::new takes (hartid, config, &Rc<B>, clint, plic) where B: Bus
-- When debug_mode=false, one_step() returns None (equivalent to previous unit return)
-- sw_breakpoints check uses next_pc (the address about to be executed) before execute_one()
-- EBREAK interception checks Trap::Exception(Exception::Breakpoint) after execute_one() fails
-
-### Files modified:
-- src/processor/mod.rs (main changes)
-- src/bin/terminus.rs (caller fix: semicolon after .unwrap())
 
 ---
 
@@ -149,3 +123,55 @@ Index 25 -> mhartid (0xF14)
 - src/gdb/event_loop.rs (GdbEventLoop + wait_for_gdb_connection)
 - src/gdb/mod.rs (updated exports)
 - src/bin/terminus.rs (added --gdb flag and GDB session integration)
+
+---
+
+## Task 7 Completion Notes (2026-04-13)
+
+### What was done:
+- Extracted simulation loop into reusable `run_simulation_loop()` function:
+  - Takes all necessary parameters (sys, step, trace_file, virtio devices, etc.)
+  - Called from main() when --gdb is NOT specified
+  - Zero overhead when GDB is not used
+  
+- Enhanced `run_gdb_session()` function in src/bin/terminus.rs:
+  - Creates TcpListener and binds to specified address
+  - Loops to accept GDB connections
+  - Handles disconnect/reconnect properly:
+    - On disconnect: prints message and loops back to accept()
+    - On reconnect: simulation resumes automatically
+    - On TargetExited/TargetTerminated/Kill: exits loop
+  - Uses TcpStream with read timeout for non-blocking checks
+
+- Address parsing:
+  - --gdb :1234 → listens on all interfaces, port 1234
+  - --gdb 127.0.0.1:1234 → listens on specific interface
+  - Default when flag present without value: 0.0.0.0:1234
+
+### Key Patterns:
+- `TcpListener::bind()` accepts both ":1234" and "127.0.0.1:1234" formats
+- GDB session runs in a loop to support reconnect:
+  ```rust
+  loop {
+      let (connection, _) = listener.accept()?;
+      // Run GDB session
+      // On disconnect, continue loop
+  }
+  ```
+- Simulation is paused implicitly when waiting for `listener.accept()`
+- `DisconnectReason::Disconnect` indicates clean client disconnect
+- Connection errors also trigger disconnect handling
+
+### Files Modified:
+- src/bin/terminus.rs:
+  - Added constants at module level (CORE_FREQ, TIMER_FREQ, etc.)
+  - Extracted `run_simulation_loop()` function
+  - Updated `run_gdb_session()` with disconnect/reconnect handling
+  - Restructured main() to call extracted functions
+
+### Verification:
+✅ cargo build passes
+✅ cargo test passes (17 tests)
+✅ --gdb flag appears in --help output
+✅ --gdb :12345 starts GDB server
+✅ Normal execution without --gdb unchanged (zero overhead)
