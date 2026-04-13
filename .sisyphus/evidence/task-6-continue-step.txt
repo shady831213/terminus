@@ -1,0 +1,45 @@
+Task 6: Continue and Step via GDB Evidence
+=============================================
+
+Date: 2026-04-13
+
+Implementation Details:
+
+1. GdbTarget (src/gdb/target.rs):
+   - Implements gdbstub::target::Target trait with Arch = Riscv64
+   - Implements SingleThreadBase: read_registers, write_registers, read_addrs, write_addrs
+   - Implements SingleThreadResume: resume() sets ExecMode::Continue
+   - Implements SingleThreadSingleStep: step() sets ExecMode::Step
+   - Implements SwBreakpoint: add/remove breakpoints via ProcessorState's sw_breakpoints HashSet
+   - Uses raw pointer (*mut Processor) to avoid lifetime issues with BlockingEventLoop trait
+   - Memory access uses LoadStore::load_byte/store_byte through MMU translation
+
+2. GdbEventLoop (src/gdb/event_loop.rs):
+   - Implements gdbstub::stub::run_blocking::BlockingEventLoop
+   - wait_for_stop_reason():
+     - Step mode: executes one instruction via processor.step(1), returns DoneStep or SwBreak
+     - Continue mode: executes in batches of 1024 instructions, checks for GDB data between batches
+     - Checks for breakpoints after each step (DebugStopReason::Breakpoint)
+     - Checks for EBREAK exceptions (DebugStopReason::Halted)
+     - Ctrl-C handled by on_interrupt() returning Signal::SIGINT
+   - Uses TcpStream directly (gdbstub provides Connection/ConnectionExt impls for TcpStream)
+   - wait_for_gdb_connection(): TCP listener on specified address, accepts one connection
+
+3. Integration (src/bin/terminus.rs):
+   - Added --gdb CLI flag (optional, defaults to 0.0.0.0:1234 when specified)
+   - When --gdb is specified: enters GDB debug session via run_gdb_session()
+   - When --gdb is NOT specified: normal simulation loop runs unchanged (zero overhead)
+
+4. ExecMode enum:
+   - Continue: set by SingleThreadResume::resume()
+   - Step: set by SingleThreadSingleStep::step()
+   - GdbEventLoop reads exec_mode to determine how to drive simulation
+
+5. Breakpoint handling:
+   - GDB sends Z0 packets to add breakpoints → SwBreakpoint::add_sw_breakpoint() → ProcessorState::add_sw_breakpoint()
+   - GDB sends z0 packets to remove breakpoints → SwBreakpoint::remove_sw_breakpoint() → ProcessorState::remove_sw_breakpoint()
+   - Processor::one_step() checks sw_breakpoints before executing each instruction when debug_mode is true
+   - Processor::one_step() intercepts Exception::Breakpoint (EBREAK) when debug_mode is true
+
+Build Status: PASS
+All 17 tests pass.

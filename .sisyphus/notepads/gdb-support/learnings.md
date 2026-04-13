@@ -103,3 +103,49 @@ Index 25 -> mhartid (0xF14)
 ### Files modified:
 - src/processor/mod.rs (main changes)
 - src/bin/terminus.rs (caller fix: semicolon after .unwrap())
+
+---
+
+## Task 6 Completion Notes (2026-04-13)
+
+### What was done:
+- Implemented `GdbTarget` struct in `src/gdb/target.rs`:
+  - Uses `*mut Processor` (raw pointer) to avoid lifetime issues with `BlockingEventLoop` trait
+  - Implements `Target` trait with `Arch = Riscv64`, `Error = String`
+  - Implements `SingleThreadBase`: read/write registers (GPR + PC), read/write memory via LoadStore
+  - Implements `SingleThreadResume`: `resume()` sets `ExecMode::Continue`
+  - Implements `SingleThreadSingleStep`: `step()` sets `ExecMode::Step`
+  - Implements `SwBreakpoint`: add/remove via `ProcessorState::add_sw_breakpoint/remove_sw_breakpoint`
+  - `guard_rail_implicit_sw_breakpoints()` returns `true` (we handle breakpoints ourselves)
+  - Memory access uses `LoadStore::load_byte/store_byte` through MMU translation
+
+- Implemented `GdbEventLoop` in `src/gdb/event_loop.rs`:
+  - Implements `BlockingEventLoop` trait with `Target = GdbTarget`, `Connection = TcpStream`
+  - `wait_for_stop_reason()`:
+    - Step mode: executes one instruction, returns DoneStep or SwBreak
+    - Continue mode: executes in batches of 1024, checks for GDB data between batches
+    - Maps `DebugStopReason::Breakpoint` → `SingleThreadStopReason::SwBreak(())`
+    - Maps `DebugStopReason::StepComplete`/None → `SingleThreadStopReason::DoneStep`
+    - Maps `DebugStopReason::Halted` → `SingleThreadStopReason::Terminated(Signal::SIGSTOP)`
+  - `on_interrupt()` returns `SingleThreadStopReason::Signal(Signal::SIGINT)`
+  - `wait_for_gdb_connection()`: TCP listener, accepts one connection
+
+- Integrated with `src/bin/terminus.rs`:
+  - Added `--gdb` CLI flag (optional, defaults to 0.0.0.0:1234)
+  - When `--gdb` specified: enters GDB debug session via `run_gdb_session()`
+  - When not specified: normal simulation loop runs unchanged (zero overhead)
+
+### Key Findings:
+- `SingleThreadStopReason::SwBreak` takes `()` (unit) for single-threaded targets, not the address
+- `TcpStream` already implements `Connection` and `ConnectionExt` in gdbstub (with std feature)
+- `BlockingEventLoop` trait requires `type Target` without lifetime parameters, so `GdbTarget` uses `*mut Processor`
+- `GdbTarget` needs `unsafe impl Send + Sync` because of the raw pointer
+- `Processor::step(1)` returns `Option<DebugStopReason>` which maps directly to GDB stop reasons
+- `Processor::one_step()` checks `sw_breakpoints` before execution and intercepts `Exception::Breakpoint` after
+- The `--gdb` flag uses `is_present()` check with `value_of().unwrap_or("0.0.0.0:1234")` for default address
+
+### Files modified:
+- src/gdb/target.rs (GdbTarget implementation)
+- src/gdb/event_loop.rs (GdbEventLoop + wait_for_gdb_connection)
+- src/gdb/mod.rs (updated exports)
+- src/bin/terminus.rs (added --gdb flag and GDB session integration)

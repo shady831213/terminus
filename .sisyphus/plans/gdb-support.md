@@ -430,7 +430,7 @@ Max Concurrent: 4 (Wave 1)
   - Message: `feat(gdb): add gdbstub dependency and module skeleton`
   - Files: `src/gdb/reg_id.rs`, `src/gdb/target_desc.rs`
 
-- [ ] 5. Implement GdbTarget (register + memory access)
+- [x] 5. Implement GdbTarget (register + memory access)
 
   **What to do**:
   - Implement `gdbstub::target::Target` trait for `GdbTarget`:
@@ -533,7 +533,7 @@ Max Concurrent: 4 (Wave 1)
   - Message: `feat(gdb): implement GdbTarget with register, memory, and breakpoint access`
   - Files: `src/gdb/target.rs`
 
-- [ ] 6. Implement GdbEventLoop + resume/step/breakpoints
+- [x] 6. Implement GdbEventLoop + resume/step/breakpoints
 
   **What to do**:
   - Implement `SingleThreadSingleStep` for `GdbTarget`:

@@ -1,0 +1,45 @@
+Task 6: No-GDB Regression Evidence
+=====================================
+
+Date: 2026-04-13
+
+Build Status: PASS
+- `cargo build` compiles successfully with no errors
+- `cargo test` passes all 17 tests (including processor debug_mode tests)
+
+Key Verification Points:
+1. When `--gdb` is NOT specified, the normal simulation loop runs unchanged
+2. The `gdb_addr` variable is `None` when `--gdb` flag is not present
+3. The `if let Some(ref addr) = gdb_addr` branch only activates with `--gdb`
+4. All gdb module code is conditionally imported only in the GDB path
+5. The normal execution path has zero overhead from GDB code
+
+Code Changes:
+- src/gdb/target.rs: GdbTarget struct with raw pointer to Processor (no overhead when not used)
+- src/gdb/event_loop.rs: GdbEventLoop + wait_for_gdb_connection (only called when --gdb specified)
+- src/gdb/mod.rs: Module exports (only loaded when --gdb is used)
+- src/bin/terminus.rs: Added --gdb flag, conditional GDB session (normal path unchanged)
+
+Test Output:
+```
+running 17 tests
+test gdb::reg_id::tests::test_csr_addr_to_regnum ... ok
+test gdb::reg_id::tests::test_csr_mapping ... ok
+test gdb::reg_id::tests::test_fcsr_mapping ... ok
+test gdb::reg_id::tests::test_fpr_mapping ... ok
+test gdb::reg_id::tests::test_gpr_mapping ... ok
+test gdb::reg_id::tests::test_invalid_ids ... ok
+test gdb::reg_id::tests::test_pc_mapping ... ok
+test gdb::reg_id::tests::test_priv_mapping ... ok
+test processor::privilege::m::csrs::test_status ... ok
+test processor::tests::test_debug_stop_reason_variants ... ok
+test processor::mmu::pmp_basic_test ... ok
+test processor::tests::test_debug_mode_setter ... ok
+test processor::tests::test_step_returns_none_when_no_debug_mode ... ok
+test processor::tests::test_debug_mode_default_false ... ok
+test processor::tests::test_sw_breakpoints_add_remove ... ok
+test system::fdt::test::fdt_build_test ... ok
+test system::fdt::test::fdt_compile_test ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored
+```

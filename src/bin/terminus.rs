@@ -217,6 +217,13 @@ fn main() {
                 .long("trace_all")
                 .help("trace states of all processors every instruction, results is in terminus.trace")
         )
+        .arg(
+            Arg::with_name("gdb")
+                .long("gdb")
+                .takes_value(true)
+                .value_name("GDB_ADDR")
+                .help("enable GDB remote debugging, optionally specify listen address (default: 0.0.0.0:1234)")
+        )
         .get_matches();
 
     let core_num = usize::from_str(matches.value_of("core_num").unwrap_or_default())
@@ -278,6 +285,16 @@ fn main() {
         s => s,
     };
     let trace_all = matches.is_present("trace_all");
+    let gdb_addr = if matches.is_present("gdb") {
+        Some(
+            matches
+                .value_of("gdb")
+                .unwrap_or("0.0.0.0:1234")
+                .to_string(),
+        )
+    } else {
+        None
+    };
     let mut trace_file = if matches.is_present("trace") || trace_all {
         Some(
             OpenOptions::new()
@@ -404,57 +421,62 @@ fn main() {
         .unwrap();
     sys.load_elf().unwrap();
     sys.reset(vec![-1i64 as u64; core_num]).unwrap();
-    #[cfg(feature = "sdl")]
-    let mut real_timer = if display_en {
-        Some(std::time::Instant::now())
+
+    if let Some(ref addr) = gdb_addr {
+        run_gdb_session(&mut sys, addr);
     } else {
-        None
-    };
-    #[cfg(feature = "sdl")]
-    let interval = if display_en {
-        Some(Duration::new(0, 1_000_000_000u32 / 30))
-    } else {
-        None
-    };
-    let mut step_cnt: usize = 0;
-    loop {
-        if let Ok(msg) = EXIT_CTRL.poll() {
-            eprintln!("{}", msg);
-            break;
-        }
-        for p in sys.processors() {
-            if let Some(ref mut f) = trace_file {
-                p.step_with_debug(step, f, trace_all).unwrap();
-            } else {
-                p.step(step);
+        #[cfg(feature = "sdl")]
+        let mut real_timer = if display_en {
+            Some(std::time::Instant::now())
+        } else {
+            None
+        };
+        #[cfg(feature = "sdl")]
+        let interval = if display_en {
+            Some(Duration::new(0, 1_000_000_000u32 / 30))
+        } else {
+            None
+        };
+        let mut step_cnt: usize = 0;
+        loop {
+            if let Ok(msg) = EXIT_CTRL.poll() {
+                eprintln!("{}", msg);
+                break;
             }
-        }
-        step_cnt += step;
-        if step_cnt >= CORE_STEP_TH {
-            if virtio_input_en {
-                virtio_console_device.console_read();
-            }
-            if let Some(ref net_d) = virtio_net_device {
-                net_d.net_read();
-            }
-            #[cfg(feature = "sdl")]
-            {
-                if let Some(ref display) = sdl {
-                    let rt = real_timer.as_mut().unwrap();
-                    if rt.elapsed() >= interval.unwrap() {
-                        display
-                            .refresh(
-                                &**fb.as_ref().unwrap(),
-                                &**kb.as_ref().unwrap(),
-                                &**mouse.as_ref().unwrap(),
-                            )
-                            .unwrap();
-                        *rt += interval.unwrap()
-                    }
+            for p in sys.processors() {
+                if let Some(ref mut f) = trace_file {
+                    p.step_with_debug(step, f, trace_all).unwrap();
+                } else {
+                    p.step(step);
                 }
             }
-            sys.timer().tick(TIMER_STEP);
-            step_cnt -= CORE_STEP_TH
+            step_cnt += step;
+            if step_cnt >= CORE_STEP_TH {
+                if virtio_input_en {
+                    virtio_console_device.console_read();
+                }
+                if let Some(ref net_d) = virtio_net_device {
+                    net_d.net_read();
+                }
+                #[cfg(feature = "sdl")]
+                {
+                    if let Some(ref display) = sdl {
+                        let rt = real_timer.as_mut().unwrap();
+                        if rt.elapsed() >= interval.unwrap() {
+                            display
+                                .refresh(
+                                    &**fb.as_ref().unwrap(),
+                                    &**kb.as_ref().unwrap(),
+                                    &**mouse.as_ref().unwrap(),
+                                )
+                                .unwrap();
+                            *rt += interval.unwrap()
+                        }
+                    }
+                }
+                sys.timer().tick(TIMER_STEP);
+                step_cnt -= CORE_STEP_TH
+            }
         }
     }
     if let Some(ref mut f) = trace_file {
@@ -463,4 +485,50 @@ fn main() {
         }
     }
     term_exit();
+}
+
+fn run_gdb_session(sys: &mut System, gdb_addr: &str) {
+    use gdbstub::stub::{DisconnectReason, GdbStub};
+    use terminus::gdb::{wait_for_gdb_connection, GdbEventLoop, GdbTarget};
+
+    let connection = match wait_for_gdb_connection(gdb_addr) {
+        Ok(conn) => conn,
+        Err(e) => {
+            eprintln!("Failed to wait for GDB connection: {}", e);
+            return;
+        }
+    };
+
+    let mut target = GdbTarget::new(&mut sys.processors()[0]);
+    let gdb = GdbStub::new(connection);
+
+    match gdb.run_blocking::<GdbEventLoop>(&mut target) {
+        Ok(disconnect_reason) => match disconnect_reason {
+            DisconnectReason::Disconnect => {
+                eprintln!("GDB client disconnected.");
+            }
+            DisconnectReason::TargetExited(code) => {
+                eprintln!("Target exited with code {}!", code);
+            }
+            DisconnectReason::TargetTerminated(sig) => {
+                eprintln!("Target terminated with signal {}!", sig);
+            }
+            DisconnectReason::Kill => {
+                eprintln!("GDB sent a kill command!");
+            }
+        },
+        Err(e) => {
+            if e.is_target_error() {
+                eprintln!(
+                    "target encountered a fatal error: {}",
+                    e.into_target_error().unwrap()
+                );
+            } else if e.is_connection_error() {
+                let (e, kind) = e.into_connection_error().unwrap();
+                eprintln!("connection error: {:?} - {}", kind, e);
+            } else {
+                eprintln!("gdbstub encountered a fatal error: {}", e);
+            }
+        }
+    }
 }
