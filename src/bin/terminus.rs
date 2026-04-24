@@ -19,6 +19,7 @@ use terminus::devices::virtio_input::{VirtIOKb, VirtIOKbDevice};
 #[cfg(feature = "sdl")]
 use terminus::devices::virtio_input::{VirtIOMouse, VirtIOMouseDevice};
 use terminus::devices::virtio_net::{VirtIONet, VirtIONetDevice};
+use terminus::gdb::run_gdb_session;
 use terminus::global::XLen;
 use terminus::processor::ProcessorCfg;
 #[cfg(feature = "sdl")]
@@ -217,6 +218,21 @@ fn main() {
                 .long("trace_all")
                 .help("trace states of all processors every instruction, results is in terminus.trace")
         )
+        .arg(
+            Arg::with_name("gdb")
+                .long("gdb")
+                .value_name("PORT")
+                .takes_value(true)
+                .help("enable GDB remote debugging on the specified TCP port. The specified HART (hart 0 by default) will be paused at start, allowing GDB to inspect and control it.")
+        )
+        .arg(
+            Arg::with_name("gdb_hart")
+                .long("gdb_hart")
+                .value_name("HART_ID")
+                .takes_value(true)
+                .help("specify which HART to debug via GDB (default: 0)")
+                .default_value("0")
+        )
         .get_matches();
 
     let core_num = usize::from_str(matches.value_of("core_num").unwrap_or_default())
@@ -278,6 +294,17 @@ fn main() {
         s => s,
     };
     let trace_all = matches.is_present("trace_all");
+    let gdb_port: Option<u16> = matches.value_of("gdb").map(|s| {
+        s.parse::<u16>()
+            .expect("--gdb expects a valid TCP port number (e.g. 1234)")
+    });
+    let gdb_hart: usize = matches
+        .value_of("gdb_hart")
+        .map(|s| {
+            s.parse::<usize>()
+                .expect("--gdb_hart expects a decimal integer")
+        })
+        .unwrap_or(0);
     let mut trace_file = if matches.is_present("trace") || trace_all {
         Some(
             OpenOptions::new()
@@ -404,6 +431,18 @@ fn main() {
         .unwrap();
     sys.load_elf().unwrap();
     sys.reset(vec![-1i64 as u64; core_num]).unwrap();
+
+    // If --gdb is set, run a single-threaded GDB remote debugging session.
+    // This blocks until GDB disconnects.
+    if let Some(port) = gdb_port {
+        eprintln!(
+            "GDB: enabling remote debug, hart={}, port={}",
+            gdb_hart, port
+        );
+        run_gdb_session(&mut sys, port, gdb_hart);
+        return;
+    }
+
     #[cfg(feature = "sdl")]
     let mut real_timer = if display_en {
         Some(std::time::Instant::now())
@@ -422,7 +461,7 @@ fn main() {
             eprintln!("{}", msg);
             break;
         }
-        for p in sys.processors() {
+        for p in sys.processors().iter_mut() {
             if let Some(ref mut f) = trace_file {
                 p.step_with_debug(step, f, trace_all).unwrap()
             } else {
@@ -453,7 +492,9 @@ fn main() {
                     }
                 }
             }
-            sys.timer().tick(TIMER_STEP);
+            {
+                sys.timer().tick(TIMER_STEP);
+            }
             step_cnt -= CORE_STEP_TH
         }
     }
