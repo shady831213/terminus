@@ -348,7 +348,10 @@ impl Processor {
         bus: &Rc<B>,
         clint: Option<IrqVec>,
         plic: Option<IrqVec>,
-    ) -> Processor where B:Bus+'static {
+    ) -> Processor
+    where
+        B: Bus + 'static,
+    {
         let state = ProcessorState::new(hartid, config, clint, plic);
         let mmu = Mmu::new(bus);
         let fetcher = Fetcher::new(bus);
@@ -466,6 +469,36 @@ impl Processor {
         if let Err(trap) = self.execute_one() {
             self.handle_trap(trap)
         }
+    }
+
+    /// Execute one instruction, returning the trap if a breakpoint is hit.
+    /// Unlike one_step(), this does NOT invoke the trap handler for Breakpoint
+    /// exceptions. PC stays at the breakpoint address ready for GDB inspection.
+    /// All other traps (interrupts, page faults, etc.) are handled normally.
+    /// Extension step callbacks are called at the end.
+    pub fn step_one_debug(&mut self) -> Option<Trap> {
+        if self.state().wfi() {
+            let m = self.state().priv_m();
+            if m.mip().get() & m.mie().get() == 0 {
+                return None;
+            } else {
+                self.state_mut().set_wfi(false)
+            }
+        }
+        match self.execute_one() {
+            Ok(()) => {}
+            Err(trap) => {
+                if matches!(trap, Trap::Exception(Exception::Breakpoint)) {
+                    // Don't call handle_trap — PC stays at breakpoint address
+                    return Some(trap);
+                }
+                self.handle_trap(trap)
+            }
+        }
+        for ext in self.state().extensions().iter() {
+            ext.step_cb(self)
+        }
+        None
     }
 
     pub fn step(&mut self, n: usize) {
