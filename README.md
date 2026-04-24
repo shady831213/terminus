@@ -105,6 +105,42 @@ Terminus with display supported needs the "sdl" operating system packages and re
 ### Cosimulation with HDL
 Please refer to [terminus_cosim](https://github.com/shady831213/terminus_cosim/tree/master/terminus_cluster).
 
+## GDB Debugging
+
+Terminus supports GDB remote debugging for a single HART (hardware thread) via the [GDB Remote Serial Protocol](https://sourceware.org/gdb/current/onlinedocs/gdb.html/Remote-Protocol.html).
+
+### Quick Start
+
+```
+  terminus examples/linux/image/br-5-4 --gdb 1234
+```
+
+Start GDB in another terminal and connect:
+
+```
+  riscv64-unknown-elf-gdb -ex "target remote localhost:1234"
+```
+
+By default, HART 0 is debugged.  Use `--gdb_hart` to pick a different one:
+
+```
+  terminus examples/linux/image/br-5-4 -p 4 --gdb 1234 --gdb_hart 2
+```
+
+### Workflow
+
+1. Start terminus with `--gdb <PORT>`.  The simulator pauses, waiting for a GDB connection.
+2. Connect GDB: `riscv64-unknown-elf-gdb -ex "target remote localhost:1234"`
+3. Use standard GDB commands: `break`, `continue`, `stepi`, `info registers`, etc.
+4. When GDB detaches or disconnects, terminus exits.
+
+### Limitations
+
+- **Single-threaded**: the GDB session blocks the entire simulator.  Other HARTs do not make progress while GDB is attached.
+- **One HART**: only the HART specified by `--gdb_hart` (default 0) is debugged.
+- **No hardware breakpoints**: breakpoints are implemented by checking the PC before each instruction, not by patching memory with EBREAK.
+- **No exit-on-completion**: if the program runs to completion under `continue`, the target spins until GDB sends an interrupt (Ctrl-C) or detaches.
+
 ## RoadMap
 - [x] RV32/64I
 - [x] MADFC
@@ -126,7 +162,7 @@ Please refer to [terminus_cosim](https://github.com/shady831213/terminus_cosim/t
 - [x] VirtIO keyboard
 - [x] VirtIO mouse
 - [x] Cosimulation with HDL
-- [ ] debug mode
+- [x] debug mode (GDB remote debugging via `--gdb <PORT>`, implemented by [Oh-My-OpenAgent](https://github.com/oh-my-openagent) and deepseek-v4-pro)
 - [ ] other extensions(b, v ...)
 
 
