@@ -58,7 +58,7 @@ pub struct Mmu {
 }
 
 impl Mmu {
-    pub fn new<B:Bus+'static>(bus: &Rc<B>) -> Mmu {
+    pub fn new<B: Bus + 'static>(bus: &Rc<B>) -> Mmu {
         Mmu {
             bus: bus.clone(),
             fetch_tlb: RefCell::new(TLB::new()),

@@ -133,7 +133,8 @@ impl U32Access for Clint {
     fn write(&self, addr: &u64, data: u32) {
         assert!(
             (*addr).trailing_zeros() > 1,
-            "U32Access:unaligned addr:{:#x}", addr
+            "U32Access:unaligned addr:{:#x}",
+            addr
         );
         let mut timer = self.0.inner_mut();
         if *addr >= MSIP_BASE && *addr + 4 <= MSIP_BASE + timer.sints.len() as u64 * MSIP_SIZE {
@@ -169,7 +170,8 @@ impl U32Access for Clint {
     fn read(&self, addr: &u64) -> u32 {
         assert!(
             (*addr).trailing_zeros() > 1,
-            "U32Access:unaligned addr:{:#x}", addr
+            "U32Access:unaligned addr:{:#x}",
+            addr
         );
         let timer = self.0.inner();
         if *addr >= MSIP_BASE && *addr + 4 <= MSIP_BASE + timer.sint_status.len() as u64 * MSIP_SIZE
@@ -201,7 +203,8 @@ impl U64Access for Clint {
     fn write(&self, addr: &u64, data: u64) {
         assert!(
             (*addr).trailing_zeros() > 2,
-            "U64Access:unaligned addr:{:#x}", addr
+            "U64Access:unaligned addr:{:#x}",
+            addr
         );
 
         let mut timer = self.0.inner_mut();
@@ -235,7 +238,8 @@ impl U64Access for Clint {
     fn read(&self, addr: &u64) -> u64 {
         assert!(
             (*addr).trailing_zeros() > 2,
-            "U64Access:unaligned addr:{:#x}", addr
+            "U64Access:unaligned addr:{:#x}",
+            addr
         );
 
         let timer = self.0.inner();
